@@ -161,7 +161,9 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
       }
     } catch (error) {
       console.error("Sincronizar:", error);
-      pintar("No he podido sincronizar. Lo reintento luego.");
+      // Enseñamos el motivo exacto: ayuda mucho a saber qué pasa
+      const motivo = error?.message || String(error);
+      pintar(`No he podido sincronizar (${motivo}). Lo reintento luego.`);
     } finally {
       sincronizando = false;
       if (repetir) { repetir = false; setTimeout(sincronizar, 500); }
@@ -209,7 +211,7 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
         <p class="nota">Entra para tener tus cosas igual en todos tus dispositivos.</p>
         <form class="sync-form">
           <input name="email" type="email" autocomplete="username" placeholder="tu@email.com" required>
-          <input name="clave" type="password" autocomplete="current-password" placeholder="Contraseña (mín. 6)" minlength="6" required>
+          <input name="clave" type="password" autocomplete="current-password" placeholder="Tu contraseña (mín. 6)" minlength="6" maxlength="72" required>
           ${aviso}
           <div class="fila-botones">
             <button class="boton-principal" value="entrar">Entrar</button>
