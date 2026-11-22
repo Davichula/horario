@@ -7,8 +7,8 @@
 //     de datos en internet). Cada "clave" de localStorage es una fila.
 //   - Al abrir la app (o volver a ella) se descarga lo que haya en Supabase.
 //     Si otro dispositivo cambió algo después que este, gana lo más nuevo.
-//   - Para saber quién eres, entras con tu email: Supabase te manda un
-//     código de 6 cifras y lo escribes aquí. Solo tú puedes ver tus filas.
+//   - Para saber quién eres, entras con tu email y una contraseña.
+//     Solo tú puedes ver tus filas.
 //
 // Si SUPABASE_URL está vacío, este archivo no hace nada y la app funciona
 // igual que antes (solo en este dispositivo).
@@ -188,8 +188,6 @@ const SUPABASE_KEY = "";
   const copia = document.querySelector('details[data-apartado="copia"]');
   copia ? copia.before(apartado) : document.getElementById("panel")?.append(apartado);
 
-  let emailPendiente = null;
-
   async function pintar(error = "") {
     let session = null;
     try { session = (await (await supabase()).auth.getSession()).data.session; } catch {}
@@ -199,63 +197,56 @@ const SUPABASE_KEY = "";
     if (session) {
       const hora = ultima ? new Date(ultima).toLocaleString("es-ES", { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "todavía no";
       cuerpo.innerHTML = `
-        <p class="nota">✅ Conectado como <b>${session.user.email}</b>.<br>Última vez: ${hora}.</p>
+        <p class="nota">✅ Conectado como <b></b>.<br>Última vez: ${hora}.</p>
         ${aviso}
         <div class="fila-botones">
           <button class="boton-secundario" data-accion="ahora">🔄 Ahora</button>
           <button class="boton-secundario" data-accion="salir">Salir</button>
         </div>`;
-    } else if (emailPendiente) {
-      cuerpo.innerHTML = `
-        <p class="nota">Te he mandado un código a <b>${emailPendiente}</b>. Escríbelo aquí:</p>
-        <form class="sync-form" data-accion="codigo">
-          <input name="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="123456" required>
-          <button class="boton-principal">Entrar</button>
-        </form>
-        ${aviso}
-        <button class="enlace" data-accion="otro">Usar otro email</button>`;
+      cuerpo.querySelector("b").textContent = session.user.email;
     } else {
       cuerpo.innerHTML = `
-        <p class="nota">Entra con tu email para tener tus cosas igual en todos tus dispositivos.</p>
-        <form class="sync-form" data-accion="email">
-          <input name="email" type="email" autocomplete="email" placeholder="tu@email.com" required>
-          <button class="boton-principal">Enviar código</button>
-        </form>
-        ${aviso}`;
+        <p class="nota">Entra para tener tus cosas igual en todos tus dispositivos.</p>
+        <form class="sync-form">
+          <input name="email" type="email" autocomplete="username" placeholder="tu@email.com" required>
+          <input name="clave" type="password" autocomplete="current-password" placeholder="Contraseña (mín. 6)" minlength="6" required>
+          ${aviso}
+          <div class="fila-botones">
+            <button class="boton-principal" value="entrar">Entrar</button>
+            <button class="boton-secundario" value="crear">Crear cuenta</button>
+          </div>
+        </form>`;
     }
   }
 
   cuerpo.addEventListener("submit", async (evento) => {
     evento.preventDefault();
     const form = evento.target;
-    const boton = form.querySelector("button");
-    boton.disabled = true;
+    const accion = evento.submitter?.value || "entrar";
+    const datos = { email: form.email.value.trim(), password: form.clave.value };
+    form.querySelectorAll("button").forEach((b) => (b.disabled = true));
     try {
       const sb = await supabase();
-      if (form.dataset.accion === "email") {
-        const email = form.email.value.trim();
-        const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
-        if (error) throw error;
-        emailPendiente = email;
-        pintar();
-      } else {
-        const { error } = await sb.auth.verifyOtp({ email: emailPendiente, token: form.codigo.value.trim(), type: "email" });
-        if (error) throw error;
-        emailPendiente = null;
-        await pintar();
-        sincronizar();
-      }
+      const { data, error } = accion === "crear"
+        ? await sb.auth.signUp(datos)
+        : await sb.auth.signInWithPassword(datos);
+      if (error) throw error;
+      if (!data.session) throw new Error("Revisa tu correo para confirmar la cuenta.");
+      await pintar();
+      sincronizar();
     } catch (error) {
       console.error(error);
-      boton.disabled = false;
-      pintar(navigator.onLine ? "Algo ha fallado. Revisa el email o el código." : "Sin conexión.");
+      const mensaje = !navigator.onLine ? "Sin conexión."
+        : /invalid login/i.test(error.message) ? "Email o contraseña incorrectos."
+        : /already registered/i.test(error.message) ? "Ya existe esa cuenta: pulsa Entrar."
+        : error.message;
+      pintar(mensaje);
     }
   });
 
   cuerpo.addEventListener("click", async (evento) => {
     const accion = evento.target.closest("[data-accion]")?.dataset.accion;
     if (accion === "ahora") sincronizar();
-    if (accion === "otro") { emailPendiente = null; pintar(); }
     if (accion === "salir") {
       await (await supabase()).auth.signOut();
       pintar();
