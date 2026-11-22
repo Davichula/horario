@@ -15,9 +15,9 @@
 // =====================================================================
 
 // Estos dos datos están en Supabase → Project Settings → API.
-// La clave "anon/publishable" está pensada para ir dentro de la web: no es secreta.
+// Usamos la clave "anon public": está pensada para ir dentro de la web, no es secreta.
 const SUPABASE_URL = "https://hcehbosfskzhfockbdor.supabase.co";
-const SUPABASE_KEY = "sb_publishable_BWk1mYKrfF6lHuf0lZZpg_HRE7Sagg";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhjZWhib3Nmc2t6aGZvY2tiZG9yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUzODM1NTIsImV4cCI6MjExMDk1OTU1Mn0.bwnh1O8j4UGCDB9hV6JX5zoDJqlFFVpbZksHGaRCt5U";
 
 (() => {
   if (!SUPABASE_URL || !SUPABASE_KEY) return;
