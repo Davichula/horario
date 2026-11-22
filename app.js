@@ -24,7 +24,7 @@ const estado = {
   festivos: [],             // días festivos
   personales: cargarPersonales(), // tus cosas (de personal.js)
   filtros: cargarFiltros(), // qué se muestra y qué no
-  vista: window.innerWidth < 700 ? "dia" : "semana", // en móvil empezamos por el día
+  vista: vistaInicial(),     // día, semana, mes o año
   fecha: new Date(),        // el día que estamos mirando
 };
 
@@ -37,6 +37,16 @@ const TIPOS = {
 
 const DIAS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 const REPETICIONES = { no: "No se repite", diario: "Todos los días", laborables: "De lunes a viernes", semanal: "Cada semana" };
+
+// La vista con la que se abre: la última que usaste o, si es la primera vez,
+// el día en el móvil y la semana en el ordenador
+function vistaInicial() {
+  try {
+    const guardada = localStorage.getItem("mi-horario:vista");
+    if (["dia", "semana", "mes", "anio"].includes(guardada)) return guardada;
+  } catch {}
+  return window.innerWidth < 700 ? "dia" : "semana";
+}
 
 // Los filtros ("mostrar clases", "mostrar entreno"...) también se recuerdan
 function cargarFiltros() {
@@ -248,11 +258,23 @@ function repartirColumnas(elementos) {
 // PASO 5: dibujar
 // =====================================================================
 
-function dibujar() {
-  document.getElementById("btn-semana").classList.toggle("activo", estado.vista === "semana");
-  document.getElementById("btn-dia").classList.toggle("activo", estado.vista === "dia");
+const VISTAS = ["dia", "semana", "mes", "anio"];
+
+// Dibuja la vista que toque. Si "desplazar" es true (cuando cambias de
+// vista o de fecha), además mueve la pantalla a la hora que interesa.
+function dibujar({ desplazar = false } = {}) {
+  for (const v of VISTAS) {
+    document.getElementById(`btn-${v}`).classList.toggle("activo", estado.vista === v);
+  }
   if (estado.vista === "semana") dibujarSemana();
+  else if (estado.vista === "mes") dibujarMes();
+  else if (estado.vista === "anio") dibujarAnio();
   else dibujarDia();
+
+  if (desplazar) {
+    if (estado.vista === "semana") desplazarAHoraUtil();
+    else window.scrollTo({ top: 0 });
+  }
 }
 
 // ----- Vista de un día: tarjetas una debajo de otra -----
@@ -308,31 +330,25 @@ function dibujarDia() {
   dibujarLeyenda(elementos);
 }
 
-// ----- Vista de semana: una cuadrícula con horas y días -----
+// ----- Vista de semana: una cuadrícula con las 24 horas y los 7 días -----
+const ALTO_HORA = () => (window.innerWidth < 520 ? 44 : 52); // píxeles que ocupa cada hora
+
 function dibujarSemana() {
   const lunes = lunesDe(estado.fecha);
-  let dias = [0, 1, 2, 3, 4, 5, 6].map((n) => sumarDias(lunes, n));
-  // Sábado y domingo solo aparecen si ese día hay algo
-  dias = dias.filter((d, i) => i < 5 || elementosDelDia(d).length > 0);
+  const dias = [0, 1, 2, 3, 4, 5, 6].map((n) => sumarDias(lunes, n));
 
   document.getElementById("titulo-periodo").textContent =
-    `${fechaCorta(dias[0])} – ${fechaCorta(dias[dias.length - 1])}`;
+    `${fechaCorta(dias[0])} – ${fechaCorta(dias[6])}`;
 
-  // Calculamos qué horas mostrar (por defecto de 8:00 a 20:00)
-  const todos = dias.flatMap(elementosDelDia);
-  let horaMin = 8, horaMax = 20;
-  for (const c of todos) {
-    horaMin = Math.min(horaMin, c.inicio.getHours());
-    horaMax = Math.max(horaMax, Math.ceil(c.fin.getHours() + c.fin.getMinutes() / 60) || 24);
-  }
-  const totalMin = (horaMax - horaMin) * 60;
-  const pos = (fecha) => (((fecha.getHours() - horaMin) * 60 + fecha.getMinutes()) / totalMin) * 100;
+  // El día entero: de 0:00 a 24:00. La posición se calcula en % del día.
+  const pos = (fecha) => ((fecha.getHours() * 60 + fecha.getMinutes()) / 1440) * 100;
   const ahora = new Date();
+  const todos = dias.flatMap(elementosDelDia);
 
   // Columna con las horas
   let html = `<div class="col-horas"><div class="cab-dia"></div><div class="cuerpo">`;
-  for (let h = horaMin; h < horaMax; h++) {
-    html += `<div class="marca-hora" style="top:${((h - horaMin) * 60 / totalMin) * 100}%">${h}:00</div>`;
+  for (let h = 1; h < 24; h++) {
+    html += `<div class="marca-hora" style="top:${(h / 24) * 100}%">${h}:00</div>`;
   }
   html += `</div></div>`;
 
@@ -340,13 +356,14 @@ function dibujarSemana() {
   for (const dia of dias) {
     const esHoy = mismoDia(dia, ahora);
     const festivo = festivoDelDia(dia);
-    html += `<div class="col-dia ${esHoy ? "hoy" : ""} ${festivo ? "festivo" : ""}">
+    const finde = dia.getDay() === 0 || dia.getDay() === 6;
+    html += `<div class="col-dia ${esHoy ? "hoy" : ""} ${festivo ? "festivo" : ""} ${finde ? "finde" : ""}">
       <button class="cab-dia" data-fecha="${dia.toISOString()}" aria-label="Ver ${fechaLarga(dia)}">
-        <span>${DIAS[dia.getDay()].slice(0, 3)}</span><strong>${dia.getDate()}</strong>
+        <span class="pastilla"><span>${DIAS[dia.getDay()].slice(0, 3)}</span><strong>${dia.getDate()}</strong></span>
       </button>
-      <div class="cuerpo" data-dia="${aTextoDia(dia)}" data-hmin="${horaMin}" data-hmax="${horaMax}">`;
-    for (let h = horaMin; h < horaMax; h++) {
-      html += `<div class="linea-hora" style="top:${((h - horaMin) * 60 / totalMin) * 100}%"></div>`;
+      <div class="cuerpo" data-dia="${aTextoDia(dia)}">`;
+    for (let h = 1; h < 24; h++) {
+      html += `<div class="linea-hora" style="top:${(h / 24) * 100}%"></div>`;
     }
     if (festivo) html += `<div class="festivo-texto">Festivo</div>`;
 
@@ -354,7 +371,9 @@ function dibujarSemana() {
     const columnas = repartirColumnas(elementos);
     for (const c of elementos) {
       const { col, total } = columnas.get(c);
-      const alto = pos(c.fin) - pos(c.inicio);
+      // Si algo acaba a medianoche (24:00), getHours() da 0: lo tratamos como el final del día
+      const fin = mismoDia(c.fin, c.inicio) ? pos(c.fin) : 100;
+      const alto = fin - pos(c.inicio);
       html += `
         <button class="bloque ${c.clase} ${c.fin <= ahora ? "pasada" : ""} ${c.fin - c.inicio <= 45 * 60000 ? "breve" : ""}" data-id="${c.id}"
              style="--color:${c.color};top:${pos(c.inicio)}%;height:${alto}%;left:calc(${(col / total) * 100}% + 1px);width:calc(${100 / total}% - 2px)"
@@ -366,17 +385,143 @@ function dibujarSemana() {
     }
 
     // La línea roja de "ahora mismo"
-    if (esHoy && ahora.getHours() >= horaMin && ahora.getHours() < horaMax) {
-      html += `<div class="linea-ahora" style="top:${pos(ahora)}%"></div>`;
-    }
+    if (esHoy) html += `<div class="linea-ahora" style="top:${pos(ahora)}%"></div>`;
     html += `</div></div>`;
   }
 
   const cont = document.getElementById("calendario");
   cont.className = "vista-semana";
-  cont.style.setProperty("--num-dias", dias.length);
+  cont.style.setProperty("--alto-dia", `${ALTO_HORA() * 24}px`);
   cont.innerHTML = html;
   dibujarLeyenda(todos);
+}
+
+// Al abrir la semana, bajamos hasta la hora que interesa: un poco antes de
+// ahora si es esta semana, o un poco antes de lo primero que tengas.
+function desplazarAHoraUtil() {
+  const lunes = lunesDe(estado.fecha);
+  const dias = [0, 1, 2, 3, 4, 5, 6].map((n) => sumarDias(lunes, n));
+  const ahora = new Date();
+  let horaObjetivo = 8;
+  if (dias.some((d) => mismoDia(d, ahora))) {
+    horaObjetivo = ahora.getHours() - 1;
+  } else {
+    const horas = dias.flatMap(elementosDelDia).map((e) => e.inicio.getHours());
+    if (horas.length) horaObjetivo = Math.min(...horas);
+  }
+  const cuerpo = document.querySelector(".vista-semana .cuerpo");
+  if (!cuerpo) return;
+  const y = cuerpo.getBoundingClientRect().top + window.scrollY + Math.max(0, horaObjetivo - 0.5) * ALTO_HORA();
+  // Restamos la altura de la cabecera de los días, que se queda pegada arriba
+  window.scrollTo({ top: Math.max(0, y - 60) });
+}
+
+// ----- Vista de mes: una cuadrícula de 7 columnas (lunes a domingo) -----
+function dibujarMes() {
+  const f = estado.fecha;
+  const primero = new Date(f.getFullYear(), f.getMonth(), 1);
+  const inicio = lunesDe(primero);
+  const ahora = new Date();
+  document.getElementById("titulo-periodo").textContent =
+    primero.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
+
+  // 6 filas x 7 días = 42 casillas (siempre caben todos los días del mes)
+  const casillas = Array.from({ length: 42 }, (_, i) => sumarDias(inicio, i));
+  // Si la última fila es entera del mes siguiente, la quitamos
+  const visibles = casillas[35].getMonth() !== f.getMonth() ? casillas.slice(0, 35) : casillas;
+
+  let html = DIAS.slice(1).concat(DIAS[0]).map((d) => `<div class="mes-cab">${d.slice(0, 3)}</div>`).join("");
+  const enPantalla = [];
+  for (const dia of visibles) {
+    const elementos = elementosDelDia(dia);
+    enPantalla.push(...elementos);
+    const fuera = dia.getMonth() !== f.getMonth();
+    const clases = [
+      "mes-dia",
+      fuera && "fuera",
+      mismoDia(dia, ahora) && "hoy",
+      festivoDelDia(dia) && "festivo",
+      (dia.getDay() === 0 || dia.getDay() === 6) && "finde",
+      elementos.some((e) => e.clase === "examen") && "con-examen",
+    ].filter(Boolean).join(" ");
+
+    const maximo = 3;
+    const pildoras = elementos.slice(0, maximo).map((e) => `
+      <span class="pildora ${e.clase}" style="--color:${e.color}">
+        <i></i>${e.origen === "personal" ? e.icono + " " : ""}${escapar(e.corto)}
+      </span>`).join("");
+    const mas = elementos.length > maximo ? `<span class="mas">+${elementos.length - maximo} más</span>` : "";
+    // En el móvil no caben los textos: enseñamos un puntito por cosa
+    const puntos = elementos.slice(0, 6).map((e) => `<i style="--color:${e.color}"></i>`).join("");
+
+    html += `
+      <button class="${clases}" data-ir-dia="${aTextoDia(dia)}" aria-label="${fechaLarga(dia)}: ${elementos.length} cosas">
+        <span class="mes-numero">${dia.getDate()}</span>
+        <span class="pildoras">${pildoras}${mas}</span>
+        <span class="puntos">${puntos}</span>
+      </button>`;
+  }
+
+  const cont = document.getElementById("calendario");
+  cont.className = "vista-mes";
+  cont.innerHTML = html;
+  dibujarLeyenda(enPantalla);
+}
+
+// ----- Vista de año: los 12 meses del curso en pequeño -----
+// Como tu calendario va por cursos, el "año" va de septiembre a agosto.
+function dibujarAnio() {
+  const f = estado.fecha;
+  const inicioCurso = f.getMonth() >= 8 ? f.getFullYear() : f.getFullYear() - 1; // 8 = septiembre
+  const ahora = new Date();
+  document.getElementById("titulo-periodo").textContent =
+    `Curso ${inicioCurso}–${String(inicioCurso + 1).slice(2)}`;
+
+  let html = "";
+  for (let i = 0; i < 12; i++) {
+    const primero = new Date(inicioCurso, 8 + i, 1); // JavaScript pasa solo de "mes 12" a enero del año siguiente
+    const anio = primero.getFullYear();
+    const m = primero.getMonth();
+    const huecos = (primero.getDay() + 6) % 7; // cuántos días vacíos antes del 1 (empezando en lunes)
+    const diasMes = new Date(anio, m + 1, 0).getDate();
+
+    let celdas = "";
+    for (let i = 0; i < huecos; i++) celdas += `<span></span>`;
+    for (let d = 1; d <= diasMes; d++) {
+      const dia = new Date(anio, m, d);
+      const elementos = elementosDelDia(dia);
+      const hayClase = elementos.some((e) => e.origen === "clase");
+      const hayMio = elementos.some((e) => e.origen === "personal");
+      const examen = elementos.find((e) => e.clase === "examen");
+      const clases = [
+        "anio-dia",
+        mismoDia(dia, ahora) && "hoy",
+        festivoDelDia(dia) && "festivo",
+        hayClase && "con-clase",
+        hayMio && "con-mio",
+        examen && "con-examen",
+      ].filter(Boolean).join(" ");
+      celdas += `<button class="${clases}" data-ir-dia="${aTextoDia(dia)}"
+        ${examen ? `style="--color:${examen.color}" title="Examen de ${examen.corto}"` : ""}>${d}</button>`;
+    }
+
+    html += `
+      <section class="anio-mes">
+        <button class="anio-titulo" data-ir-mes="${anio}-${m}">${primero.toLocaleDateString("es-ES", { month: "long" })}
+          ${m === 0 || i === 0 ? `<small>${anio}</small>` : ""}</button>
+        <div class="anio-cab">${["L", "M", "X", "J", "V", "S", "D"].map((d) => `<span>${d}</span>`).join("")}</div>
+        <div class="anio-cuadricula">${celdas}</div>
+      </section>`;
+  }
+
+  const cont = document.getElementById("calendario");
+  cont.className = "vista-anio";
+  cont.innerHTML = html;
+  document.getElementById("leyenda").innerHTML = `
+    <span class="chip-anio"><i class="m-clase"></i> Días con clase</span>
+    <span class="chip-anio"><i class="m-mio"></i> Cosas tuyas</span>
+    <span class="chip-anio"><i class="m-examen"></i> Examen</span>
+    <span class="chip-anio"><i class="m-festivo"></i> Festivo</span>`;
 }
 
 // ----- Leyenda de colores (abajo) -----
@@ -512,14 +657,37 @@ const formulario = document.getElementById("formulario");
 const form = document.getElementById("form-personal");
 let editando = null; // la cosa que estamos editando (o null si es nueva)
 
-// Botones de categoría (se generan a partir de CATEGORIAS en config.js)
-document.getElementById("form-categorias").innerHTML = Object.entries(CATEGORIAS)
-  .map(([clave, c]) => `
-    <label class="opcion-categoria" style="--color:${c.color}">
-      <input type="radio" name="categoria" value="${clave}">
-      <span>${c.icono} ${c.nombre}</span>
-    </label>`)
-  .join("");
+// Botones de tipo: "Automático" + uno por categoría de config.js.
+// ("otro" no sale como botón: es lo que queda cuando no se reconoce nada)
+document.getElementById("form-categorias").innerHTML = [
+  `<label class="opcion-categoria" style="--color:var(--acento)">
+     <input type="radio" name="categoria" value="auto"><span>🪄 Automático</span>
+   </label>`,
+  ...Object.entries(CATEGORIAS)
+    .filter(([clave]) => clave !== "otro")
+    .map(([clave, c]) => `
+      <label class="opcion-categoria" style="--color:${c.color}">
+        <input type="radio" name="categoria" value="${clave}">
+        <span>${c.icono} ${c.nombre}</span>
+      </label>`),
+].join("");
+
+// Enseña en grande el icono y el tipo que se van a usar, y se actualiza
+// mientras escribes el título
+function actualizarTipo() {
+  const elegida = form.querySelector("input[name=categoria]:checked")?.value || "auto";
+  const { categoria, icono } = categoriaDe({ titulo: form.elements.titulo.value, categoria: elegida });
+  const cat = CATEGORIAS[categoria];
+  const vista = document.getElementById("tipo-vista");
+  vista.style.setProperty("--color", cat.color);
+  vista.innerHTML = `<b>${icono}</b> ${cat.nombre} <small>${elegida === "auto" ? "· automático" : "· elegido por ti"}</small>`;
+}
+form.elements.titulo.addEventListener("input", actualizarTipo);
+document.getElementById("form-categorias").addEventListener("change", actualizarTipo);
+document.getElementById("btn-cambiar-tipo").onclick = () => {
+  const lista = document.getElementById("form-categorias");
+  lista.hidden = !lista.hidden;
+};
 
 // Abre el formulario. Puede venir con:
 //   { item }       -> editar algo que ya existe
@@ -539,7 +707,7 @@ function abrirFormulario({ item = null, plantilla = null, fecha = null, hora: ho
     }
     form.elements.repetir.value = datos.repetir || "no";
     const radio = form.querySelector(`input[name=categoria][value="${datos.categoria}"]`);
-    (radio || form.querySelector("input[name=categoria][value=otro]")).checked = true;
+    (radio || form.querySelector("input[name=categoria][value=auto]")).checked = true;
   } else {
     // Valores por defecto: el día que estás mirando y la próxima hora en punto
     const base = fecha ? aFecha(fecha, "00:00") : estado.fecha;
@@ -549,8 +717,10 @@ function abrirFormulario({ item = null, plantilla = null, fecha = null, hora: ho
     form.elements.fecha.value = aTextoDia(base);
     form.elements.inicio.value = `${p(Math.floor(h))}:${p(Math.round((h % 1) * 60))}`;
     form.elements.fin.value = `${p(Math.floor(h) + 1)}:${p(Math.round((h % 1) * 60))}`;
-    form.querySelector("input[name=categoria]").checked = true;
+    form.querySelector("input[name=categoria][value=auto]").checked = true;
   }
+  document.getElementById("form-categorias").hidden = true;
+  actualizarTipo();
   actualizarCampoHasta();
   formulario.showModal();
   if (!datos) form.elements.titulo.focus();
@@ -581,7 +751,10 @@ form.addEventListener("submit", (e) => {
   e.preventDefault();
   const f = form.elements;
   const error = document.getElementById("form-error");
-  if (f.fin.value <= f.inicio.value) { error.textContent = "La hora de fin tiene que ser después de la de inicio."; return; }
+  // Terminar a las 00:00 vale (es medianoche); cualquier otra hora tiene que ser después del inicio
+  if (f.fin.value <= f.inicio.value && f.fin.value !== "00:00") {
+    error.textContent = "La hora de fin tiene que ser después de la de inicio."; return;
+  }
   if (f.repetir.value !== "no" && f.hasta.value && f.hasta.value < f.fecha.value) {
     error.textContent = "El día final de la repetición es anterior al primer día."; return;
   }
@@ -589,7 +762,7 @@ form.addEventListener("submit", (e) => {
   const datos = {
     id: editando ? editando.id : nuevoId(),
     titulo: f.titulo.value.trim(),
-    categoria: form.querySelector("input[name=categoria]:checked")?.value || "otro",
+    categoria: form.querySelector("input[name=categoria]:checked")?.value || "auto",
     fecha: f.fecha.value,
     inicio: f.inicio.value,
     fin: f.fin.value,
@@ -605,7 +778,7 @@ form.addEventListener("submit", (e) => {
   guardarPersonales(estado.personales);
 
   // Si estaba oculta esa categoría, la mostramos para que veas lo que acabas de añadir
-  estado.filtros.ocultos = estado.filtros.ocultos.filter((k) => k !== datos.categoria);
+  estado.filtros.ocultos = estado.filtros.ocultos.filter((k) => k !== categoriaDe(datos).categoria);
   guardarFiltros();
 
   formulario.close();
@@ -648,16 +821,26 @@ function avisar(texto) {
 // Botones y gestos
 // =====================================================================
 function mover(direccion) {
-  const salto = estado.vista === "semana" ? 7 : 1;
-  estado.fecha = sumarDias(estado.fecha, salto * direccion);
-  dibujar();
+  const f = estado.fecha;
+  if (estado.vista === "dia") estado.fecha = sumarDias(f, direccion);
+  else if (estado.vista === "semana") estado.fecha = sumarDias(f, 7 * direccion);
+  // Para meses y años usamos el día 1, así no hay líos con los meses de 30 o 31 días
+  else if (estado.vista === "mes") estado.fecha = new Date(f.getFullYear(), f.getMonth() + direccion, 1);
+  else estado.fecha = new Date(f.getFullYear() + direccion, f.getMonth(), 1);
+  dibujar({ desplazar: true });
+}
+
+function cambiarVista(vista, fecha = estado.fecha) {
+  estado.vista = vista;
+  estado.fecha = fecha;
+  try { localStorage.setItem("mi-horario:vista", vista); } catch {}
+  dibujar({ desplazar: true });
 }
 
 document.getElementById("btn-anterior").onclick = () => mover(-1);
 document.getElementById("btn-siguiente").onclick = () => mover(1);
-document.getElementById("btn-hoy").onclick = () => { estado.fecha = new Date(); dibujar(); };
-document.getElementById("btn-semana").onclick = () => { estado.vista = "semana"; dibujar(); };
-document.getElementById("btn-dia").onclick = () => { estado.vista = "dia"; dibujar(); };
+document.getElementById("btn-hoy").onclick = () => { estado.fecha = new Date(); dibujar({ desplazar: true }); };
+for (const v of VISTAS) document.getElementById(`btn-${v}`).onclick = () => cambiarVista(v);
 document.getElementById("btn-anadir").onclick = () => abrirFormulario();
 
 const calendario = document.getElementById("calendario");
@@ -669,10 +852,15 @@ calendario.addEventListener("click", (e) => {
 
   // Tocar la cabecera de un día abre la vista de ese día
   const cabecera = e.target.closest(".cab-dia[data-fecha]");
-  if (cabecera) {
-    estado.fecha = new Date(cabecera.dataset.fecha);
-    estado.vista = "dia";
-    return dibujar();
+  if (cabecera) return cambiarVista("dia", new Date(cabecera.dataset.fecha));
+
+  // En el mes y el año: tocar un día lo abre, tocar el nombre de un mes abre ese mes
+  const irDia = e.target.closest("[data-ir-dia]");
+  if (irDia) return cambiarVista("dia", aFecha(irDia.dataset.irDia, "00:00"));
+  const irMes = e.target.closest("[data-ir-mes]");
+  if (irMes) {
+    const [a, m] = irMes.dataset.irMes.split("-").map(Number);
+    return cambiarVista("mes", new Date(a, m, 1));
   }
 
   // Botón "Añadir algo a este día"
@@ -683,8 +871,8 @@ calendario.addEventListener("click", (e) => {
   const cuerpo = e.target.closest(".cuerpo[data-dia]");
   if (cuerpo) {
     const caja = cuerpo.getBoundingClientRect();
-    const { hmin, hmax, dia } = cuerpo.dataset;
-    const horaExacta = Number(hmin) + ((e.clientY - caja.top) / caja.height) * (hmax - hmin);
+    const { dia } = cuerpo.dataset;
+    const horaExacta = ((e.clientY - caja.top) / caja.height) * 24;
     abrirFormulario({ fecha: dia, hora: Math.floor(horaExacta * 2) / 2 }); // redondeado a la media hora
   }
 });
@@ -774,9 +962,50 @@ async function iniciar() {
     console.error(error);
   }
   dibujarPanel();
-  dibujar();
+  dibujar({ desplazar: true });
   // Cada minuto refrescamos para que "Ahora" y la línea roja se muevan solas
   setInterval(() => { if (!document.querySelector("dialog[open]")) dibujar(); }, 60000);
 }
 
 iniciar();
+
+// =====================================================================
+// Modo claro / oscuro
+// ---------------------------------------------------------------------
+// Tres opciones: "auto" (lo que diga el móvil), "claro" y "oscuro".
+// Lo apuntamos en <html data-tema="..."> y el CSS cambia los colores.
+// =====================================================================
+const TEMAS = {
+  auto: { icono: "🌓", nombre: "Automático" },
+  claro: { icono: "☀️", nombre: "Modo claro" },
+  oscuro: { icono: "🌙", nombre: "Modo oscuro" },
+};
+
+function aplicarTema(tema) {
+  if (tema === "auto") delete document.documentElement.dataset.tema;
+  else document.documentElement.dataset.tema = tema;
+  const boton = document.getElementById("btn-tema");
+  boton.textContent = TEMAS[tema].icono;
+  boton.setAttribute("aria-label", `Tema: ${TEMAS[tema].nombre}`);
+  boton.title = `${TEMAS[tema].nombre} (toca para cambiar)`;
+  document.querySelectorAll("[data-tema-opcion]").forEach((b) =>
+    b.classList.toggle("activo", b.dataset.temaOpcion === tema));
+  try { localStorage.setItem("mi-horario:tema", tema); } catch {}
+}
+
+function temaGuardado() {
+  try { return localStorage.getItem("mi-horario:tema") || "auto"; } catch { return "auto"; }
+}
+
+// El botón de arriba va pasando por auto -> claro -> oscuro -> auto...
+document.getElementById("btn-tema").onclick = () => {
+  const orden = Object.keys(TEMAS);
+  const siguiente = orden[(orden.indexOf(temaGuardado()) + 1) % orden.length];
+  aplicarTema(siguiente);
+  avisar(`${TEMAS[siguiente].icono} ${TEMAS[siguiente].nombre}`);
+};
+// Y en el panel lateral se elige directamente
+document.querySelectorAll("[data-tema-opcion]").forEach((b) =>
+  (b.onclick = () => aplicarTema(b.dataset.temaOpcion)));
+
+aplicarTema(temaGuardado());

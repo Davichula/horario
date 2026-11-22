@@ -24,4 +24,4 @@ Abrir una terminal en esta carpeta y ejecutar `python -m http.server`, luego abr
 
 ## Mis cosas personales
 
-Se añaden con el botón **＋** (o tocando un hueco de la semana) y se guardan en el navegador del dispositivo donde las creas. Desde el panel lateral puedo **exportar** una copia (.json) e **importarla** en otro dispositivo.
+Se añaden con el botón **＋** (o tocando un hueco de la semana). El tipo y el icono se eligen solos según el título ("Dentista" → 🦷 Salud); las palabras que reconoce están en `config.js`, en `CATEGORIAS`. Se guardan en el navegador del dispositivo donde las creas. Desde el panel lateral puedo **exportar** una copia (.json) e **importarla** en otro dispositivo.

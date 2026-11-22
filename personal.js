@@ -14,7 +14,7 @@
 //   {
 //     id: "k3j2h1",           identificador único
 //     titulo: "Gimnasio",
-//     categoria: "entreno",   una clave de CATEGORIAS (config.js)
+//     categoria: "auto",      "auto" (se elige sola por el título) o una clave de CATEGORIAS
 //     fecha: "2026-11-23",    el primer (o único) día
 //     inicio: "18:00", fin: "19:30",
 //     lugar: "", notas: "",
@@ -58,6 +58,8 @@ function aTextoDia(fecha) {
   return `${fecha.getFullYear()}-${p(fecha.getMonth() + 1)}-${p(fecha.getDate())}`;
 }
 
+const sumarUnDia = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+
 // ¿Toca esta cosa personal el día "dia"? Aquí se resuelven las repeticiones.
 function ocurreEl(item, dia) {
   const textoDia = aTextoDia(dia);
@@ -79,19 +81,21 @@ function personalesDelDia(lista, dia) {
   return lista
     .filter((item) => ocurreEl(item, dia))
     .map((item) => {
-      const cat = CATEGORIAS[item.categoria] || CATEGORIAS.otro;
+      const { categoria, icono } = categoriaDe(item);
+      const cat = CATEGORIAS[categoria];
       return {
         origen: "personal",
         id: `p:${item.id}:${textoDia}`,
         item,
-        categoria: item.categoria in CATEGORIAS ? item.categoria : "otro",
+        categoria,
         inicio: aFecha(textoDia, item.inicio),
-        fin: aFecha(textoDia, item.fin),
+        // Si termina a las 00:00 (o antes de empezar), es que acaba al día siguiente
+        fin: item.fin <= item.inicio ? aFecha(aTextoDia(sumarUnDia(dia)), item.fin) : aFecha(textoDia, item.fin),
         color: cat.color,
         corto: item.titulo,
         titulo: item.titulo,
         etiqueta: cat.nombre,
-        icono: cat.icono,
+        icono,
         clase: "personal",
         lugarCorto: item.lugar || "",
         lugar: item.lugar || "",
@@ -114,4 +118,43 @@ async function leerCopia(archivo) {
   const datos = JSON.parse(await archivo.text());
   if (!Array.isArray(datos)) throw new Error("El archivo no tiene el formato esperado");
   return datos.filter((d) => d && d.id && d.titulo && d.fecha && d.inicio && d.fin);
+}
+
+// =====================================================================
+// Detectar la categoría y el icono a partir del título
+// ---------------------------------------------------------------------
+// 1. Pasamos el título a minúsculas y sin tildes ("Médico" -> "medico").
+// 2. Buscamos todas las palabras de CATEGORIAS (config.js) que aparecen.
+// 3. Nos quedamos con la que sale antes en el título (y, si empatan,
+//    con la más larga, que es más concreta: "cena con" gana a "cena").
+// =====================================================================
+const normalizar = (texto) =>
+  texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+function detectarCategoria(titulo) {
+  const t = " " + normalizar(titulo || "");
+  let mejor = null;
+  for (const [clave, cat] of Object.entries(CATEGORIAS)) {
+    for (const [palabra, emoji] of Object.entries(cat.palabras || {})) {
+      // La palabra tiene que empezar al principio de una palabra del título
+      const posicion = t.search(new RegExp(`[^a-z0-9]${palabra.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+      if (posicion === -1) continue;
+      if (!mejor || posicion < mejor.posicion || (posicion === mejor.posicion && palabra.length > mejor.palabra.length)) {
+        mejor = { categoria: clave, icono: emoji || cat.icono, posicion, palabra };
+      }
+    }
+  }
+  return mejor || { categoria: "otro", icono: CATEGORIAS.otro.icono };
+}
+
+// Qué categoría e icono le tocan a una cosa guardada:
+//   - categoria "auto" (lo normal): se detecta del título
+//   - una categoría elegida a mano: se respeta, y el icono se intenta
+//     sacar del título si la palabra es de esa misma categoría
+function categoriaDe(item) {
+  const detectada = detectarCategoria(item.titulo);
+  // "otro" también cuenta como automático: así lo que guardaste antes de esta versión se reclasifica solo
+  if (!item.categoria || ["auto", "otro"].includes(item.categoria) || !(item.categoria in CATEGORIAS)) return detectada;
+  const icono = detectada.categoria === item.categoria ? detectada.icono : CATEGORIAS[item.categoria].icono;
+  return { categoria: item.categoria, icono };
 }

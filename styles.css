@@ -18,8 +18,11 @@
 }
 
 /* Si el móvil está en modo oscuro, cambiamos solo los colores */
+/* Colores del modo oscuro. Se usan en dos casos:
+   1) el tema está en "auto" y el móvil está en modo oscuro
+   2) has elegido "oscuro" a mano (data-tema="oscuro") */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-tema="claro"]) {
     --fondo: #11141b;
     --tarjeta: #1b202b;
     --texto: #e8ebf2;
@@ -28,7 +31,19 @@
     --acento: #e8ebf2;
     --hoy: #2c2717;
     --sombra: 0 1px 3px rgb(0 0 0 / 0.4);
+    color-scheme: dark;
   }
+}
+:root[data-tema="oscuro"] {
+  --fondo: #11141b;
+  --tarjeta: #1b202b;
+  --texto: #e8ebf2;
+  --suave: #98a1b6;
+  --linea: #2a3040;
+  --acento: #e8ebf2;
+  --hoy: #2c2717;
+  --sombra: 0 1px 3px rgb(0 0 0 / 0.4);
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -167,13 +182,13 @@ main { flex: 1; padding: 0 16px 16px; }
 /* ---------- Vista de semana ---------- */
 .vista-semana {
   display: grid;
-  grid-template-columns: 40px repeat(var(--num-dias), minmax(0, 1fr));
+  grid-template-columns: 40px repeat(7, minmax(0, 1fr));
   gap: 4px;
   max-width: 1100px;
   width: 100%;
   margin: 0 auto;
 }
-.vista-semana .cuerpo { position: relative; height: 640px; }
+.vista-semana .cuerpo { position: relative; height: var(--alto-dia, 1248px); }
 
 .cab-dia {
   height: 52px;
@@ -229,7 +244,6 @@ main { flex: 1; padding: 0 16px 16px; }
 @media (max-width: 520px) {
   .bloque .aula { display: none; }
   .bloque { font-size: 0.6rem; padding: 3px; }
-  .vista-semana .cuerpo { height: 560px; }
 }
 
 /* ---------- Leyenda ---------- */
@@ -529,3 +543,201 @@ main { flex: 1; padding: 0 16px 16px; }
   .campo-dia { flex-basis: 100%; }
   .leyenda { padding-bottom: 96px; } /* que el botón + no tape la leyenda */
 }
+
+/* =====================================================================
+   VISTAS DE MES Y AÑO, SEMANA DE 24 H Y TEMA
+   ===================================================================== */
+
+/* ---------- Selector de vista (Día / Semana / Mes / Año) ---------- */
+.principal > .selector-vista {
+  align-self: center;
+  margin: 4px 16px 2px;
+  width: min(420px, calc(100% - 32px));
+}
+.principal > .selector-vista button { flex: 1; }
+
+.boton-tema { font-size: 1.1rem; background: var(--linea); border-radius: 50%; display: inline-flex; }
+
+.selector-tema { display: flex; background: var(--linea); border-radius: 12px; padding: 3px; }
+.selector-tema button { flex: 1; border: 0; background: transparent; border-radius: 9px; padding: 7px 4px; font-size: 0.82rem; }
+.selector-tema button.activo { background: var(--tarjeta); font-weight: 600; box-shadow: var(--sombra); }
+
+/* ---------- Semana de 24 horas ---------- */
+/* La fila de los días se queda pegada arriba al hacer scroll */
+.vista-semana .cab-dia {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: var(--fondo);
+  box-shadow: 0 6px 6px -6px rgb(0 0 0 / 0.15);
+}
+.vista-semana .col-dia.hoy .cab-dia { background: var(--acento); }
+.vista-semana .col-dia.finde .cuerpo { background: color-mix(in srgb, var(--linea) 35%, transparent); border-radius: 8px; }
+.vista-semana .col-dia.finde .cab-dia span { color: color-mix(in srgb, var(--suave) 70%, var(--ahora)); }
+@media (max-width: 520px) {
+  .vista-semana { gap: 2px; grid-template-columns: 34px repeat(7, minmax(0, 1fr)); }
+  .vista-semana .cab-dia { font-size: 0.65rem; }
+  .vista-semana .cab-dia strong { font-size: 0.95rem; }
+  .bloque { font-size: 0.56rem; padding: 2px; border-radius: 5px; }
+  .bloque strong { font-size: 0.62rem; }
+}
+
+/* ---------- Vista de mes ---------- */
+.vista-mes {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+}
+.mes-cab { text-align: center; font-size: 0.72rem; font-weight: 600; color: var(--suave); padding: 4px 0; text-transform: uppercase; }
+.mes-dia {
+  min-height: 108px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--tarjeta);
+  box-shadow: var(--sombra);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  text-align: left;
+  overflow: hidden;
+  transition: transform 0.1s;
+}
+.mes-dia:hover { outline: 2px solid var(--linea); }
+.mes-dia:active { transform: scale(0.97); }
+.mes-dia.fuera { opacity: 0.4; }
+.mes-dia.finde { background: color-mix(in srgb, var(--tarjeta) 70%, var(--linea)); }
+.mes-dia.festivo { background: repeating-linear-gradient(45deg, var(--tarjeta) 0 8px, var(--linea) 8px 9px); }
+.mes-numero { font-weight: 700; font-size: 0.9rem; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; }
+.mes-dia.hoy .mes-numero { background: var(--ahora); color: #fff; }
+.mes-dia.con-examen .mes-numero::after { content: "📝"; font-size: 0.7rem; margin-left: 30px; position: absolute; }
+
+.pildoras { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pildora {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-radius: 5px;
+  padding: 1px 4px;
+  background: color-mix(in srgb, var(--color) 16%, transparent);
+}
+.pildora i { width: 6px; height: 6px; border-radius: 50%; background: var(--color); flex-shrink: 0; }
+.pildora.examen { background: var(--color); color: #fff; font-weight: 700; }
+.pildora.examen i { background: #fff; }
+.mas { font-size: 0.68rem; color: var(--suave); padding-left: 4px; }
+.puntos { display: none; flex-wrap: wrap; gap: 3px; justify-content: center; }
+.puntos i { width: 6px; height: 6px; border-radius: 50%; background: var(--color); }
+
+/* En el móvil: casillas más pequeñas y solo puntitos de colores */
+@media (max-width: 620px) {
+  .vista-mes { gap: 3px; }
+  .mes-dia { min-height: 62px; padding: 4px 2px; align-items: center; border-radius: 10px; }
+  .pildoras { display: none; }
+  .puntos { display: flex; }
+  .mes-numero { font-size: 0.85rem; }
+  .mes-dia.con-examen .mes-numero::after { margin-left: 22px; margin-top: -10px; }
+}
+
+/* ---------- Vista de año ---------- */
+.vista-anio {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+}
+.anio-mes { background: var(--tarjeta); border-radius: 16px; padding: 12px; box-shadow: var(--sombra); }
+.anio-titulo {
+  border: 0;
+  background: none;
+  font-weight: 700;
+  font-size: 1rem;
+  text-transform: capitalize;
+  padding: 0 0 8px;
+}
+.anio-titulo:hover { text-decoration: underline; }
+.anio-cab, .anio-cuadricula { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+.anio-cab span { font-size: 0.62rem; color: var(--suave); font-weight: 600; }
+.anio-dia {
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 0.72rem;
+  padding: 0;
+  position: relative;
+}
+.anio-dia.con-clase { background: color-mix(in srgb, var(--acento) 12%, transparent); }
+.anio-dia.con-mio::after {
+  content: "";
+  position: absolute;
+  bottom: 2px; left: 50%;
+  transform: translateX(-50%);
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: #5b6ee1;
+}
+.anio-dia.festivo { background: repeating-linear-gradient(45deg, transparent 0 3px, var(--linea) 3px 4px); color: var(--suave); }
+.anio-dia.con-examen { background: var(--color); color: #fff; font-weight: 700; }
+.anio-dia.hoy { outline: 2px solid var(--ahora); outline-offset: -2px; font-weight: 700; }
+@media (max-width: 520px) {
+  .vista-anio { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .anio-mes { padding: 8px; border-radius: 12px; }
+  .anio-dia { font-size: 0.6rem; border-radius: 4px; }
+  .anio-titulo { font-size: 0.9rem; padding-bottom: 4px; }
+}
+
+.chip-anio { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--suave); padding: 4px 8px; }
+.chip-anio i { width: 14px; height: 14px; border-radius: 4px; display: inline-block; position: relative; }
+.m-clase { background: color-mix(in srgb, var(--acento) 15%, transparent); }
+.m-mio::after { content: ""; position: absolute; left: 5px; top: 5px; width: 4px; height: 4px; border-radius: 50%; background: #5b6ee1; }
+.m-examen { background: #e4572e; }
+.m-festivo { background: repeating-linear-gradient(45deg, transparent 0 3px, var(--linea) 3px 4px); outline: 1px solid var(--linea); }
+
+/* ---------- Cabecera de la semana pegada arriba (sin huecos) ---------- */
+.vista-semana { column-gap: 0; }
+.vista-semana .col-dia { padding: 0 2px; }
+.vista-semana .cab-dia,
+.vista-semana .col-dia.hoy .cab-dia {
+  background: var(--fondo);
+  border-radius: 0;
+  width: calc(100% + 4px);
+  margin: 0 -2px;
+}
+.vista-semana .col-horas .cab-dia { width: 100%; margin: 0; }
+.pastilla { display: flex; flex-direction: column; align-items: center; padding: 3px 8px; border-radius: 10px; }
+.pastilla strong { font-size: 1.1rem; color: var(--texto); }
+.vista-semana .col-dia.hoy .cab-dia span,
+.vista-semana .col-dia.hoy .cab-dia strong { color: inherit; }
+.vista-semana .col-dia.hoy .pastilla { background: var(--acento); color: var(--fondo); }
+.vista-semana .col-dia.hoy .pastilla strong { color: var(--fondo); }
+@media (max-width: 520px) { .pastilla { padding: 2px 4px; } .pastilla strong { font-size: 0.95rem; } }
+
+/* ---------- Tipo automático en el formulario ---------- */
+.tipo-detectado { display: flex; align-items: center; gap: 10px; margin-top: 5px; }
+.tipo-vista {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color) 16%, var(--tarjeta));
+  border: 1.5px solid var(--color);
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.tipo-vista b { font-size: 1.25rem; line-height: 1; }
+.tipo-vista small { font-weight: 400; color: var(--suave); }
+.enlace { border: 0; background: none; color: var(--suave); text-decoration: underline; font-size: 0.85rem; padding: 4px; }
+.selector-categorias[hidden] { display: none; }
+.anio-titulo small { font-weight: 500; color: var(--suave); font-size: 0.75rem; margin-left: 4px; }
