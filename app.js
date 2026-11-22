@@ -271,10 +271,8 @@ function dibujar({ desplazar = false } = {}) {
   else if (estado.vista === "anio") dibujarAnio();
   else dibujarDia();
 
-  if (desplazar) {
-    if (estado.vista === "semana") desplazarAHoraUtil();
-    else window.scrollTo({ top: 0 });
-  }
+  // Al cambiar de vista o de fecha, volvemos arriba del todo
+  if (desplazar) window.scrollTo({ top: 0 });
 }
 
 // ----- Vista de un día: tarjetas una debajo de otra -----
@@ -394,26 +392,6 @@ function dibujarSemana() {
   cont.style.setProperty("--alto-dia", `${ALTO_HORA() * 24}px`);
   cont.innerHTML = html;
   dibujarLeyenda(todos);
-}
-
-// Al abrir la semana, bajamos hasta la hora que interesa: un poco antes de
-// ahora si es esta semana, o un poco antes de lo primero que tengas.
-function desplazarAHoraUtil() {
-  const lunes = lunesDe(estado.fecha);
-  const dias = [0, 1, 2, 3, 4, 5, 6].map((n) => sumarDias(lunes, n));
-  const ahora = new Date();
-  let horaObjetivo = 8;
-  if (dias.some((d) => mismoDia(d, ahora))) {
-    horaObjetivo = ahora.getHours() - 1;
-  } else {
-    const horas = dias.flatMap(elementosDelDia).map((e) => e.inicio.getHours());
-    if (horas.length) horaObjetivo = Math.min(...horas);
-  }
-  const cuerpo = document.querySelector(".vista-semana .cuerpo");
-  if (!cuerpo) return;
-  const y = cuerpo.getBoundingClientRect().top + window.scrollY + Math.max(0, horaObjetivo - 0.5) * ALTO_HORA();
-  // Restamos la altura de la cabecera de los días, que se queda pegada arriba
-  window.scrollTo({ top: Math.max(0, y - 60) });
 }
 
 // ----- Vista de mes: una cuadrícula de 7 columnas (lunes a domingo) -----
@@ -901,10 +879,29 @@ calendario.addEventListener("touchend", (e) => {
 });
 
 // ----- Panel lateral -----
+// En el móvil el panel sale por encima ("panel-abierto"); en el ordenador
+// está fijo a la izquierda y se puede plegar ("panel-plegado"), y se recuerda.
+const esMovil = () => window.matchMedia("(max-width: 899px)").matches;
 const abrirPanel = () => document.body.classList.add("panel-abierto");
 const cerrarPanel = () => document.body.classList.remove("panel-abierto");
-document.getElementById("btn-menu").onclick = abrirPanel;
-document.getElementById("btn-cerrar-panel").onclick = cerrarPanel;
+function plegarPanel(plegado) {
+  document.body.classList.toggle("panel-plegado", plegado);
+  try { localStorage.setItem("mi-horario:panel-plegado", plegado ? "1" : ""); } catch {}
+}
+try { plegarPanel(localStorage.getItem("mi-horario:panel-plegado") === "1"); } catch {}
+
+document.getElementById("btn-menu").onclick = () => (esMovil() ? abrirPanel() : plegarPanel(false));
+document.getElementById("btn-cerrar-panel").onclick = () => (esMovil() ? cerrarPanel() : plegarPanel(true));
+
+// Cada apartado del panel (Mostrar, Exámenes...) se abre y cierra tocando su título.
+// <details> ya lo hace solo; aquí solo recordamos cuáles dejaste cerrados.
+document.querySelectorAll(".panel details[data-apartado]").forEach((d) => {
+  const clave = `mi-horario:apartado:${d.dataset.apartado}`;
+  try { if (localStorage.getItem(clave) === "cerrado") d.open = false; } catch {}
+  d.addEventListener("toggle", () => {
+    try { localStorage.setItem(clave, d.open ? "" : "cerrado"); } catch {}
+  });
+});
 document.getElementById("velo").onclick = cerrarPanel;
 document.getElementById("btn-anadir-panel").onclick = () => { cerrarPanel(); abrirFormulario(); };
 
