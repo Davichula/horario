@@ -16,8 +16,8 @@
 
 // Estos dos datos están en Supabase → Project Settings → API.
 // La clave "anon/publishable" está pensada para ir dentro de la web: no es secreta.
-const SUPABASE_URL = "";
-const SUPABASE_KEY = "";
+const SUPABASE_URL = "https://hcehbosfskzhfockbdor.supabase.co";
+const SUPABASE_KEY = "sb_publishable_BWk1mYKrfF6lHuf0lZZpg_HRE7Sagg";
 
 (() => {
   if (!SUPABASE_URL || !SUPABASE_KEY) return;
