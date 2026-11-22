@@ -29,6 +29,8 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
     "mi-horario:habitos",
     "mi-horario:notas",
     "mi-horario:ajustes-plan",
+    "mi-horario:avisos",            // tus preferencias de avisos (avisos.js)
+    "mi-horario:avisos-programados", // la lista de avisos que manda Supabase
   ];
   const CLAVE_SELLOS = "mi-horario:sync-sellos"; // cuándo cambió cada cosa en ESTE dispositivo
   const CLAVE_ULTIMA = "mi-horario:sync-ultima"; // última sincronización que salió bien
@@ -254,6 +256,9 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
       pintar();
     }
   });
+
+  // Para que avisos.js pueda usar la misma conexión
+  window.nube = { supabase, sincronizar };
 
   // ----- 5. Cuándo sincronizamos -----
   pintar();
