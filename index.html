@@ -13,11 +13,16 @@
   <meta name="theme-color" content="#1f2a44">
   <title>Mi horario</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="instalable.css">
   <!-- Esto permite "Añadir a pantalla de inicio" en el móvil, como si fuera una app -->
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icono.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icono-180.png">
+  <!-- Para el iPhone: que al abrirla desde el icono se vea a pantalla completa, sin barras de Safari -->
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Horario">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <!-- Ponemos el tema (claro/oscuro) antes de dibujar nada, para que no "parpadee" -->
   <script>
     try {
@@ -82,6 +87,11 @@
       <details open data-apartado="examenes">
         <summary><h2>Próximos exámenes</h2></summary>
         <ul id="lista-examenes" class="lista-examenes"></ul>
+      </details>
+
+      <details open data-apartado="entregas">
+        <summary><h2>Próximas entregas</h2></summary>
+        <ul id="lista-entregas" class="lista-examenes"></ul>
       </details>
 
       <details open data-apartado="apariencia">
@@ -214,11 +224,14 @@
   <!-- El orden importa: primero tus datos, luego las herramientas y al final el programa -->
   <script src="config.js"></script>
   <script src="personal.js"></script>
+  <script src="moodle.js"></script>
   <script src="app.js"></script>
   <!-- Lo nuevo va después de app.js porque usa sus funciones (dibujar, estado...) -->
   <script src="tareas.js"></script>
   <script src="resumen.js"></script>
   <script src="estudio.js"></script>
   <script src="estadisticas.js"></script>
+  <!-- Lo que la convierte en app: funcionar sin internet y actualizarse sola -->
+  <script src="instalable.js"></script>
 </body>
 </html>

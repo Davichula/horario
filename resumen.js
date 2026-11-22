@@ -51,6 +51,9 @@ function abrirResumen({ refrescar = false } = {}) {
   const proximos = [
     ...estado.eventos.filter((e) => e.clase === "examen" && e.fin > ahora && e.inicio < limite)
       .map((e) => ({ fecha: e.inicio, icono: "📝", texto: `Examen de ${e.asignatura.nombre}`, color: e.color, examen: e })),
+    // Entregas de Moodle (moodle.js), si las hay
+    ...(estado.moodle || []).filter((m) => m.fin > ahora && m.fin < limite)
+      .map((m) => ({ fecha: m.fin, icono: m.icono || "📤", texto: `${m.corto} · ${m.nombre}`, color: m.color })),
     ...tareas.filter((t) => !t.hecha && t.fecha && t.fecha > hoyTexto() && aFecha(t.fecha, "00:00") < limite)
       .map((t) => ({ fecha: aFecha(t.fecha, "00:00"), icono: "✅", texto: t.texto, color: MIS_ASIGNATURAS[t.asignatura]?.color || "var(--suave)" })),
   ].sort((a, b) => a.fecha - b.fecha).slice(0, 6);

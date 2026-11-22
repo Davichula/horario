@@ -1,13 +1,17 @@
 {
+  "id": "./",
   "name": "Mi horario",
   "short_name": "Horario",
+  "description": "Mis clases, exámenes y cosas, en una sola vista.",
+  "lang": "es",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#f4f5f9",
   "theme_color": "#1f2a44",
   "icons": [
     { "src": "icono.svg", "sizes": "any", "type": "image/svg+xml" },
-    { "src": "icono-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "icono-180.png", "sizes": "180x180", "type": "image/png" }
   ]
 }
