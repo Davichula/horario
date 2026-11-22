@@ -49,7 +49,7 @@ function abrirResumen({ refrescar = false } = {}) {
   // Lo próximo importante: exámenes y tareas con fecha en los próximos 14 días
   const limite = sumarDias(ahora, 14);
   const proximos = [
-    ...estado.eventos.filter((e) => e.clase === "examen" && e.fin > ahora && e.inicio < limite)
+    ...estado.eventos.filter((e) => esOrdinaria(e) && e.fin > ahora && e.inicio < limite)
       .map((e) => ({ fecha: e.inicio, icono: "📝", texto: `Examen de ${e.asignatura.nombre}`, color: e.color, examen: e })),
     // Entregas de Moodle (moodle.js), si las hay
     ...(estado.moodle || []).filter((m) => m.fin > ahora && m.fin < limite)

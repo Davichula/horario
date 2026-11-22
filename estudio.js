@@ -233,7 +233,8 @@ function abrirPlanEstudio(examen, propuesta = null) {
 // Lista de próximos exámenes para elegir cuál planificar (desde el panel)
 function abrirListaPlanes() {
   const ahora = new Date();
-  const examenes = estado.eventos.filter((e) => e.clase === "examen" && e.inicio > ahora);
+  // Solo la convocatoria ordinaria: las recuperaciones no se planifican
+  const examenes = estado.eventos.filter((e) => esOrdinaria(e) && e.inicio > ahora);
   abrirHoja("planes", `
     <header class="form-cabecera"><h2>📚 Plan de estudio</h2></header>
     <div class="form-cuerpo">

@@ -118,6 +118,51 @@ async function cargarMoodle() {
   }
 }
 
+// =====================================================================
+// Informes de prácticas que se entregan en la siguiente sesión
+// ---------------------------------------------------------------------
+// Para las asignaturas de INFORMES_EN_SIGUIENTE_SESION (config.js):
+// el informe de la práctica 1 se entrega al empezar la práctica 2, el de
+// la 2 al empezar la 3... Creamos una "entrega" con esa hora límite, con
+// el mismo formato que las de Moodle para que salga en todos los sitios.
+// Si Moodle ya tiene una entrega de esa asignatura ese mismo día, no la
+// duplicamos.
+// =====================================================================
+function informesDePracticas(clases, deMoodle) {
+  const resultado = [];
+  for (const codigo of INFORMES_EN_SIGUIENTE_SESION) {
+    const asignatura = MIS_ASIGNATURAS[codigo];
+    if (!asignatura) continue;
+    const sesiones = clases.filter((c) => c.codigo === codigo && c.clase === "practicas");
+    for (let i = 0; i + 1 < sesiones.length; i++) {
+      const limite = sesiones[i + 1].inicio;
+      const yaEnMoodle = deMoodle.some((m) => m.codigo === codigo && m.etiqueta === "Entrega" && mismoDia(m.fin, limite));
+      if (yaEnMoodle) continue;
+      resultado.push({
+        origen: "moodle",
+        automatica: true, // la ha calculado la web, no viene de Moodle
+        uid: `informe:${codigo}:${i + 1}`,
+        id: `m:informe:${codigo}:${i + 1}`,
+        codigo,
+        asignatura,
+        nombre: `Informe de la práctica ${i + 1}`,
+        descripcion: `Se entrega al empezar la sesión ${i + 2} de prácticas (${fechaLarga(limite)}, ${hora(limite)}).`,
+        limite,
+        inicio: new Date(limite - DURACION_ENTREGA),
+        fin: limite,
+        color: asignatura.color,
+        corto: asignatura.corto,
+        titulo: `Informe de la práctica ${i + 1}`,
+        etiqueta: "Entrega",
+        icono: "📄",
+        clase: "moodle",
+        lugar: asignatura.nombre,
+      });
+    }
+  }
+  return resultado;
+}
+
 // La ficha que sale al tocar una entrega
 function htmlFichaMoodle(m) {
   const cuando = m.limite || m.inicio;
@@ -126,7 +171,7 @@ function htmlFichaMoodle(m) {
   const pasada = (m.limite || m.fin) < new Date();
   return `
     <header class="ficha-cabecera">
-      <span class="etiqueta-ficha">${m.icono} ${m.etiqueta} · Moodle</span>
+      <span class="etiqueta-ficha">${m.icono} ${m.etiqueta} · ${m.automatica ? "Informe de prácticas" : "Moodle"}</span>
       <h2>${escapar(m.nombre)}</h2>
       <p>${m.asignatura ? `${m.asignatura.corto} · ${m.asignatura.nombre}` : "Moodle"}</p>
     </header>
@@ -136,7 +181,7 @@ function htmlFichaMoodle(m) {
                `<p class="sub">a las ${hora(m.limite)}</p>`)
         : fila("🕒", "Cuándo", `${fechaLarga(m.inicio)} (${cuandoEs(m.inicio)})`,
                `<p class="sub">${hora(m.inicio)} – ${hora(m.fin)}</p>`)}
-      ${m.descripcion ? `<div class="fila"><span class="icono">🗒️</span><div><small>Lo que dice Moodle</small><p class="notas">${escapar(m.descripcion)}</p></div></div>` : ""}
+      ${m.descripcion ? `<div class="fila"><span class="icono">🗒️</span><div><small>${m.automatica ? "Cómo se calcula" : "Lo que dice Moodle"}</small><p class="notas">${escapar(m.descripcion)}</p></div></div>` : ""}
     </div>
     <footer class="ficha-pie">
       <a class="boton-principal" href="${enlace}" target="_blank" rel="noopener">Abrir en Moodle ↗</a>

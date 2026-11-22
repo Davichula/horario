@@ -35,6 +35,16 @@ const MIS_ASIGNATURAS = {
 };
 
 // =====================================================================
+// INFORMES DE PRÁCTICAS QUE SE ENTREGAN EN LA SIGUIENTE SESIÓN
+// ---------------------------------------------------------------------
+// En estas asignaturas, el informe de cada práctica se entrega al empezar
+// la siguiente sesión de prácticas de tu grupo, aunque Moodle no lo
+// ponga como fecha límite. La web crea esas entregas sola.
+// Para añadir otra asignatura, pon su código en la lista.
+// =====================================================================
+const INFORMES_EN_SIGUIENTE_SESION = ["30319"]; // SEM
+
+// =====================================================================
 // CATEGORÍAS DE TUS COSAS PERSONALES (se eligen solas)
 // ---------------------------------------------------------------------
 // Cuando escribes el título ("Dentista", "Comida con Ana", "Gimnasio"...)
