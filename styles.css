@@ -1,0 +1,303 @@
+/* =====================================================================
+   styles.css — cómo se ve todo (colores, tamaños, posiciones)
+   Cada bloque dice: "a los elementos que se llamen así, ponles esto".
+   Las variables (--fondo, --texto...) son como constantes: si cambias
+   una aquí arriba, cambia en toda la página.
+   ===================================================================== */
+
+:root {
+  --fondo: #f4f5f9;
+  --tarjeta: #ffffff;
+  --texto: #1f2a44;
+  --suave: #6b7590;
+  --linea: #e3e6ee;
+  --acento: #1f2a44;
+  --hoy: #fff4d6;
+  --ahora: #e5484d;
+  --sombra: 0 1px 2px rgb(16 24 40 / 0.06), 0 1px 3px rgb(16 24 40 / 0.08);
+}
+
+/* Si el móvil está en modo oscuro, cambiamos solo los colores */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fondo: #11141b;
+    --tarjeta: #1b202b;
+    --texto: #e8ebf2;
+    --suave: #98a1b6;
+    --linea: #2a3040;
+    --acento: #e8ebf2;
+    --hoy: #2c2717;
+    --sombra: 0 1px 3px rgb(0 0 0 / 0.4);
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--fondo);
+  color: var(--texto);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button { font: inherit; color: inherit; cursor: pointer; }
+
+/* ---------- Cabecera ---------- */
+.cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: max(14px, env(safe-area-inset-top)) 16px 6px;
+}
+.cabecera h1 { font-size: 1.35rem; margin: 0; letter-spacing: -0.02em; }
+
+.selector-vista {
+  display: flex;
+  background: var(--linea);
+  border-radius: 999px;
+  padding: 3px;
+}
+.selector-vista button {
+  border: 0;
+  background: transparent;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  transition: background 0.15s;
+}
+.selector-vista button.activo { background: var(--tarjeta); font-weight: 600; box-shadow: var(--sombra); }
+
+/* ---------- Navegación entre semanas/días ---------- */
+.navegacion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 16px 12px;
+}
+.navegacion > button {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--linea);
+  background: var(--tarjeta);
+  font-size: 1.4rem;
+  line-height: 1;
+}
+.titulo-fecha { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+#titulo-periodo { font-weight: 650; font-size: 1.05rem; }
+#btn-hoy {
+  border: 0;
+  background: var(--linea);
+  color: var(--suave);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+
+main { flex: 1; padding: 0 16px 16px; }
+
+/* ---------- Vista de día ---------- */
+.vista-dia { display: flex; flex-direction: column; gap: 10px; max-width: 640px; width: 100%; margin: 0 auto; }
+
+.resumen-dia { margin: 0 0 2px; text-align: center; color: var(--suave); font-size: 0.85rem; }
+
+.tarjeta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  width: 100%;
+  background: var(--tarjeta);
+  border: 0;
+  border-radius: 16px;
+  padding: 14px 12px 14px 16px;
+  box-shadow: var(--sombra);
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.1s;
+}
+/* La franja de color a la izquierda */
+.tarjeta::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 6px;
+  background: var(--color);
+}
+.tarjeta:active { transform: scale(0.98); }
+.tarjeta.pasada { opacity: 0.55; }
+
+.tarjeta-hora { font-weight: 700; font-size: 1.05rem; min-width: 52px; display: flex; flex-direction: column; font-variant-numeric: tabular-nums; }
+.tarjeta-hora small { color: var(--suave); font-weight: 500; font-size: 0.85rem; }
+.tarjeta-info { flex: 1; min-width: 0; }
+.tarjeta-info h3 { margin: 3px 0 3px; font-size: 1rem; line-height: 1.25; }
+.tarjeta-info p { margin: 0; color: var(--suave); font-size: 0.85rem; }
+.punto { margin: 0 2px; }
+.flecha { color: var(--suave); font-size: 1.5rem; }
+
+.fila-etiquetas { display: flex; align-items: center; gap: 8px; }
+.etiqueta {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color);
+}
+.marca {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--linea);
+  color: var(--texto);
+}
+.marca.ahora { background: var(--ahora); color: #fff; }
+
+.tarjeta.examen { background: color-mix(in srgb, var(--color) 12%, var(--tarjeta)); }
+
+.vacio { text-align: center; color: var(--suave); padding: 48px 0; display: flex; flex-direction: column; gap: 8px; }
+.vacio span { font-size: 2rem; }
+.aviso-festivo { text-align: center; background: var(--hoy); border-radius: 12px; padding: 12px; font-weight: 600; }
+
+/* ---------- Vista de semana ---------- */
+.vista-semana {
+  display: grid;
+  grid-template-columns: 40px repeat(var(--num-dias), minmax(0, 1fr));
+  gap: 4px;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+}
+.vista-semana .cuerpo { position: relative; height: 640px; }
+
+.cab-dia {
+  height: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  color: var(--suave);
+}
+.cab-dia strong { font-size: 1.1rem; color: var(--texto); }
+.col-dia.hoy .cab-dia { background: var(--acento); }
+.col-dia.hoy .cab-dia, .col-dia.hoy .cab-dia strong { color: var(--fondo); }
+.col-dia.festivo .cuerpo { background: repeating-linear-gradient(45deg, transparent 0 8px, var(--linea) 8px 9px); border-radius: 8px; }
+.festivo-texto { position: absolute; top: 40%; width: 100%; text-align: center; color: var(--suave); font-size: 0.8rem; }
+
+.marca-hora { position: absolute; right: 4px; transform: translateY(-50%); font-size: 0.68rem; color: var(--suave); font-variant-numeric: tabular-nums; }
+.linea-hora { position: absolute; left: 0; right: 0; border-top: 1px solid var(--linea); }
+
+.linea-ahora { position: absolute; left: -3px; right: 0; border-top: 2px solid var(--ahora); z-index: 2; pointer-events: none; }
+.linea-ahora::before { content: ""; position: absolute; left: -4px; top: -6px; width: 10px; height: 10px; border-radius: 50%; background: var(--ahora); }
+
+.bloque {
+  position: absolute;
+  left: 1px; right: 1px;
+  background: var(--color);
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  padding: 4px 5px;
+  font-size: 0.7rem;
+  line-height: 1.2;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.15);
+  transition: filter 0.15s, transform 0.1s;
+}
+.bloque:hover { filter: brightness(1.08); }
+.bloque:active { transform: scale(0.97); }
+.bloque strong { font-size: 0.78rem; }
+.bloque.pasada { opacity: 0.5; }
+/* Prácticas: rayas. Examen: borde grueso. Así se distinguen sin leer. */
+.bloque.practicas { background: repeating-linear-gradient(135deg, var(--color) 0 6px, color-mix(in srgb, var(--color) 82%, #000) 6px 12px); }
+.bloque.examen { box-shadow: inset 0 0 0 3px var(--texto); }
+
+/* En pantallas pequeñas escondemos el texto secundario de los bloques */
+@media (max-width: 520px) {
+  .bloque .aula { display: none; }
+  .bloque { font-size: 0.6rem; padding: 3px; }
+  .vista-semana .cuerpo { height: 560px; }
+}
+
+/* ---------- Leyenda ---------- */
+.leyenda { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px max(20px, env(safe-area-inset-bottom)); justify-content: center; }
+.chip {
+  font-size: 0.78rem;
+  background: var(--tarjeta);
+  border-radius: 999px;
+  padding: 4px 10px 4px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.chip::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--color); }
+.chip b { color: var(--texto); }
+
+/* ---------- Ficha de detalle ---------- */
+.ficha {
+  border: 0;
+  padding: 0;
+  width: min(440px, 100%);
+  max-height: 88vh;
+  border-radius: 20px;
+  background: var(--tarjeta);
+  color: var(--texto);
+  box-shadow: 0 20px 50px rgb(0 0 0 / 0.3);
+  overflow: auto;
+}
+.ficha::backdrop { background: rgb(10 14 24 / 0.45); backdrop-filter: blur(2px); }
+.ficha[open] { animation: aparecer 0.18s ease-out; }
+@keyframes aparecer { from { opacity: 0; transform: translateY(16px); } }
+
+/* En el móvil la ficha sube desde abajo, como en las apps */
+@media (max-width: 520px) {
+  .ficha { margin: auto 0 0; width: 100%; max-width: 100%; border-radius: 20px 20px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+}
+
+.ficha-cabecera {
+  background: var(--color);
+  color: #fff;
+  padding: 22px 20px 18px;
+}
+.ficha-cabecera h2 { margin: 6px 0 4px; font-size: 1.3rem; line-height: 1.2; padding-right: 30px; }
+.ficha-cabecera p { margin: 0; opacity: 0.85; font-size: 0.85rem; }
+.etiqueta-ficha {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgb(255 255 255 / 0.22);
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+.cerrar {
+  position: absolute;
+  top: 14px; right: 14px;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 0;
+  background: rgb(255 255 255 / 0.25);
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.ficha-cuerpo { padding: 8px 20px 20px; }
+.fila { display: flex; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--linea); }
+.fila:last-child { border-bottom: 0; }
+.fila .icono { font-size: 1.2rem; width: 26px; text-align: center; }
+.fila small { color: var(--suave); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+.fila p { margin: 2px 0 0; font-weight: 600; }
+.fila p.sub { font-weight: 400; color: var(--suave); font-size: 0.88rem; }

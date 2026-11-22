@@ -1,0 +1,54 @@
+<!doctype html>
+<!--
+  index.html — el "esqueleto" de la página.
+  HTML solo dice QUÉ hay en la pantalla (cabecera, botones, una caja vacía
+  donde irá el calendario). Cómo se ve lo decide styles.css, y lo que hace
+  (leer el calendario, dibujar las clases) lo decide app.js.
+-->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1f2a44">
+  <title>Mi horario</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- Esto permite "Añadir a pantalla de inicio" en el móvil, como si fuera una app -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icono.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icono-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+</head>
+<body>
+  <header class="cabecera">
+    <h1>Mi horario</h1>
+    <div class="selector-vista" role="tablist">
+      <button id="btn-semana" class="activo">Semana</button>
+      <button id="btn-dia">Día</button>
+    </div>
+  </header>
+
+  <nav class="navegacion">
+    <button id="btn-anterior" aria-label="Anterior">‹</button>
+    <div class="titulo-fecha">
+      <span id="titulo-periodo">…</span>
+      <button id="btn-hoy">Hoy</button>
+    </div>
+    <button id="btn-siguiente" aria-label="Siguiente">›</button>
+  </nav>
+
+  <main id="calendario">Cargando calendario…</main>
+
+  <footer id="leyenda" class="leyenda"></footer>
+
+  <!-- La ficha que aparece al tocar una clase. <dialog> es una ventana
+       emergente que ya trae el navegador: se abre con showModal() y se cierra con close(). -->
+  <dialog id="ficha" class="ficha">
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+    <div class="ficha-contenido"></div>
+  </dialog>
+
+  <!-- El orden importa: primero tus datos, luego el programa que los usa -->
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
