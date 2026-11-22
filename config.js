@@ -33,3 +33,19 @@ const MIS_ASIGNATURAS = {
   "30328": { corto: "EC",  nombre: "Electrónica de comunicaciones",               grupoPracticas: null, color: "#607d8b" },
   "30323": { corto: "GP",  nombre: "Gestión de proyectos de telecomunicación",    grupoPracticas: null, color: "#b8860b" },
 };
+
+// =====================================================================
+// CATEGORÍAS DE TUS COSAS PERSONALES
+// ---------------------------------------------------------------------
+// Puedes cambiar nombres, iconos y colores, o añadir categorías nuevas
+// copiando una línea. La palabra de la izquierda (estudio, entreno...)
+// es la "clave" interna: si la cambias, lo que ya tenías guardado con
+// la clave antigua pasará a salir como "Otro".
+// =====================================================================
+const CATEGORIAS = {
+  estudio: { nombre: "Estudio",  icono: "📚", color: "#5b6ee1" },
+  entreno: { nombre: "Entreno",  icono: "🏋️", color: "#0f9d8a" },
+  comida:  { nombre: "Comida",   icono: "🍽️", color: "#e8833a" },
+  visita:  { nombre: "Visita",   icono: "🤝", color: "#b05bd6" },
+  otro:    { nombre: "Otro",     icono: "📌", color: "#7a8599" },
+};
