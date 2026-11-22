@@ -780,3 +780,200 @@ main { flex: 1; padding: 0 16px 16px; }
 .panel details:not([open]) > summary::after { transform: rotate(-90deg); }
 .panel details > summary h2 { margin: 6px 0; }
 .panel details[open] > summary { margin-bottom: 4px; }
+
+/* ==============================================================   TAREAS, HÁBITOS, RESUMEN DEL DÍA, PLAN DE ESTUDIO Y ESTADÍSTICAS
+   ===================================================================== */
+
+/* ---------- Añadir rápido (una caja de texto con un + al lado) ---------- */
+.anadir-rapido { display: flex; gap: 6px; margin: 4px 0 8px; }
+.anadir-rapido input {
+  flex: 1; min-width: 0;
+  font: inherit; font-size: 0.88rem;
+  padding: 8px 10px;
+  border: 1px solid var(--linea); border-radius: 10px;
+  background: var(--fondo); color: var(--texto);
+}
+.anadir-rapido input:focus { outline: none; border-color: var(--acento); }
+.anadir-rapido button { width: 36px; border: 0; border-radius: 10px; background: var(--acento); color: var(--fondo); font-size: 1.1rem; }
+.contador { background: var(--ahora); color: #fff; border-radius: 999px; padding: 0 6px; font-size: 0.68rem; margin-left: 4px; }
+.contador:empty { display: none; }
+
+/* ---------- Tareas ---------- */
+.lista-tareas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.tarea { display: flex; align-items: flex-start; gap: 8px; padding: 5px 4px; border-radius: 10px; }
+.tarea:hover { background: var(--fondo); }
+.check {
+  width: 20px; height: 20px; margin-top: 1px; flex-shrink: 0;
+  border-radius: 50%; border: 2px solid var(--color); background: transparent;
+  display: grid; place-items: center; padding: 0;
+  transition: background 0.15s, transform 0.1s;
+}
+.check:active { transform: scale(0.85); }
+.check:hover::after { content: "✓"; color: var(--color); font-size: 0.7rem; font-weight: 800; }
+.tarea.hecha .check { background: var(--color); }
+.tarea.hecha .check::after { content: "✓"; color: var(--tarjeta); font-size: 0.7rem; font-weight: 800; }
+.tarea-texto { flex: 1; min-width: 0; border: 0; background: none; text-align: left; padding: 0; display: flex; flex-direction: column; gap: 1px; font-size: 0.9rem; }
+.tarea-texto span { overflow-wrap: anywhere; }
+.tarea.hecha .tarea-texto span { text-decoration: line-through; color: var(--suave); }
+.tarea-texto small { display: flex; gap: 6px; font-size: 0.72rem; color: var(--suave); }
+.tarea-texto small:empty { display: none; }
+.tarea-texto small b { color: var(--color); }
+.tarea-texto small em { font-style: normal; }
+.tarea-texto small em.atrasada { color: var(--ahora); font-weight: 600; }
+.tareas-hechas { margin-top: 6px; }
+.tareas-hechas > summary { font-size: 0.8rem; color: var(--suave); cursor: pointer; padding: 4px; list-style: none; }
+.tareas-hechas > summary::before { content: "▸ "; }
+.tareas-hechas[open] > summary::before { content: "▾ "; }
+.tareas-hechas[hidden] { display: none; }
+
+/* ---------- Hábitos ---------- */
+.lista-habitos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.habito { display: flex; align-items: center; gap: 10px; }
+.habito-hoy {
+  width: 38px; height: 38px; flex-shrink: 0;
+  border-radius: 12px; border: 2px dashed var(--linea); background: transparent;
+  font-size: 1.15rem; filter: grayscale(1); opacity: 0.7;
+  transition: transform 0.1s;
+}
+.habito-hoy:active { transform: scale(0.88); }
+.habito.hecho .habito-hoy { border: 2px solid #0f9d8a; background: color-mix(in srgb, #0f9d8a 15%, var(--tarjeta)); filter: none; opacity: 1; }
+.habito-info { flex: 1; min-width: 0; }
+.habito-nombre { border: 0; background: none; padding: 0; font-size: 0.9rem; text-align: left; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.habito-semana { display: flex; gap: 3px; margin-top: 3px; }
+.habito-semana i { width: 15px; height: 15px; border-radius: 4px; background: var(--linea); font-size: 0.55rem; font-style: normal; color: var(--suave); display: grid; place-items: center; }
+.habito-semana i.si { background: #0f9d8a; color: #fff; }
+.racha { font-size: 0.8rem; font-weight: 700; color: var(--suave); }
+
+/* Chips de hábitos (vista de día y resumen) */
+.habitos-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip-habito {
+  border: 1px dashed var(--suave); background: transparent; border-radius: 999px;
+  padding: 6px 12px; font-size: 0.85rem; color: var(--suave);
+}
+.chip-habito.hecho { border: 1px solid #0f9d8a; background: #0f9d8a; color: #fff; font-weight: 600; }
+.chip-habito.hecho::before { content: "✓ "; }
+
+/* Caja de "Para hacer" en la vista de día */
+.caja-dia { background: var(--tarjeta); border-radius: 16px; padding: 12px 14px; box-shadow: var(--sombra); display: flex; flex-direction: column; gap: 6px; }
+.caja-dia h3, .resumen-cuerpo h3, .cuerpo-stats h3, .plan-previa h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--suave); margin: 6px 0 2px; }
+.caja-dia h3 small { font-weight: 600; margin-left: 4px; }
+
+/* ---------- Herramientas del panel ---------- */
+.herramientas { display: flex; flex-direction: column; gap: 6px; }
+.herramientas button { text-align: left; }
+
+/* ---------- La hoja (ventana comodín) ---------- */
+.hoja { width: min(520px, 100%); }
+.hoja[data-tipo="estadisticas"] { width: min(640px, 100%); }
+.hoja .form-cabecera { padding-right: 56px; }
+.hoja[data-tipo="tarea"] .cerrar, .hoja[data-tipo="habito"] .cerrar,
+.hoja[data-tipo="planes"] .cerrar, .hoja[data-tipo="estadisticas"] .cerrar { background: var(--linea); color: var(--texto); }
+.form-hoja { display: flex; flex-direction: column; }
+.interruptor { display: flex; align-items: center; gap: 8px; font-size: 0.88rem; cursor: pointer; }
+.interruptor input { width: 18px; height: 18px; accent-color: var(--acento); }
+
+/* Calendario de un hábito (5 semanas) */
+.calendario-habito { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
+.calendario-habito span { font-size: 0.7rem; color: var(--suave); font-weight: 600; }
+.calendario-habito button { aspect-ratio: 1; border: 0; border-radius: 8px; background: var(--fondo); font-size: 0.8rem; }
+.calendario-habito button.si { background: #0f9d8a; color: #fff; font-weight: 700; }
+.calendario-habito button.hoy { outline: 2px solid var(--ahora); outline-offset: -2px; }
+.calendario-habito button:disabled { opacity: 0.3; cursor: default; }
+
+/* ---------- Resumen del día ---------- */
+.resumen-cabecera {
+  padding: 26px 22px 20px;
+  background: linear-gradient(135deg, #5b6ee1, #b05bd6);
+  color: #fff;
+}
+.resumen-cabecera small { opacity: 0.85; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+.resumen-cabecera h2 { margin: 4px 0 8px; font-size: 1.5rem; }
+.resumen-cabecera p { margin: 0; line-height: 1.4; }
+.resumen-cuerpo { padding: 10px 20px 6px; display: flex; flex-direction: column; gap: 6px; }
+.resumen-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.resumen-lista li { display: flex; gap: 12px; align-items: baseline; padding: 7px 10px; border-left: 4px solid var(--color); background: var(--fondo); border-radius: 8px; font-size: 0.9rem; }
+.resumen-lista li.pasada { opacity: 0.5; }
+.r-hora { font-weight: 700; min-width: 54px; font-variant-numeric: tabular-nums; font-size: 0.85rem; }
+.r-texto small { display: block; color: var(--suave); font-size: 0.78rem; }
+.resumen-pie { align-items: center; padding-top: 12px; }
+
+/* ---------- Plan de estudio ---------- */
+.plan-actual { margin: 0; padding: 10px 12px; background: var(--fondo); border-radius: 10px; font-size: 0.88rem; }
+.aviso-plan { margin: 4px 0; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, #f2a541 20%, var(--tarjeta)); font-size: 0.85rem; }
+.plan-previa { border-top: 1px solid var(--linea); padding-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.lista-examenes b small { font-weight: 400; color: var(--suave); margin-left: 6px; }
+
+/* ---------- Estadísticas ---------- */
+.pestanas { margin: 2px 20px 0; }
+.pestanas button { flex: 1; }
+.nav-stats { padding: 0 0 4px; }
+.nav-stats .titulo-fecha span { font-weight: 650; }
+.nav-stats .titulo-fecha button { border: 0; background: var(--linea); color: var(--suave); font-size: 0.75rem; font-weight: 600; padding: 2px 10px; border-radius: 999px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+.tile { background: var(--fondo); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.tile small { color: var(--suave); font-size: 0.75rem; font-weight: 600; }
+.tile b { font-size: 1.35rem; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+
+.barras { display: flex; flex-direction: column; gap: 6px; }
+.barra-fila { display: grid; grid-template-columns: 96px 1fr 54px; align-items: center; gap: 8px; font-size: 0.85rem; border-radius: 6px; }
+.barra-fila:hover { background: var(--fondo); }
+.barra-nombre { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.barra-pista { height: 12px; }
+.barra-pista i { display: block; height: 100%; min-width: 4px; border-radius: 0 4px 4px 0; background: var(--color); }
+.barra-valor { text-align: right; color: var(--suave); font-variant-numeric: tabular-nums; }
+
+.dos-graficas { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 520px) { .dos-graficas { grid-template-columns: 1fr; } }
+.mini-grafica h4 { margin: 0 0 6px; font-size: 0.88rem; }
+.mini-grafica h4 small { font-weight: 400; color: var(--suave); margin-left: 4px; }
+.columnas { display: flex; align-items: flex-end; gap: 4px; height: 110px; border-bottom: 1px solid var(--linea); }
+.columna { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; position: relative; }
+.columna i { display: block; width: 100%; max-width: 26px; min-height: 2px; border-radius: 4px 4px 0 0; background: var(--color); opacity: 0.55; }
+.columna.actual i { opacity: 1; }
+.columna:hover i { opacity: 1; }
+.columna-valor { font-size: 0.65rem; color: var(--suave); margin-bottom: 2px; font-variant-numeric: tabular-nums; }
+.columna small { position: absolute; bottom: -18px; font-size: 0.6rem; color: var(--suave); }
+.mini-grafica { padding-bottom: 20px; }
+
+/* ---------- Notas ---------- */
+.lista-notas { display: flex; flex-direction: column; gap: 6px; }
+.nota-asig { border-radius: 12px; background: var(--fondo); border-left: 4px solid var(--color); }
+.nota-asig > summary { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; list-style: none; }
+.nota-asig > summary::-webkit-details-marker { display: none; }
+.nota-asig > summary span { flex: 1; min-width: 0; font-size: 0.85rem; color: var(--suave); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nota-asig > summary em { font-style: normal; font-weight: 700; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.nota-cuerpo { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+.progreso { position: relative; height: 10px; border-radius: 999px; background: var(--linea); }
+.progreso i { display: block; height: 100%; border-radius: 999px; background: var(--color); }
+.progreso span { position: absolute; top: -3px; width: 2px; height: 16px; background: var(--texto); }
+.veredicto { margin: 0; font-size: 0.88rem; }
+.veredicto .ok { color: #0f9d8a; font-weight: 600; }
+.veredicto .mal { color: var(--ahora); font-weight: 600; }
+.tabla-notas { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.tabla-notas th { text-align: left; font-size: 0.7rem; color: var(--suave); font-weight: 600; text-transform: uppercase; padding: 0 4px 4px; }
+.tabla-notas td { padding: 2px; }
+.tabla-notas input { width: 100%; font: inherit; padding: 6px 8px; border: 1px solid var(--linea); border-radius: 8px; background: var(--tarjeta); color: var(--texto); }
+.tabla-notas td:nth-child(2), .tabla-notas td:nth-child(3) { width: 72px; }
+.tabla-notas td:last-child { width: 30px; }
+.quitar { border: 0; background: none; color: var(--suave); width: 28px; height: 28px; border-radius: 50%; }
+.quitar:hover { background: var(--linea); }
+.nota-pie { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 0.82rem; color: var(--suave); }
+.nota-pie input { width: 60px; font: inherit; padding: 5px 6px; border: 1px solid var(--linea); border-radius: 8px; background: var(--tarjeta); color: var(--texto); }
+/* "Hechas" dentro del panel: más discreto que los títulos de apartado */
+.panel details.tareas-hechas > summary { display: block; padding: 4px; font-size: 0.8rem; color: var(--suave); }
+.panel details.tareas-hechas > summary::after { content: none; }
+.tareas-hechas .enlace { margin-top: 4px; }
+=======
+/* ---------- Entregas de Moodle ---------- */
+/* Borde discontinuo, para que se note que es un plazo y no una clase */
+.tarjeta.moodle { background: color-mix(in srgb, var(--color) 8%, var(--tarjeta)); outline: 2px dashed color-mix(in srgb, var(--color) 60%, transparent); outline-offset: -2px; }
+.bloque.moodle {
+  background: color-mix(in srgb, var(--color) 22%, var(--tarjeta));
+  color: var(--texto);
+  box-shadow: inset 0 0 0 2px var(--color);
+  border-bottom: 3px solid var(--color);
+}
+.bloque.moodle strong { color: color-mix(in srgb, var(--color) 70%, var(--texto)); }
+.pildora.moodle { outline: 1px dashed var(--color); }
+.lista-examenes b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ficha-pie a.boton-principal { text-decoration: none; display: inline-flex; align-items: center; }
