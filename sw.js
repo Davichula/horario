@@ -16,7 +16,7 @@ const ESENCIALES = [
   "./", "index.html", "styles.css", "instalable.css",
   "config.js", "personal.js", "moodle.js", "app.js", "instalable.js",
   "tareas.js", "resumen.js", "estudio.js", "estadisticas.js",
-  "sincronizar.js", "vendor/supabase.js",
+  "sincronizar.js", "avisos.js", "vendor/supabase.js",
   "calendario.ics", "manifest.json", "icono.svg", "icono-180.png", "icono-512.png",
 ];
 
@@ -58,3 +58,26 @@ async function redPrimero(peticion) {
   const plazo = new Promise((resolver) => setTimeout(() => resolver(copia), ESPERA_MAXIMA_MS));
   return Promise.race([desdeRed.catch(() => copia), plazo]);
 }
+
+// ----- Notificaciones -----
+// Cuando Supabase nos manda un aviso, lo enseñamos aunque la app esté cerrada
+self.addEventListener("push", (evento) => {
+  let datos = {};
+  try { datos = evento.data ? evento.data.json() : {}; } catch { datos = { cuerpo: evento.data?.text() }; }
+  evento.waitUntil(self.registration.showNotification(datos.titulo || "Mi horario", {
+    body: datos.cuerpo || "",
+    icon: "icono-180.png",
+    badge: "icono-180.png",
+    tag: datos.id,
+    data: { url: datos.url || "./" },
+  }));
+});
+
+// Al tocar el aviso, abrimos la app (o la traemos al frente si ya estaba abierta)
+self.addEventListener("notificationclick", (evento) => {
+  evento.notification.close();
+  evento.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((ventanas) =>
+      ventanas.length ? ventanas[0].focus() : self.clients.openWindow(evento.notification.data?.url || "./"))
+  );
+});

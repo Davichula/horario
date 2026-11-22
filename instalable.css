@@ -37,3 +37,15 @@
 }
 .sync-form .fila-botones button { font-size: 0.85rem; padding: 9px 8px; }
 .sync .form-error { margin: 0 0 8px; }
+
+/* Apartado "Avisos" del panel */
+.avisos > .boton-principal { width: 100%; margin-bottom: 8px; }
+.avisos .fila-botones { margin-bottom: 8px; }
+.avisos .form-error { margin: 0 0 8px; }
+.avisos-ajustes { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; }
+.avisos-ajustes label { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.avisos-ajustes label:has(input) { justify-content: flex-start; }
+.avisos-ajustes select {
+  font: inherit; font-size: 0.85rem; padding: 4px 6px; border-radius: 8px;
+  border: 1px solid var(--linea); background: var(--tarjeta); color: var(--texto);
+}
