@@ -18,6 +18,13 @@
   <link rel="icon" href="icono.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icono-180.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <!-- Ponemos el tema (claro/oscuro) antes de dibujar nada, para que no "parpadee" -->
+  <script>
+    try {
+      const t = localStorage.getItem("mi-horario:tema");
+      if (t === "claro" || t === "oscuro") document.documentElement.dataset.tema = t;
+    } catch {}
+  </script>
 </head>
 <body>
   <div class="app">
@@ -43,6 +50,15 @@
       </section>
 
       <section>
+        <h2>Apariencia</h2>
+        <div class="selector-tema">
+          <button data-tema-opcion="auto">🌓 Auto</button>
+          <button data-tema-opcion="claro">☀️ Claro</button>
+          <button data-tema-opcion="oscuro">🌙 Oscuro</button>
+        </div>
+      </section>
+
+      <section>
         <h2>Copia de seguridad</h2>
         <p class="nota">Tus cosas se guardan en este navegador. Exporta una copia de vez en cuando para no perderlas.</p>
         <div class="fila-botones">
@@ -59,11 +75,15 @@
       <header class="cabecera">
         <button id="btn-menu" class="solo-movil boton-icono" aria-label="Abrir menú">☰</button>
         <h1>Mi horario</h1>
-        <div class="selector-vista" role="tablist">
-          <button id="btn-semana" class="activo">Semana</button>
-          <button id="btn-dia">Día</button>
-        </div>
+        <button id="btn-tema" class="boton-icono boton-tema" aria-label="Cambiar tema">🌓</button>
       </header>
+
+      <div class="selector-vista" role="tablist" aria-label="Vista">
+        <button id="btn-dia">Día</button>
+        <button id="btn-semana">Semana</button>
+        <button id="btn-mes">Mes</button>
+        <button id="btn-anio">Año</button>
+      </div>
 
       <nav class="navegacion">
         <button id="btn-anterior" aria-label="Anterior">‹</button>
@@ -104,9 +124,14 @@
           <input name="titulo" required maxlength="60" placeholder="Ej.: Estudiar señales, gimnasio, comida con Ana…">
         </label>
 
+        <!-- El tipo se elige solo a partir del título; "Cambiar" deja elegirlo a mano -->
         <fieldset class="campo">
-          <legend>Categoría</legend>
-          <div id="form-categorias" class="selector-categorias"></div>
+          <legend>Tipo</legend>
+          <div class="tipo-detectado">
+            <span id="tipo-vista" class="tipo-vista"></span>
+            <button type="button" id="btn-cambiar-tipo" class="enlace">Cambiar</button>
+          </div>
+          <div id="form-categorias" class="selector-categorias" hidden></div>
         </fieldset>
 
         <div class="campo-fila fila-cuando">
