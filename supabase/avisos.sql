@@ -23,12 +23,21 @@ create table public.avisos_enviados (
 );
 alter table public.avisos_enviados enable row level security;
 
--- 3. Permisos para la función (usa la llave de servicio)
+-- 3. Las llaves para mandar notificaciones (las crea la función). Nadie más puede leerlas.
+create table public.claves_vapid (
+  id int primary key,
+  publica text not null,
+  privada text not null
+);
+alter table public.claves_vapid enable row level security;
+
+-- 4. Permisos para la función (usa la llave de servicio)
 grant select on table public.datos to service_role;
 grant select, insert, update, delete on table public.suscripciones to service_role;
 grant select, insert, update, delete on table public.avisos_enviados to service_role;
+grant select, insert on table public.claves_vapid to service_role;
 
--- 4. Llamar a la función cada minuto
+-- 5. Llamar a la función cada minuto
 create extension if not exists pg_net;
 create extension if not exists pg_cron;
 select cron.schedule('enviar-avisos', '* * * * *', $$

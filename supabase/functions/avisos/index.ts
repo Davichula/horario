@@ -12,7 +12,9 @@
 //
 // Para copiarla: Supabase → Edge Functions → Deploy a new function →
 // Via Editor, nombre "avisos", y pegar este archivo entero.
-// Necesita dos secretos (Edge Functions → Secrets): VAPID_PUBLICA y VAPID_PRIVADA.
+// Las "llaves" para mandar notificaciones (VAPID) las crea ella misma la
+// primera vez y las guarda en la tabla claves_vapid, que solo ella puede leer.
+// La web le pide la parte pública llamando a esta función con ?clave.
 // =====================================================================
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
@@ -22,15 +24,35 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, // la llave de servicio: solo existe aquí dentro
 );
 
-webpush.setVapidDetails(
-  "https://davichula.github.io/horario/",
-  Deno.env.get("VAPID_PUBLICA")!,
-  Deno.env.get("VAPID_PRIVADA")!,
-);
+// Lee las llaves de la tabla; si aún no hay, las crea y las guarda
+async function llaves(): Promise<{ publica: string; privada: string }> {
+  const { data } = await supabase.from("claves_vapid").select("publica, privada").eq("id", 1).maybeSingle();
+  if (data) return data;
+  const nuevas = webpush.generateVAPIDKeys();
+  await supabase.from("claves_vapid").insert({ id: 1, publica: nuevas.publicKey, privada: nuevas.privateKey });
+  // Por si dos llamadas las crearon a la vez, nos quedamos con la que quedó guardada
+  const { data: guardadas } = await supabase.from("claves_vapid").select("publica, privada").eq("id", 1).single();
+  return guardadas!;
+}
+
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+};
 
 const MARGEN = 15 * 60000; // un aviso con más de 15 min de retraso ya no se manda
 
-Deno.serve(async () => {
+Deno.serve(async (peticion) => {
+  if (peticion.method === "OPTIONS") return new Response("ok", { headers: CORS });
+
+  const { publica, privada } = await llaves();
+
+  // La web pregunta por la llave pública para poder activar los avisos
+  if (new URL(peticion.url).searchParams.has("clave")) {
+    return new Response(JSON.stringify({ publica }), { headers: { ...CORS, "Content-Type": "application/json" } });
+  }
+
+  webpush.setVapidDetails("https://davichula.github.io/horario/", publica, privada);
   const ahora = Date.now();
   let enviados = 0;
 

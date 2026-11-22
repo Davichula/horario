@@ -20,9 +20,14 @@
 // =====================================================================
 
 (() => {
-  // La parte pública de la "llave" de notificaciones. La parte privada
-  // está guardada como secreto en Supabase, nunca en el código.
-  const VAPID_PUBLICA = "BEtHij-bBlldcnsHYMhQHpTnBsyC1OhMKzsgIHuKQsdI5kdVb5Tmhz-rg0CzsrzjeRlE-1N83SKujlKFEa4OYtQ";
+  // La "llave" pública de notificaciones la da la función de Supabase.
+  // La privada se queda allí, en una tabla que solo ella puede leer.
+  async function llavePublica() {
+    const sb = await window.nube.supabase();
+    const { data, error } = await sb.functions.invoke("avisos?clave", { method: "GET" });
+    if (error || !data?.publica) throw new Error("No he podido hablar con la función de avisos de Supabase.");
+    return data.publica;
+  }
 
   const CLAVE_AJUSTES = "mi-horario:avisos";
   const CLAVE_PROGRAMADOS = "mi-horario:avisos-programados";
@@ -133,11 +138,11 @@
   async function activar() {
     const permiso = await Notification.requestPermission();
     if (permiso !== "granted") throw new Error("No has dado permiso para las notificaciones.");
-    const registro = await navigator.serviceWorker.ready;
-    const sus = (await registro.pushManager.getSubscription()) ||
-      (await registro.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: aBytes(VAPID_PUBLICA) }));
     const s = await sesion();
     if (!s) throw new Error("Primero entra en Sincronizar.");
+    const registro = await navigator.serviceWorker.ready;
+    const sus = (await registro.pushManager.getSubscription()) ||
+      (await registro.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: aBytes(await llavePublica()) }));
     const sb = await window.nube.supabase();
     const { error } = await sb.from("suscripciones").upsert({ endpoint: sus.endpoint, user_id: s.user.id, datos: sus.toJSON() });
     if (error) throw error;
