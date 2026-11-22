@@ -1,0 +1,66 @@
+# =====================================================================
+# moodle.yml — el "robot" que trae tus entregas de Moodle
+# ---------------------------------------------------------------------
+# GitHub ejecuta esto solo dos veces al día (y cuando le das al botón
+# "Run workflow" en la pestaña Actions). Lo que hace:
+#   1. Descarga tu calendario de Moodle usando tu enlace privado.
+#   2. Si ha cambiado algo, guarda el nuevo moodle.ics en el repositorio.
+#   3. La web (GitHub Pages) se actualiza sola con el archivo nuevo.
+#
+# Tu enlace privado NO está aquí escrito: se guarda como "secreto" en
+# Settings > Secrets and variables > Actions, con el nombre MOODLE_ICS_URL.
+# Así nadie puede verlo aunque el repositorio sea público.
+# =====================================================================
+name: Actualizar entregas de Moodle
+
+on:
+  schedule:
+    - cron: "0 5,17 * * *"   # a las 5:00 y 17:00 UTC (6:00 y 18:00 en España en invierno)
+  workflow_dispatch:          # botón para lanzarlo a mano
+
+permissions:
+  contents: write   # para poder guardar moodle.ics
+  pages: write      # para pedir a GitHub Pages que se actualice
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Descargar el calendario de Moodle
+        env:
+          MOODLE_ICS_URL: ${{ secrets.MOODLE_ICS_URL }}
+        run: |
+          if [ -z "$MOODLE_ICS_URL" ]; then
+            echo "::warning::Falta el secreto MOODLE_ICS_URL. Mira el README."
+            exit 0
+          fi
+          curl --fail --silent --show-error --location "$MOODLE_ICS_URL" -o nuevo.ics
+          # Comprobamos que de verdad es un calendario (y no una página de error)
+          if ! grep -q "BEGIN:VCALENDAR" nuevo.ics; then
+            echo "::error::Moodle no ha devuelto un calendario. ¿Ha caducado el enlace?"
+            exit 1
+          fi
+          # DTSTAMP cambia en cada descarga aunque no cambie nada más: lo ignoramos al comparar
+          if [ -f moodle.ics ] && diff -q <(grep -v '^DTSTAMP' moodle.ics) <(grep -v '^DTSTAMP' nuevo.ics) >/dev/null; then
+            echo "Sin cambios en Moodle."
+            rm nuevo.ics
+          else
+            mv nuevo.ics moodle.ics
+          fi
+
+      - name: Guardar si hay cambios
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- moodle.ics && git ls-files --error-unmatch moodle.ics >/dev/null 2>&1; then
+            exit 0
+          fi
+          git config user.name "robot-moodle"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add moodle.ics
+          git commit -m "Actualizar entregas de Moodle"
+          git push
+          # Pedimos a GitHub Pages que publique la versión nueva (si falla, no pasa nada)
+          gh api -X POST "repos/${{ github.repository }}/pages/builds" >/dev/null || true
