@@ -741,3 +741,42 @@ main { flex: 1; padding: 0 16px 16px; }
 .enlace { border: 0; background: none; color: var(--suave); text-decoration: underline; font-size: 0.85rem; padding: 4px; }
 .selector-categorias[hidden] { display: none; }
 .anio-titulo small { font-weight: 500; color: var(--suave); font-size: 0.75rem; margin-left: 4px; }
+
+/* =====================================================================
+   PANEL PLEGABLE
+   ===================================================================== */
+#btn-menu, #btn-cerrar-panel { display: inline-flex; }
+#btn-cerrar-panel { font-size: 1.3rem; color: var(--suave); }
+#btn-cerrar-panel:hover, #btn-menu:hover { background: var(--linea); }
+
+@media (min-width: 900px) {
+  /* Con el panel a la vista, el ☰ de arriba sobra */
+  #btn-menu { display: none; }
+  /* Plegado: desaparece el panel, vuelven el ☰ y el título */
+  .panel-plegado .panel { display: none; }
+  .panel-plegado #btn-menu { display: inline-flex; }
+  .panel-plegado .cabecera h1 { visibility: visible; }
+  /* Sin panel, el botón "+" flotante vuelve a hacer falta */
+  .panel-plegado .fab { display: block; }
+}
+@media (max-width: 899px) {
+  #btn-cerrar-panel { font-size: 1.1rem; }
+}
+
+/* Cada apartado del panel se abre y cierra tocando su título */
+.panel details > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 8px;
+  margin: 0 -6px;
+  padding: 2px 6px;
+}
+.panel details > summary::-webkit-details-marker { display: none; }
+.panel details > summary:hover { background: var(--fondo); }
+.panel details > summary::after { content: "⌄"; color: var(--suave); font-size: 1rem; line-height: 1; transition: transform 0.15s; }
+.panel details:not([open]) > summary::after { transform: rotate(-90deg); }
+.panel details > summary h2 { margin: 6px 0; }
+.panel details[open] > summary { margin-bottom: 4px; }
