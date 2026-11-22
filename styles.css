@@ -780,3 +780,17 @@ main { flex: 1; padding: 0 16px 16px; }
 .panel details:not([open]) > summary::after { transform: rotate(-90deg); }
 .panel details > summary h2 { margin: 6px 0; }
 .panel details[open] > summary { margin-bottom: 4px; }
+
+/* ---------- Entregas de Moodle ---------- */
+/* Borde discontinuo, para que se note que es un plazo y no una clase */
+.tarjeta.moodle { background: color-mix(in srgb, var(--color) 8%, var(--tarjeta)); outline: 2px dashed color-mix(in srgb, var(--color) 60%, transparent); outline-offset: -2px; }
+.bloque.moodle {
+  background: color-mix(in srgb, var(--color) 22%, var(--tarjeta));
+  color: var(--texto);
+  box-shadow: inset 0 0 0 2px var(--color);
+  border-bottom: 3px solid var(--color);
+}
+.bloque.moodle strong { color: color-mix(in srgb, var(--color) 70%, var(--texto)); }
+.pildora.moodle { outline: 1px dashed var(--color); }
+.lista-examenes b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ficha-pie a.boton-principal { text-decoration: none; display: inline-flex; align-items: center; }
