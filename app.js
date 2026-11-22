@@ -301,6 +301,9 @@ function dibujarDia() {
     )}</p>`;
   }
 
+  // Tareas de ese día y, si es hoy, tus hábitos (tareas.js)
+  html += htmlTareasDelDia(dia);
+
   // Marcamos lo que está en curso y lo siguiente (solo si miramos hoy)
   const enCurso = elementos.filter((c) => c.inicio <= ahora && ahora < c.fin);
   const siguiente = elementos.find((c) => c.inicio > ahora);
@@ -541,6 +544,8 @@ function dibujarPanel() {
           <span>${fechaCorta(e.inicio)} · ${cuandoEs(e.inicio)}</span>
         </button></li>`).join("")
     : `<li class="nota">No hay exámenes próximos.</li>`;
+
+  dibujarTareasYHabitos(); // tareas.js
 }
 
 // =====================================================================
@@ -560,6 +565,8 @@ function abrirFicha(id) {
 
   const editar = ficha.querySelector("[data-editar]");
   if (editar) editar.onclick = () => { ficha.close(); abrirFormulario({ item: c.item }); };
+  const planificar = ficha.querySelector("[data-planificar]");
+  if (planificar) planificar.onclick = () => { ficha.close(); abrirPlanEstudio(c); };
   const duplicar = ficha.querySelector("[data-duplicar]");
   if (duplicar) duplicar.onclick = () => {
     ficha.close();
@@ -600,7 +607,11 @@ function htmlFichaClase(c) {
       ${examen && examen !== c ? fila("📝", "Próximo examen",
              `${fechaLarga(examen.inicio)} (${cuandoEs(examen.inicio)})`,
              `<p class="sub">${hora(examen.inicio)} – ${hora(examen.fin)} · ${examen.ubicacion.nombre}</p>`) : ""}
-    </div>`;
+    </div>
+    ${c.clase === "examen" && c.inicio > ahora ? `
+    <footer class="ficha-pie">
+      <button class="boton-principal" data-planificar>📚 Planificar estudio${bloquesDelPlan(claveExamen(c)).length ? " (ya tienes plan)" : ""}</button>
+    </footer>` : ""}`;
 }
 
 function htmlFichaPersonal(p) {
@@ -620,6 +631,7 @@ function htmlFichaPersonal(p) {
              `<p class="sub">${hora(p.inicio)} – ${hora(p.fin)} · ${duracion(p)}</p>`)}
       ${fila("📍", "Dónde", escapar(it.lugar || ""))}
       ${fila("🔁", "Se repite", repite)}
+      ${it.plan ? fila("🎯", "Plan de estudio", "Bloque de repaso creado por el plan de estudio") : ""}
       ${it.notas ? `<div class="fila"><span class="icono">🗒️</span><div><small>Notas</small><p class="notas">${escapar(it.notas)}</p></div></div>` : ""}
     </div>
     <footer class="ficha-pie">
@@ -738,6 +750,7 @@ form.addEventListener("submit", (e) => {
   }
 
   const datos = {
+    ...(editando || {}), // conserva datos extra (por ejemplo, a qué plan de estudio pertenece)
     id: editando ? editando.id : nuevoId(),
     titulo: f.titulo.value.trim(),
     categoria: form.querySelector("input[name=categoria]:checked")?.value || "auto",
@@ -920,9 +933,10 @@ document.getElementById("lista-examenes").addEventListener("click", (e) => {
   if (b) { cerrarPanel(); abrirFicha(b.dataset.id); }
 });
 
+// La copia guarda todo: tus cosas, tareas, hábitos y notas
 document.getElementById("btn-exportar").onclick = () => {
-  if (!estado.personales.length) return avisar("Todavía no has añadido nada");
-  exportarPersonales(estado.personales);
+  if (!estado.personales.length && !tareas.length && !habitos.length) return avisar("Todavía no has añadido nada");
+  exportarPersonales({ version: 2, personales: estado.personales, tareas, habitos, notas });
 };
 const archivoImportar = document.getElementById("archivo-importar");
 document.getElementById("btn-importar").onclick = () => archivoImportar.click();
@@ -930,14 +944,21 @@ archivoImportar.addEventListener("change", async () => {
   const archivo = archivoImportar.files[0];
   if (!archivo) return;
   try {
-    const importados = await leerCopia(archivo);
+    const copia = await leerCopia(archivo);
     // Juntamos sin duplicar: si un id ya existe, gana el del archivo
-    const porId = new Map(estado.personales.map((p) => [p.id, p]));
-    importados.forEach((p) => porId.set(p.id, p));
-    estado.personales = [...porId.values()];
+    const juntar = (actual, nuevos) => {
+      const porId = new Map(actual.map((p) => [p.id, p]));
+      nuevos.forEach((p) => porId.set(p.id, p));
+      return [...porId.values()];
+    };
+    estado.personales = juntar(estado.personales, copia.personales);
     guardarPersonales(estado.personales);
+    tareas = juntar(tareas, copia.tareas); guardarTareas();
+    habitos = juntar(habitos, copia.habitos); guardarHabitos();
+    notas = { ...notas, ...copia.notas }; guardarNotas();
+    dibujarPanel();
     dibujar();
-    avisar(`Importadas ${importados.length} cosas`);
+    avisar(`Importadas ${copia.personales.length + copia.tareas.length + copia.habitos.length} cosas`);
   } catch {
     avisar("Ese archivo no es una copia válida");
   }
@@ -960,6 +981,7 @@ async function iniciar() {
   }
   dibujarPanel();
   dibujar({ desplazar: true });
+  mostrarResumenSiToca(); // resumen.js: el resumen del día, la primera vez que abres cada día
   // Cada minuto refrescamos para que "Ahora" y la línea roja se muevan solas
   setInterval(() => { if (!document.querySelector("dialog[open]")) dibujar(); }, 60000);
 }

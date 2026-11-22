@@ -39,6 +39,41 @@
 
       <button id="btn-anadir-panel" class="boton-principal">＋ Añadir algo</button>
 
+      <!-- Tareas sin hora: se escriben aquí y se marcan con un toque -->
+      <details open data-apartado="tareas">
+        <summary><h2>Tareas <span id="contador-tareas" class="contador"></span></h2></summary>
+        <form id="form-tarea" class="anadir-rapido" autocomplete="off">
+          <input name="texto" maxlength="120" placeholder="Nueva tarea… (p. ej. «informe CD viernes»)" aria-label="Nueva tarea">
+          <button aria-label="Añadir tarea">＋</button>
+        </form>
+        <ul id="lista-tareas" class="lista-tareas"></ul>
+        <details id="tareas-hechas" class="tareas-hechas" hidden>
+          <summary>Hechas</summary>
+          <ul class="lista-tareas"></ul>
+          <button id="btn-borrar-hechas" class="enlace">Borrar las hechas</button>
+        </details>
+      </details>
+
+      <!-- Hábitos: cosas que quieres hacer cada día -->
+      <details open data-apartado="habitos">
+        <summary><h2>Hábitos</h2></summary>
+        <ul id="lista-habitos" class="lista-habitos"></ul>
+        <form id="form-habito" class="anadir-rapido" autocomplete="off">
+          <input name="nombre" maxlength="40" placeholder="Nuevo hábito… (leer, beber agua…)" aria-label="Nuevo hábito">
+          <button aria-label="Añadir hábito">＋</button>
+        </form>
+      </details>
+
+      <!-- Herramientas: cada botón abre una ventana -->
+      <details open data-apartado="herramientas">
+        <summary><h2>Herramientas</h2></summary>
+        <div class="herramientas">
+          <button id="btn-plan" class="boton-secundario">📚 Plan de estudio</button>
+          <button id="btn-estadisticas" class="boton-secundario">📊 Estadísticas</button>
+          <button id="btn-notas" class="boton-secundario">🎯 Mis notas</button>
+        </div>
+      </details>
+
       <details open data-apartado="mostrar">
         <summary><h2>Mostrar</h2></summary>
         <div id="filtros" class="filtros"></div>
@@ -60,7 +95,7 @@
 
       <details open data-apartado="copia">
         <summary><h2>Copia de seguridad</h2></summary>
-        <p class="nota">Tus cosas se guardan en este navegador. Exporta una copia de vez en cuando para no perderlas.</p>
+        <p class="nota">Tus cosas, tareas, hábitos y notas se guardan en este navegador. Exporta una copia de vez en cuando para no perderlas.</p>
         <div class="fila-botones">
           <button id="btn-exportar" class="boton-secundario">⬇ Exportar</button>
           <button id="btn-importar" class="boton-secundario">⬆ Importar</button>
@@ -75,6 +110,7 @@
       <header class="cabecera">
         <button id="btn-menu" class="boton-icono" aria-label="Abrir menú" title="Abrir menú">☰</button>
         <h1>Mi horario</h1>
+        <button id="btn-resumen" class="boton-icono boton-tema" aria-label="Resumen de hoy" title="Resumen de hoy">📋</button>
         <button id="btn-tema" class="boton-icono boton-tema" aria-label="Cambiar tema">🌓</button>
       </header>
 
@@ -168,9 +204,21 @@
     </form>
   </dialog>
 
+  <!-- Una ventana "comodín" que se rellena desde JavaScript: resumen del día,
+       plan de estudio, estadísticas, editar tareas y hábitos... -->
+  <dialog id="hoja" class="ficha hoja">
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+    <div class="hoja-contenido"></div>
+  </dialog>
+
   <!-- El orden importa: primero tus datos, luego las herramientas y al final el programa -->
   <script src="config.js"></script>
   <script src="personal.js"></script>
   <script src="app.js"></script>
+  <!-- Lo nuevo va después de app.js porque usa sus funciones (dibujar, estado...) -->
+  <script src="tareas.js"></script>
+  <script src="resumen.js"></script>
+  <script src="estudio.js"></script>
+  <script src="estadisticas.js"></script>
 </body>
 </html>
