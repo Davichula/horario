@@ -161,8 +161,27 @@ function filtrarMisClases(eventos) {
   }
   mias.sort((a, b) => a.inicio - b.inicio);
   mias.forEach((c, i) => (c.id = `c:${i}`)); // un nombre para encontrar cada clase al tocarla
+  marcarRecuperaciones(mias);
   return { mias, festivos };
 }
+
+// Cada asignatura tiene dos exámenes en el calendario: el primero es la
+// convocatoria ordinaria y el segundo, la recuperación. Marcamos el
+// segundo para que no salga en el plan de estudio ni en "Próximos exámenes"
+// (en el calendario sí sigue saliendo, con la etiqueta "Recuperación").
+function marcarRecuperaciones(clases) {
+  const vistos = new Set();
+  for (const c of clases) { // ya vienen ordenadas por fecha
+    if (c.clase !== "examen") continue;
+    if (vistos.has(c.codigo)) {
+      c.recuperacion = true;
+      c.etiqueta = "Recuperación";
+    }
+    vistos.add(c.codigo);
+  }
+}
+// ¿Es un examen de la convocatoria ordinaria?
+const esOrdinaria = (e) => e.clase === "examen" && !e.recuperacion;
 
 // =====================================================================
 // Pequeñas ayudas con fechas
@@ -542,7 +561,7 @@ function dibujarPanel() {
     .join("");
 
   const ahora = new Date();
-  const examenes = estado.eventos.filter((e) => e.clase === "examen" && e.fin > ahora).slice(0, 5);
+  const examenes = estado.eventos.filter((e) => esOrdinaria(e) && e.fin > ahora).slice(0, 5);
   document.getElementById("lista-examenes").innerHTML = examenes.length
     ? examenes.map((e) => `
         <li><button data-id="${e.id}" style="--color:${e.color}">
@@ -594,7 +613,8 @@ function htmlFichaClase(c) {
 
   // Siguiente sesión de la misma asignatura y próximo examen
   const proxima = deLaAsignatura.find((e) => e.inicio > c.inicio);
-  const examen = deLaAsignatura.find((e) => e.tipo.clase === "examen" && e.fin > ahora);
+  const examen = deLaAsignatura.find((e) => esOrdinaria(e) && e.fin > ahora)
+    || deLaAsignatura.find((e) => e.tipo.clase === "examen" && e.fin > ahora);
   // "Sesión 5 de 21" contando solo las del mismo tipo (teoría con teoría, etc.)
   const mismoTipo = deLaAsignatura.filter((e) => e.tipo === c.tipo);
   const numero = mismoTipo.indexOf(c) + 1;
@@ -614,7 +634,9 @@ function htmlFichaClase(c) {
       ${fila("📍", "Dónde", c.ubicacion.nombre,
              `<p class="sub">${[planta, c.ubicacion.codigo].filter(Boolean).join(" · ")}</p>`)}
       ${fila("👥", "Grupo", GRUPOS_COMUNES.includes(c.grupo) ? `${c.grupo} (todo el curso)` : `${c.grupo} (tu grupo de prácticas)`)}
-      ${fila("🔢", "Sesión", `${numero} de ${mismoTipo.length} de ${c.tipo.etiqueta.toLowerCase()}`)}
+      ${c.clase === "examen"
+        ? fila("🎯", "Convocatoria", c.recuperacion ? "Recuperación (2ª convocatoria)" : "Ordinaria (1ª convocatoria)")
+        : fila("🔢", "Sesión", `${numero} de ${mismoTipo.length} de ${c.tipo.etiqueta.toLowerCase()}`)}
       ${proxima ? fila("➡️", "Siguiente clase de la asignatura",
              `${proxima.tipo.etiqueta} · ${fechaLarga(proxima.inicio)}`,
              `<p class="sub">${hora(proxima.inicio)} · ${proxima.ubicacion.nombre}</p>`) : ""}
@@ -622,7 +644,7 @@ function htmlFichaClase(c) {
              `${fechaLarga(examen.inicio)} (${cuandoEs(examen.inicio)})`,
              `<p class="sub">${hora(examen.inicio)} – ${hora(examen.fin)} · ${examen.ubicacion.nombre}</p>`) : ""}
     </div>
-    ${c.clase === "examen" && c.inicio > ahora ? `
+    ${esOrdinaria(c) && c.inicio > ahora ? `
     <footer class="ficha-pie">
       <button class="boton-principal" data-planificar>📚 Planificar estudio${bloquesDelPlan(claveExamen(c)).length ? " (ya tienes plan)" : ""}</button>
     </footer>` : ""}`;
@@ -995,7 +1017,9 @@ async function iniciar() {
     avisar("No he podido leer calendario.ics");
     console.error(error);
   }
-  estado.moodle = await cargarMoodle(); // de moodle.js
+  const deMoodle = await cargarMoodle(); // de moodle.js
+  // + los informes de prácticas que se entregan en la siguiente sesión (SEM)
+  estado.moodle = [...deMoodle, ...informesDePracticas(estado.eventos, deMoodle)].sort((a, b) => a.fin - b.fin);
   dibujarPanel();
   dibujar({ desplazar: true });
   mostrarResumenSiToca(); // resumen.js: el resumen del día, la primera vez que abres cada día
