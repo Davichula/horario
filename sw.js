@@ -14,7 +14,8 @@ const CACHE = "mi-horario-v1";
 // Lo mínimo para que la app arranque sin conexión
 const ESENCIALES = [
   "./", "index.html", "styles.css", "instalable.css",
-  "config.js", "personal.js", "app.js", "instalable.js",
+  "config.js", "personal.js", "moodle.js", "app.js", "instalable.js",
+  "tareas.js", "resumen.js", "estudio.js", "estadisticas.js",
   "calendario.ics", "manifest.json", "icono.svg", "icono-180.png", "icono-512.png",
 ];
 

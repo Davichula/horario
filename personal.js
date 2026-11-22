@@ -104,8 +104,9 @@ function personalesDelDia(lista, dia) {
 }
 
 // ----- Copia de seguridad -----
-function exportarPersonales(lista) {
-  const blob = new Blob([JSON.stringify(lista, null, 2)], { type: "application/json" });
+// "datos" es { version: 2, personales, tareas, habitos, notas }
+function exportarPersonales(datos) {
+  const blob = new Blob([JSON.stringify(datos, null, 2)], { type: "application/json" });
   const enlace = document.createElement("a");
   enlace.href = URL.createObjectURL(blob);
   enlace.download = `mi-horario-copia-${aTextoDia(new Date())}.json`;
@@ -113,11 +114,20 @@ function exportarPersonales(lista) {
   URL.revokeObjectURL(enlace.href);
 }
 
-// Lee un archivo .json y devuelve la lista (o lanza un error si no vale)
+// Lee un archivo .json y devuelve { personales, tareas, habitos, notas }
+// (o lanza un error si no vale). Acepta también las copias antiguas,
+// que eran solo la lista de cosas personales.
 async function leerCopia(archivo) {
   const datos = JSON.parse(await archivo.text());
-  if (!Array.isArray(datos)) throw new Error("El archivo no tiene el formato esperado");
-  return datos.filter((d) => d && d.id && d.titulo && d.fecha && d.inicio && d.fin);
+  const copia = Array.isArray(datos) ? { personales: datos } : datos;
+  if (!copia || typeof copia !== "object" || !Array.isArray(copia.personales)) throw new Error("El archivo no tiene el formato esperado");
+  const lista = (x) => (Array.isArray(x) ? x.filter((d) => d && d.id) : []);
+  return {
+    personales: copia.personales.filter((d) => d && d.id && d.titulo && d.fecha && d.inicio && d.fin),
+    tareas: lista(copia.tareas).filter((t) => t.texto),
+    habitos: lista(copia.habitos).filter((h) => h.nombre && Array.isArray(h.hechos)),
+    notas: copia.notas && typeof copia.notas === "object" && !Array.isArray(copia.notas) ? copia.notas : {},
+  };
 }
 
 // =====================================================================
