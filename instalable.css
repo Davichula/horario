@@ -28,3 +28,12 @@
   flex: none; border: 0; background: none; color: var(--suave);
   font-size: 1.1rem; padding: 6px; cursor: pointer;
 }
+
+/* Apartado "Sincronizar" del panel */
+.sync-form { display: flex; gap: 8px; margin-bottom: 8px; }
+.sync-form input {
+  flex: 1; min-width: 0; font: inherit; font-size: 16px; padding: 8px 10px;
+  border: 1px solid var(--linea); border-radius: 10px; background: var(--tarjeta); color: var(--texto);
+}
+.sync-form .boton-principal { font-size: 0.85rem; padding: 8px 12px; width: auto; }
+.sync .form-error { margin: 0 0 8px; }

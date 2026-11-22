@@ -14,8 +14,8 @@ const CACHE = "mi-horario-v1";
 // Lo mínimo para que la app arranque sin conexión
 const ESENCIALES = [
   "./", "index.html", "styles.css", "instalable.css",
-  "config.js", "personal.js", "app.js", "instalable.js",
-  "calendario.ics", "manifest.json", "icono.svg", "icono-180.png", "icono-512.png",
+  "config.js", "personal.js", "app.js", "instalable.js", "sincronizar.js",
+  "vendor/supabase.js", "calendario.ics", "manifest.json", "icono.svg", "icono-180.png", "icono-512.png",
 ];
 
 // Si la red tarda más que esto, enseñamos la copia y seguimos esperando por detrás
