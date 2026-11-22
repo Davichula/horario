@@ -5,8 +5,9 @@
 //   1. Descarga el archivo calendario.ics (el de la escuela).
 //   2. Lo "traduce" (parsea) a una lista de eventos que JavaScript entiende.
 //   3. Se queda solo con TUS clases, usando config.js.
-//   4. Dibuja la vista de semana o de día.
-//   5. Al tocar una clase, abre una ficha con todos sus detalles.
+//   4. Junta tus clases con tus cosas personales (personal.js).
+//   5. Dibuja la vista de semana o de día.
+//   6. Al tocar algo, abre una ficha con todos sus detalles.
 //
 // Si sabes algo de Python, JavaScript se parece bastante:
 //   - "const x = 5"  es como  "x = 5"  (y no se puede cambiar luego)
@@ -19,10 +20,12 @@
 
 // ---------- Estado de la app (lo que está mirando el usuario) ----------
 const estado = {
-  eventos: [],           // tus clases ya filtradas
-  festivos: [],          // días festivos
+  eventos: [],              // tus clases ya filtradas
+  festivos: [],             // días festivos
+  personales: cargarPersonales(), // tus cosas (de personal.js)
+  filtros: cargarFiltros(), // qué se muestra y qué no
   vista: window.innerWidth < 700 ? "dia" : "semana", // en móvil empezamos por el día
-  fecha: new Date(),     // el día que estamos mirando
+  fecha: new Date(),        // el día que estamos mirando
 };
 
 const TIPOS = {
@@ -33,6 +36,20 @@ const TIPOS = {
 };
 
 const DIAS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+const REPETICIONES = { no: "No se repite", diario: "Todos los días", laborables: "De lunes a viernes", semanal: "Cada semana" };
+
+// Los filtros ("mostrar clases", "mostrar entreno"...) también se recuerdan
+function cargarFiltros() {
+  try {
+    return JSON.parse(localStorage.getItem("mi-horario:filtros")) || { ocultos: [] };
+  } catch {
+    return { ocultos: [] };
+  }
+}
+function guardarFiltros() {
+  try { localStorage.setItem("mi-horario:filtros", JSON.stringify(estado.filtros)); } catch {}
+}
+const visible = (clave) => !estado.filtros.ocultos.includes(clave);
 
 // =====================================================================
 // PASO 1 y 2: leer y traducir el archivo .ics
@@ -75,7 +92,7 @@ function leerFecha(t) {
 // "L2.04 - A L2.04 (CRE.1200.02.200)" -> { corto: "L2.04", nombre: "Laboratorio L2.04", ... }
 function leerUbicacion(texto) {
   const m = texto.match(/^(\S+) - (.+?) \((.+)\)$/);
-  if (!m) return { corto: texto || "Sin aula", nombre: texto || "Sin aula asignada", codigo: "" };
+  if (!m) return { corto: texto || "Sin aula", nombre: texto || "Sin aula asignada", codigo: "", planta: null };
   const [, corto, nombre, codigo] = m;
   const esLab = corto.startsWith("L");
   // El código "CRE.1200.02.200" lleva la planta en el tercer número (02 -> 2ª planta)
@@ -105,25 +122,34 @@ function filtrarMisClases(eventos) {
     }
     const m = ev.resumen.match(/^(\d+) - (.+?) Grupo: (\S+) - (.+)$/);
     if (!m) continue;
-    const [, codigo, , grupo, tipo] = m;
+    const [, codigo, , grupo, tipoTexto] = m;
 
     const asignatura = MIS_ASIGNATURAS[codigo];
     if (!asignatura) continue; // no es una asignatura tuya
 
     const esComun = GRUPOS_COMUNES.includes(grupo);
     const esMiGrupo = grupo === asignatura.grupoPracticas;
-    if (esComun || esMiGrupo) {
-      mias.push({
-        ...ev,
-        codigo,
-        grupo,
-        asignatura,
-        tipo: TIPOS[tipo] || { etiqueta: tipo, clase: "", icono: "📌" },
-      });
-    }
+    if (!esComun && !esMiGrupo) continue;
+
+    const tipo = TIPOS[tipoTexto] || { etiqueta: tipoTexto, clase: "", icono: "📌" };
+    // Guardamos cada clase con los mismos campos que una cosa personal
+    // (color, corto, etiqueta...) para poder dibujar las dos igual.
+    mias.push({
+      ...ev,
+      origen: "clase",
+      codigo, grupo, asignatura, tipo,
+      color: asignatura.color,
+      corto: asignatura.corto,
+      titulo: asignatura.nombre,
+      etiqueta: tipo.etiqueta,
+      icono: tipo.icono,
+      clase: tipo.clase,
+      lugarCorto: ev.ubicacion.corto,
+      lugar: ev.ubicacion.nombre,
+    });
   }
   mias.sort((a, b) => a.inicio - b.inicio);
-  mias.forEach((c, i) => (c.id = i)); // un número para encontrar cada clase al tocarla
+  mias.forEach((c, i) => (c.id = `c:${i}`)); // un nombre para encontrar cada clase al tocarla
   return { mias, festivos };
 }
 
@@ -168,11 +194,58 @@ function cuandoEs(fecha) {
   return dias > 0 ? `dentro de ${dias} días` : `hace ${-dias} días`;
 }
 
-const clasesDelDia = (dia) => estado.eventos.filter((e) => mismoDia(e.inicio, dia));
-const festivoDelDia = (dia) => estado.festivos.some((f) => mismoDia(f.inicio, dia));
+// Para no romper la página si escribes "<" o "&" en un título
+const escapar = (t) => String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
 // =====================================================================
-// PASO 4: dibujar
+// PASO 4: juntar clases y cosas personales
+// =====================================================================
+
+// Todo lo que hay un día (clases + lo tuyo), respetando los filtros
+function elementosDelDia(dia) {
+  const clases = visible("clases") ? estado.eventos.filter((e) => mismoDia(e.inicio, dia)) : [];
+  const mias = personalesDelDia(estado.personales, dia).filter((p) => visible(p.categoria));
+  return [...clases, ...mias].sort((a, b) => a.inicio - b.inicio || b.fin - a.fin);
+}
+
+const festivoDelDia = (dia) => estado.festivos.some((f) => mismoDia(f.inicio, dia));
+
+// Busca un elemento por su id ("c:12" para clases, "p:abc:2026-11-23" para lo tuyo)
+function buscarElemento(id) {
+  if (id.startsWith("c:")) return estado.eventos.find((e) => e.id === id);
+  const [, idItem, dia] = id.split(":");
+  const [a, m, d] = dia.split("-").map(Number);
+  return personalesDelDia(estado.personales, new Date(a, m - 1, d)).find((p) => p.item.id === idItem);
+}
+
+// Si dos cosas se solapan en la semana, las ponemos una al lado de la otra.
+// A cada elemento le damos una "columna" y cuántas columnas hay en su grupo.
+function repartirColumnas(elementos) {
+  const grupos = [];
+  let grupo = [], finGrupo = 0;
+  for (const el of elementos) {
+    if (grupo.length && el.inicio >= finGrupo) { grupos.push(grupo); grupo = []; }
+    grupo.push(el);
+    finGrupo = Math.max(finGrupo, el.fin);
+  }
+  if (grupo.length) grupos.push(grupo);
+
+  const resultado = new Map();
+  for (const g of grupos) {
+    const finesColumna = []; // cuándo queda libre cada columna
+    for (const el of g) {
+      let col = finesColumna.findIndex((fin) => fin <= el.inicio);
+      if (col === -1) col = finesColumna.length;
+      finesColumna[col] = el.fin;
+      resultado.set(el, { col });
+    }
+    for (const el of g) resultado.get(el).total = finesColumna.length;
+  }
+  return resultado;
+}
+
+// =====================================================================
+// PASO 5: dibujar
 // =====================================================================
 
 function dibujar() {
@@ -188,62 +261,69 @@ function dibujarDia() {
   const ahora = new Date();
   document.getElementById("titulo-periodo").textContent = fechaLarga(dia);
 
-  const clases = clasesDelDia(dia);
+  const elementos = elementosDelDia(dia);
   const cont = document.getElementById("calendario");
   cont.className = "vista-dia";
 
   let html = "";
   if (festivoDelDia(dia)) html += `<div class="aviso-festivo">🎉 Día festivo</div>`;
 
-  if (clases.length === 0) {
-    html += `<div class="vacio"><span>☕</span>No tienes clases este día.</div>`;
+  if (elementos.length === 0) {
+    html += `<div class="vacio"><span>☕</span>No tienes nada este día.</div>`;
   } else {
-    const horas = clases.reduce((t, c) => t + (c.fin - c.inicio), 0) / 3600000;
-    html += `<p class="resumen-dia">${clases.length} ${clases.length === 1 ? "clase" : "clases"} ·
-      ${hora(clases[0].inicio)}–${hora(clases[clases.length - 1].fin)} · ${horas.toLocaleString("es-ES")} h</p>`;
+    const nClases = elementos.filter((e) => e.origen === "clase").length;
+    const nMias = elementos.length - nClases;
+    const partes = [];
+    if (nClases) partes.push(`${nClases} ${nClases === 1 ? "clase" : "clases"}`);
+    if (nMias) partes.push(`${nMias} ${nMias === 1 ? "cosa tuya" : "cosas tuyas"}`);
+    html += `<p class="resumen-dia">${partes.join(" y ")} · ${hora(elementos[0].inicio)}–${hora(
+      new Date(Math.max(...elementos.map((e) => e.fin)))
+    )}</p>`;
   }
 
-  // Marcamos la clase que está en curso y la siguiente (solo si miramos hoy)
-  const enCurso = clases.find((c) => c.inicio <= ahora && ahora < c.fin);
-  const siguiente = clases.find((c) => c.inicio > ahora);
+  // Marcamos lo que está en curso y lo siguiente (solo si miramos hoy)
+  const enCurso = elementos.filter((c) => c.inicio <= ahora && ahora < c.fin);
+  const siguiente = elementos.find((c) => c.inicio > ahora);
 
-  for (const c of clases) {
+  for (const c of elementos) {
     const pasada = c.fin <= ahora;
     let marca = "";
-    if (c === enCurso) marca = `<span class="marca ahora">Ahora</span>`;
+    if (enCurso.includes(c)) marca = `<span class="marca ahora">Ahora</span>`;
     else if (c === siguiente && mismoDia(dia, ahora)) marca = `<span class="marca">Siguiente</span>`;
 
+    const detalle = [c.lugar && `📍 ${escapar(c.lugar)}`, duracion(c)].filter(Boolean).join(` <span class="punto">·</span> `);
     html += `
-      <button class="tarjeta ${c.tipo.clase} ${pasada ? "pasada" : ""}" data-id="${c.id}" style="--color:${c.asignatura.color}">
+      <button class="tarjeta ${c.clase} ${pasada ? "pasada" : ""}" data-id="${c.id}" style="--color:${c.color}">
         <div class="tarjeta-hora">${hora(c.inicio)}<small>${hora(c.fin)}</small></div>
         <div class="tarjeta-info">
-          <div class="fila-etiquetas"><span class="etiqueta">${c.tipo.icono} ${c.tipo.etiqueta}</span>${marca}</div>
-          <h3>${c.asignatura.nombre}</h3>
-          <p>📍 ${c.ubicacion.nombre} <span class="punto">·</span> ${duracion(c)}</p>
+          <div class="fila-etiquetas"><span class="etiqueta">${c.icono} ${c.etiqueta}</span>${marca}</div>
+          <h3>${escapar(c.titulo)}</h3>
+          <p>${detalle}</p>
         </div>
         <span class="flecha">›</span>
       </button>`;
   }
+  html += `<button class="anadir-dia" data-anadir="${aTextoDia(dia)}">＋ Añadir algo a este día</button>`;
   cont.innerHTML = html;
-  dibujarLeyenda(clases);
+  dibujarLeyenda(elementos);
 }
 
 // ----- Vista de semana: una cuadrícula con horas y días -----
 function dibujarSemana() {
   const lunes = lunesDe(estado.fecha);
-  let dias = [0, 1, 2, 3, 4, 5].map((n) => sumarDias(lunes, n));
-  // El sábado solo aparece si esa semana hay algo (por ejemplo un examen)
-  if (clasesDelDia(dias[5]).length === 0) dias = dias.slice(0, 5);
+  let dias = [0, 1, 2, 3, 4, 5, 6].map((n) => sumarDias(lunes, n));
+  // Sábado y domingo solo aparecen si ese día hay algo
+  dias = dias.filter((d, i) => i < 5 || elementosDelDia(d).length > 0);
 
   document.getElementById("titulo-periodo").textContent =
     `${fechaCorta(dias[0])} – ${fechaCorta(dias[dias.length - 1])}`;
 
   // Calculamos qué horas mostrar (por defecto de 8:00 a 20:00)
-  const clasesSemana = dias.flatMap(clasesDelDia);
+  const todos = dias.flatMap(elementosDelDia);
   let horaMin = 8, horaMax = 20;
-  for (const c of clasesSemana) {
+  for (const c of todos) {
     horaMin = Math.min(horaMin, c.inicio.getHours());
-    horaMax = Math.max(horaMax, Math.ceil(c.fin.getHours() + c.fin.getMinutes() / 60));
+    horaMax = Math.max(horaMax, Math.ceil(c.fin.getHours() + c.fin.getMinutes() / 60) || 24);
   }
   const totalMin = (horaMax - horaMin) * 60;
   const pos = (fecha) => (((fecha.getHours() - horaMin) * 60 + fecha.getMinutes()) / totalMin) * 100;
@@ -264,21 +344,24 @@ function dibujarSemana() {
       <button class="cab-dia" data-fecha="${dia.toISOString()}" aria-label="Ver ${fechaLarga(dia)}">
         <span>${DIAS[dia.getDay()].slice(0, 3)}</span><strong>${dia.getDate()}</strong>
       </button>
-      <div class="cuerpo">`;
+      <div class="cuerpo" data-dia="${aTextoDia(dia)}" data-hmin="${horaMin}" data-hmax="${horaMax}">`;
     for (let h = horaMin; h < horaMax; h++) {
       html += `<div class="linea-hora" style="top:${((h - horaMin) * 60 / totalMin) * 100}%"></div>`;
     }
     if (festivo) html += `<div class="festivo-texto">Festivo</div>`;
 
-    for (const c of clasesDelDia(dia)) {
+    const elementos = elementosDelDia(dia);
+    const columnas = repartirColumnas(elementos);
+    for (const c of elementos) {
+      const { col, total } = columnas.get(c);
       const alto = pos(c.fin) - pos(c.inicio);
       html += `
-        <button class="bloque ${c.tipo.clase} ${c.fin <= ahora ? "pasada" : ""}" data-id="${c.id}"
-             style="--color:${c.asignatura.color};top:${pos(c.inicio)}%;height:${alto}%"
-             aria-label="${c.asignatura.nombre}, ${c.tipo.etiqueta}, ${hora(c.inicio)}">
-          <strong>${c.asignatura.corto}</strong>
-          <span>${c.tipo.etiqueta}</span>
-          <span class="aula">${c.ubicacion.corto}</span>
+        <button class="bloque ${c.clase} ${c.fin <= ahora ? "pasada" : ""} ${c.fin - c.inicio <= 45 * 60000 ? "breve" : ""}" data-id="${c.id}"
+             style="--color:${c.color};top:${pos(c.inicio)}%;height:${alto}%;left:calc(${(col / total) * 100}% + 1px);width:calc(${100 / total}% - 2px)"
+             aria-label="${escapar(c.titulo)}, ${c.etiqueta}, ${hora(c.inicio)}">
+          <strong>${c.origen === "personal" ? c.icono + " " : ""}${escapar(c.corto)}</strong>
+          <span>${c.origen === "clase" ? c.etiqueta : hora(c.inicio)}</span>
+          ${c.lugarCorto ? `<span class="aula">${escapar(c.lugarCorto)}</span>` : ""}
         </button>`;
     }
 
@@ -293,33 +376,75 @@ function dibujarSemana() {
   cont.className = "vista-semana";
   cont.style.setProperty("--num-dias", dias.length);
   cont.innerHTML = html;
-  dibujarLeyenda(clasesSemana);
-
-  // Al tocar la cabecera de un día, abrimos ese día
-  cont.querySelectorAll(".cab-dia[data-fecha]").forEach((b) =>
-    b.addEventListener("click", () => {
-      estado.fecha = new Date(b.dataset.fecha);
-      estado.vista = "dia";
-      dibujar();
-    })
-  );
+  dibujarLeyenda(todos);
 }
 
 // ----- Leyenda de colores (abajo) -----
-function dibujarLeyenda(clasesVisibles) {
-  // Solo enseñamos las asignaturas que salen en pantalla ahora mismo
-  const visibles = new Set(clasesVisibles.map((c) => c.asignatura));
-  document.getElementById("leyenda").innerHTML = Object.values(MIS_ASIGNATURAS)
-    .filter((a) => visibles.has(a))
-    .map((a) => `<span class="chip" style="--color:${a.color}"><b>${a.corto}</b> ${a.nombre}</span>`)
+function dibujarLeyenda(elementos) {
+  // Solo enseñamos lo que sale en pantalla ahora mismo
+  const asignaturas = new Set(elementos.filter((e) => e.origen === "clase").map((c) => c.asignatura));
+  const categorias = new Set(elementos.filter((e) => e.origen === "personal").map((p) => p.categoria));
+  document.getElementById("leyenda").innerHTML = [
+    ...Object.values(MIS_ASIGNATURAS)
+      .filter((a) => asignaturas.has(a))
+      .map((a) => `<span class="chip" style="--color:${a.color}"><b>${a.corto}</b> ${a.nombre}</span>`),
+    ...Object.entries(CATEGORIAS)
+      .filter(([clave]) => categorias.has(clave))
+      .map(([, c]) => `<span class="chip" style="--color:${c.color}">${c.icono} ${c.nombre}</span>`),
+  ].join("");
+}
+
+// ----- Panel lateral: filtros y próximos exámenes -----
+function dibujarPanel() {
+  const opciones = [
+    { clave: "clases", nombre: "Clases", icono: "🎓", color: "var(--texto)" },
+    ...Object.entries(CATEGORIAS).map(([clave, c]) => ({ clave, ...c })),
+  ];
+  document.getElementById("filtros").innerHTML = opciones
+    .map((o) => `
+      <label class="filtro" style="--color:${o.color}">
+        <input type="checkbox" data-filtro="${o.clave}" ${visible(o.clave) ? "checked" : ""}>
+        <span class="casilla"></span>
+        <span>${o.icono} ${o.nombre}</span>
+      </label>`)
     .join("");
+
+  const ahora = new Date();
+  const examenes = estado.eventos.filter((e) => e.clase === "examen" && e.fin > ahora).slice(0, 5);
+  document.getElementById("lista-examenes").innerHTML = examenes.length
+    ? examenes.map((e) => `
+        <li><button data-id="${e.id}" style="--color:${e.color}">
+          <b>${e.corto}</b>
+          <span>${fechaCorta(e.inicio)} · ${cuandoEs(e.inicio)}</span>
+        </button></li>`).join("")
+    : `<li class="nota">No hay exámenes próximos.</li>`;
 }
 
 // =====================================================================
-// PASO 5: la ficha de detalle de una clase
+// PASO 6: la ficha de detalle
 // =====================================================================
+const fila = (icono, titulo, valor, extra = "") => valor
+  ? `<div class="fila"><span class="icono">${icono}</span><div><small>${titulo}</small><p>${valor}</p>${extra}</div></div>` : "";
+
 function abrirFicha(id) {
-  const c = estado.eventos[id];
+  const c = buscarElemento(id);
+  if (!c) return;
+  const ficha = document.getElementById("ficha");
+  ficha.style.setProperty("--color", c.color);
+  ficha.querySelector(".ficha-contenido").innerHTML =
+    c.origen === "clase" ? htmlFichaClase(c) : htmlFichaPersonal(c);
+  ficha.showModal();
+
+  const editar = ficha.querySelector("[data-editar]");
+  if (editar) editar.onclick = () => { ficha.close(); abrirFormulario({ item: c.item }); };
+  const duplicar = ficha.querySelector("[data-duplicar]");
+  if (duplicar) duplicar.onclick = () => {
+    ficha.close();
+    abrirFormulario({ plantilla: { ...c.item, id: undefined, fecha: aTextoDia(c.inicio), repetir: "no", hasta: "" } });
+  };
+}
+
+function htmlFichaClase(c) {
   const ahora = new Date();
   const deLaAsignatura = estado.eventos.filter((e) => e.codigo === c.codigo);
 
@@ -330,17 +455,12 @@ function abrirFicha(id) {
   const mismoTipo = deLaAsignatura.filter((e) => e.tipo === c.tipo);
   const numero = mismoTipo.indexOf(c) + 1;
 
-  const planta = c.ubicacion.planta === null || c.ubicacion.planta === undefined
+  const planta = c.ubicacion.planta === null
     ? "" : c.ubicacion.planta === 0 ? "Planta baja" : `Planta ${c.ubicacion.planta}`;
 
-  const fila = (icono, titulo, valor, extra = "") => valor
-    ? `<div class="fila"><span class="icono">${icono}</span><div><small>${titulo}</small><p>${valor}</p>${extra}</div></div>` : "";
-
-  const ficha = document.getElementById("ficha");
-  ficha.style.setProperty("--color", c.asignatura.color);
-  ficha.querySelector(".ficha-contenido").innerHTML = `
+  return `
     <header class="ficha-cabecera">
-      <span class="etiqueta-ficha">${c.tipo.icono} ${c.tipo.etiqueta}</span>
+      <span class="etiqueta-ficha">${c.icono} ${c.etiqueta}</span>
       <h2>${c.asignatura.nombre}</h2>
       <p>${c.asignatura.corto} · Código ${c.codigo}</p>
     </header>
@@ -358,7 +478,170 @@ function abrirFicha(id) {
              `${fechaLarga(examen.inicio)} (${cuandoEs(examen.inicio)})`,
              `<p class="sub">${hora(examen.inicio)} – ${hora(examen.fin)} · ${examen.ubicacion.nombre}</p>`) : ""}
     </div>`;
-  ficha.showModal();
+}
+
+function htmlFichaPersonal(p) {
+  const it = p.item;
+  let repite = "";
+  if (it.repetir && it.repetir !== "no") {
+    repite = REPETICIONES[it.repetir] + (it.hasta ? `, hasta el ${fechaCorta(aFecha(it.hasta, "00:00"))}` : "");
+  }
+  return `
+    <header class="ficha-cabecera">
+      <span class="etiqueta-ficha">${p.icono} ${p.etiqueta}</span>
+      <h2>${escapar(it.titulo)}</h2>
+      <p>Añadido por ti</p>
+    </header>
+    <div class="ficha-cuerpo">
+      ${fila("🕒", "Cuándo", `${fechaLarga(p.inicio)} (${cuandoEs(p.inicio)})`,
+             `<p class="sub">${hora(p.inicio)} – ${hora(p.fin)} · ${duracion(p)}</p>`)}
+      ${fila("📍", "Dónde", escapar(it.lugar || ""))}
+      ${fila("🔁", "Se repite", repite)}
+      ${it.notas ? `<div class="fila"><span class="icono">🗒️</span><div><small>Notas</small><p class="notas">${escapar(it.notas)}</p></div></div>` : ""}
+    </div>
+    <footer class="ficha-pie">
+      <button class="boton-secundario" data-duplicar>Duplicar</button>
+      <button class="boton-principal" data-editar>Editar</button>
+    </footer>`;
+}
+
+// =====================================================================
+// Formulario para añadir / editar tus cosas
+// =====================================================================
+const formulario = document.getElementById("formulario");
+const form = document.getElementById("form-personal");
+let editando = null; // la cosa que estamos editando (o null si es nueva)
+
+// Botones de categoría (se generan a partir de CATEGORIAS en config.js)
+document.getElementById("form-categorias").innerHTML = Object.entries(CATEGORIAS)
+  .map(([clave, c]) => `
+    <label class="opcion-categoria" style="--color:${c.color}">
+      <input type="radio" name="categoria" value="${clave}">
+      <span>${c.icono} ${c.nombre}</span>
+    </label>`)
+  .join("");
+
+// Abre el formulario. Puede venir con:
+//   { item }       -> editar algo que ya existe
+//   { plantilla }  -> rellenar con datos (duplicar)
+//   { fecha, hora } -> nuevo, a ese día y hora
+function abrirFormulario({ item = null, plantilla = null, fecha = null, hora: horaInicio = null } = {}) {
+  editando = item;
+  form.reset();
+  document.getElementById("form-error").textContent = "";
+  document.getElementById("form-titulo").textContent = item ? "Editar" : "Añadir algo";
+  document.getElementById("btn-borrar").hidden = !item;
+
+  const datos = item || plantilla;
+  if (datos) {
+    for (const campo of ["titulo", "fecha", "inicio", "fin", "repetir", "hasta", "lugar", "notas"]) {
+      form.elements[campo].value = datos[campo] || "";
+    }
+    form.elements.repetir.value = datos.repetir || "no";
+    const radio = form.querySelector(`input[name=categoria][value="${datos.categoria}"]`);
+    (radio || form.querySelector("input[name=categoria][value=otro]")).checked = true;
+  } else {
+    // Valores por defecto: el día que estás mirando y la próxima hora en punto
+    const base = fecha ? aFecha(fecha, "00:00") : estado.fecha;
+    let h = horaInicio ?? (mismoDia(base, new Date()) ? new Date().getHours() + 1 : 9);
+    h = Math.min(h, 22);
+    const p = (n) => String(n).padStart(2, "0");
+    form.elements.fecha.value = aTextoDia(base);
+    form.elements.inicio.value = `${p(Math.floor(h))}:${p(Math.round((h % 1) * 60))}`;
+    form.elements.fin.value = `${p(Math.floor(h) + 1)}:${p(Math.round((h % 1) * 60))}`;
+    form.querySelector("input[name=categoria]").checked = true;
+  }
+  actualizarCampoHasta();
+  formulario.showModal();
+  if (!datos) form.elements.titulo.focus();
+}
+
+// "Hasta el día" solo tiene sentido si se repite
+function actualizarCampoHasta() {
+  document.getElementById("campo-hasta").hidden = form.elements.repetir.value === "no";
+}
+form.elements.repetir.addEventListener("change", actualizarCampoHasta);
+
+// Si cambias la hora de inicio, la de fin se mueve con ella (manteniendo la duración)
+let inicioAnterior = null;
+form.elements.inicio.addEventListener("focus", () => (inicioAnterior = form.elements.inicio.value));
+form.elements.inicio.addEventListener("change", () => {
+  const { inicio, fin, fecha } = form.elements;
+  if (!inicioAnterior || !inicio.value || !fin.value) return;
+  const dia = fecha.value || aTextoDia(new Date());
+  const durMin = (aFecha(dia, fin.value) - aFecha(dia, inicioAnterior)) / 60000;
+  if (durMin > 0) {
+    const nuevoFin = new Date(aFecha(dia, inicio.value).getTime() + durMin * 60000);
+    if (mismoDia(nuevoFin, aFecha(dia, "00:00"))) fin.value = hora(nuevoFin);
+  }
+  inicioAnterior = inicio.value;
+});
+
+form.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const f = form.elements;
+  const error = document.getElementById("form-error");
+  if (f.fin.value <= f.inicio.value) { error.textContent = "La hora de fin tiene que ser después de la de inicio."; return; }
+  if (f.repetir.value !== "no" && f.hasta.value && f.hasta.value < f.fecha.value) {
+    error.textContent = "El día final de la repetición es anterior al primer día."; return;
+  }
+
+  const datos = {
+    id: editando ? editando.id : nuevoId(),
+    titulo: f.titulo.value.trim(),
+    categoria: form.querySelector("input[name=categoria]:checked")?.value || "otro",
+    fecha: f.fecha.value,
+    inicio: f.inicio.value,
+    fin: f.fin.value,
+    repetir: f.repetir.value,
+    hasta: f.repetir.value === "no" ? "" : f.hasta.value,
+    lugar: f.lugar.value.trim(),
+    notas: f.notas.value.trim(),
+  };
+
+  estado.personales = editando
+    ? estado.personales.map((p) => (p.id === editando.id ? datos : p))
+    : [...estado.personales, datos];
+  guardarPersonales(estado.personales);
+
+  // Si estaba oculta esa categoría, la mostramos para que veas lo que acabas de añadir
+  estado.filtros.ocultos = estado.filtros.ocultos.filter((k) => k !== datos.categoria);
+  guardarFiltros();
+
+  formulario.close();
+  estado.fecha = aFecha(datos.fecha, "00:00");
+  dibujarPanel();
+  dibujar();
+  avisar(editando ? "Cambios guardados" : "Añadido ✓");
+});
+
+// Borrar pide confirmación pulsando dos veces (sin ventanas del navegador)
+const btnBorrar = document.getElementById("btn-borrar");
+btnBorrar.addEventListener("click", () => {
+  if (!btnBorrar.classList.contains("confirmar")) {
+    btnBorrar.classList.add("confirmar");
+    btnBorrar.textContent = editando.repetir && editando.repetir !== "no" ? "¿Borrar todas las repeticiones?" : "¿Seguro?";
+    return;
+  }
+  estado.personales = estado.personales.filter((p) => p.id !== editando.id);
+  guardarPersonales(estado.personales);
+  formulario.close();
+  dibujar();
+  avisar("Borrado");
+});
+formulario.addEventListener("close", () => {
+  btnBorrar.classList.remove("confirmar");
+  btnBorrar.textContent = "Borrar";
+});
+document.getElementById("btn-cancelar").onclick = () => formulario.close();
+
+// Pequeño aviso que aparece abajo un par de segundos
+function avisar(texto) {
+  const aviso = document.createElement("div");
+  aviso.className = "aviso";
+  aviso.textContent = texto;
+  document.body.append(aviso);
+  setTimeout(() => aviso.remove(), 2200);
 }
 
 // =====================================================================
@@ -375,23 +658,46 @@ document.getElementById("btn-siguiente").onclick = () => mover(1);
 document.getElementById("btn-hoy").onclick = () => { estado.fecha = new Date(); dibujar(); };
 document.getElementById("btn-semana").onclick = () => { estado.vista = "semana"; dibujar(); };
 document.getElementById("btn-dia").onclick = () => { estado.vista = "dia"; dibujar(); };
+document.getElementById("btn-anadir").onclick = () => abrirFormulario();
 
 const calendario = document.getElementById("calendario");
 
-// Tocar una clase (tarjeta o bloque) abre su ficha
 calendario.addEventListener("click", (e) => {
-  const clase = e.target.closest("[data-id]");
-  if (clase) abrirFicha(Number(clase.dataset.id));
+  // Tocar una clase o una cosa tuya abre su ficha
+  const elemento = e.target.closest("[data-id]");
+  if (elemento) return abrirFicha(elemento.dataset.id);
+
+  // Tocar la cabecera de un día abre la vista de ese día
+  const cabecera = e.target.closest(".cab-dia[data-fecha]");
+  if (cabecera) {
+    estado.fecha = new Date(cabecera.dataset.fecha);
+    estado.vista = "dia";
+    return dibujar();
+  }
+
+  // Botón "Añadir algo a este día"
+  const anadir = e.target.closest("[data-anadir]");
+  if (anadir) return abrirFormulario({ fecha: anadir.dataset.anadir });
+
+  // Tocar un hueco vacío de la semana abre el formulario a esa hora
+  const cuerpo = e.target.closest(".cuerpo[data-dia]");
+  if (cuerpo) {
+    const caja = cuerpo.getBoundingClientRect();
+    const { hmin, hmax, dia } = cuerpo.dataset;
+    const horaExacta = Number(hmin) + ((e.clientY - caja.top) / caja.height) * (hmax - hmin);
+    abrirFormulario({ fecha: dia, hora: Math.floor(horaExacta * 2) / 2 }); // redondeado a la media hora
+  }
 });
 
-// La ficha se cierra con la X o tocando fuera de ella
-const ficha = document.getElementById("ficha");
-ficha.querySelector(".cerrar").onclick = () => ficha.close();
-ficha.addEventListener("click", (e) => { if (e.target === ficha) ficha.close(); });
+// Las fichas se cierran con la X o tocando fuera de ellas
+for (const dialogo of [document.getElementById("ficha"), formulario]) {
+  dialogo.querySelector(".cerrar").onclick = () => dialogo.close();
+  dialogo.addEventListener("click", (e) => { if (e.target === dialogo) dialogo.close(); });
+}
 
 // Las flechas del teclado también cambian de día/semana (en el ordenador)
 document.addEventListener("keydown", (e) => {
-  if (ficha.open) return;
+  if (document.querySelector("dialog[open]") || e.target.matches("input, textarea, select")) return;
   if (e.key === "ArrowLeft") mover(-1);
   if (e.key === "ArrowRight") mover(1);
 });
@@ -406,6 +712,53 @@ calendario.addEventListener("touchend", (e) => {
   toqueX = null;
 });
 
+// ----- Panel lateral -----
+const abrirPanel = () => document.body.classList.add("panel-abierto");
+const cerrarPanel = () => document.body.classList.remove("panel-abierto");
+document.getElementById("btn-menu").onclick = abrirPanel;
+document.getElementById("btn-cerrar-panel").onclick = cerrarPanel;
+document.getElementById("velo").onclick = cerrarPanel;
+document.getElementById("btn-anadir-panel").onclick = () => { cerrarPanel(); abrirFormulario(); };
+
+document.getElementById("filtros").addEventListener("change", (e) => {
+  const clave = e.target.dataset.filtro;
+  if (!clave) return;
+  const ocultos = new Set(estado.filtros.ocultos);
+  e.target.checked ? ocultos.delete(clave) : ocultos.add(clave);
+  estado.filtros.ocultos = [...ocultos];
+  guardarFiltros();
+  dibujar();
+});
+
+document.getElementById("lista-examenes").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-id]");
+  if (b) { cerrarPanel(); abrirFicha(b.dataset.id); }
+});
+
+document.getElementById("btn-exportar").onclick = () => {
+  if (!estado.personales.length) return avisar("Todavía no has añadido nada");
+  exportarPersonales(estado.personales);
+};
+const archivoImportar = document.getElementById("archivo-importar");
+document.getElementById("btn-importar").onclick = () => archivoImportar.click();
+archivoImportar.addEventListener("change", async () => {
+  const archivo = archivoImportar.files[0];
+  if (!archivo) return;
+  try {
+    const importados = await leerCopia(archivo);
+    // Juntamos sin duplicar: si un id ya existe, gana el del archivo
+    const porId = new Map(estado.personales.map((p) => [p.id, p]));
+    importados.forEach((p) => porId.set(p.id, p));
+    estado.personales = [...porId.values()];
+    guardarPersonales(estado.personales);
+    dibujar();
+    avisar(`Importadas ${importados.length} cosas`);
+  } catch {
+    avisar("Ese archivo no es una copia válida");
+  }
+  archivoImportar.value = "";
+});
+
 // =====================================================================
 // Arranque: todo empieza aquí
 // =====================================================================
@@ -416,14 +769,14 @@ async function iniciar() {
     const { mias, festivos } = filtrarMisClases(leerIcs(texto));
     estado.eventos = mias;
     estado.festivos = festivos;
-    dibujar();
-    // Cada minuto refrescamos para que "Ahora" y la línea roja se muevan solas
-    setInterval(() => { if (!ficha.open) dibujar(); }, 60000);
   } catch (error) {
-    document.getElementById("calendario").textContent =
-      "No he podido leer calendario.ics. ¿Está en la misma carpeta que index.html?";
+    avisar("No he podido leer calendario.ics");
     console.error(error);
   }
+  dibujarPanel();
+  dibujar();
+  // Cada minuto refrescamos para que "Ahora" y la línea roja se muevan solas
+  setInterval(() => { if (!document.querySelector("dialog[open]")) dibujar(); }, 60000);
 }
 
 iniciar();
