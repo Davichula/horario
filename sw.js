@@ -16,6 +16,7 @@ const ESENCIALES = [
   "./", "index.html", "styles.css", "instalable.css",
   "config.js", "personal.js", "moodle.js", "app.js", "instalable.js",
   "tareas.js", "resumen.js", "estudio.js", "estadisticas.js",
+  "sincronizar.js", "vendor/supabase.js",
   "calendario.ics", "manifest.json", "icono.svg", "icono-180.png", "icono-512.png",
 ];
 
