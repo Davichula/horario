@@ -182,3 +182,19 @@
 .leaflet-bar a { background: var(--tarjeta); color: var(--texto); border-color: var(--linea); }
 .leaflet-control-attribution { font-size: 9px; }
 #seccion-entreno .cabecera h1 { visibility: visible; }
+
+/* ----- Garmin ----- */
+.garmin-ajustes { background: var(--fondo); border-radius: 14px; padding: 12px 14px; margin-bottom: 16px; }
+.garmin-ajustes h3 { margin: 0 0 6px; font-size: 1rem; display: flex; align-items: center; gap: 8px; }
+.garmin-ok { font-size: 0.75rem; font-weight: 600; color: #0a7d0a; background: color-mix(in srgb, #0ca30c 15%, transparent); padding: 2px 8px; border-radius: 999px; }
+.pasos-garmin { padding-left: 20px; margin: 6px 0 10px; line-height: 1.5; font-size: 0.9rem; }
+.pasos-garmin a { color: var(--dep-nadar); }
+.garmin-ajustes input { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--linea); background: var(--tarjeta); color: var(--texto); font: inherit; }
+.garmin-ajustes .form-entreno { flex-direction: row; padding: 0; }
+.garmin-ajustes .form-entreno button { flex: none; }
+.garmin-ajustes .fila-botones { margin-top: 8px; }
+@keyframes girar { to { transform: rotate(360deg); } }
+.girando { animation: girar 1s linear infinite; }
+.garmin-ajustes input { font-size: 16px; } /* 16 px: así el iPhone no hace zoom al escribir */
+.hoja[data-tipo="entreno"] .cerrar { background: var(--linea); color: var(--texto); }
+.form-entreno .campo input { font-size: 16px; }

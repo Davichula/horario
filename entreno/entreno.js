@@ -13,6 +13,7 @@
 
 import { leerArchivos, DEPORTES, ESTILOS } from "./fit.js";
 import * as almacen from "./almacen.js";
+import * as garmin from "./garmin.js";
 import { graficaLinea, graficaBarras, crearGrupo, suavizar, mapa } from "./graficas.js";
 
 let caja = null;
@@ -21,6 +22,9 @@ let filtro = "todo";
 export function iniciar(elemento) {
   caja = elemento;
   almacen.subirPendientes();
+  traerDeGarmin();
+  // Al volver a la app (p. ej. después de entrenar), miramos si hay algo nuevo
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") traerDeGarmin(); });
   // Si llegan actividades desde otro dispositivo, redibujamos la lista
   window.addEventListener("storage", (e) => { if (e.key === "mi-horario:entreno" && !location.hash.includes("/")) pintarLista(); });
   return { mostrar };
@@ -79,6 +83,7 @@ function pintarLista() {
   caja.innerHTML = `
     <header class="cabecera entreno-cabecera">
       <h1>Entreno</h1>
+      <button class="boton-icono" data-accion="sincronizar-garmin" aria-label="Traer actividades de Garmin" title="Traer de Garmin">🔄</button>
       <button class="boton-icono" data-accion="ajustes" aria-label="Ajustes de entreno" title="Ajustes">⚙️</button>
       <label class="boton-principal boton-subir">⬆ Subir<input type="file" multiple data-accion="subir" hidden></label>
     </header>
@@ -157,17 +162,17 @@ function vacio() {
   return `
     <section class="tarjeta-entreno vacio">
       <div class="vacio-icono" aria-hidden="true">🏊 🏃 🚴 🏋️</div>
-      <h2>Sube tu primera actividad</h2>
-      <p>Toca <b>⬆ Subir</b> y elige uno o varios archivos <b>.FIT</b> (o el <b>.zip</b> que da Garmin). La web los lee aquí mismo y los guarda en tu cuenta.</p>
+      <h2>Conecta tu Garmin</h2>
+      <p>Así tus actividades llegan solas cada pocos minutos, con todo su detalle, y también tu historial antiguo.</p>
+      <p><button class="boton-principal" data-accion="ajustes">Conectar Garmin</button></p>
       <details>
-        <summary>¿Cómo saco el archivo de Garmin?</summary>
+        <summary>¿Prefieres subir un archivo a mano?</summary>
         <ol>
           <li>Entra en <a href="https://connect.garmin.com/modern/activities" target="_blank" rel="noopener">connect.garmin.com</a> (en el iPhone, desde Safari).</li>
           <li>Abre la actividad y toca el engranaje ⚙️ de arriba a la derecha.</li>
           <li>Elige <b>Exportar original</b>. Se descarga un .zip (en el iPhone va a la app Archivos → Descargas).</li>
           <li>Vuelve aquí, toca <b>⬆ Subir</b> y elige ese .zip. Puedes elegir varios a la vez.</li>
         </ol>
-        <p class="nota">Más adelante la web traerá tus actividades sola, sin tener que exportarlas.</p>
       </details>
     </section>`;
 }
@@ -216,7 +221,41 @@ function avisoFijo(texto) {
 }
 
 // =====================================================================
-// AJUSTES: pulsaciones máximas para las zonas
+// GARMIN: lo que deja la función de Supabase, a la lista
+// =====================================================================
+async function traerDeGarmin() {
+  let aviso = null;
+  const total = await garmin.recoger((n) => {
+    aviso ??= avisoFijo("");
+    aviso.textContent = `Trayendo de Garmin… ${n} ${n === 1 ? "actividad" : "actividades"}`;
+  }).catch((e) => { console.error("Garmin", e); return 0; });
+  aviso?.remove();
+  if (total) {
+    avisar(`${total} ${total === 1 ? "actividad nueva" : "actividades nuevas"} de Garmin`);
+    if (!location.hash.includes("/")) pintarLista();
+  }
+  return total;
+}
+
+async function sincronizarGarmin(boton) {
+  boton?.classList.add("girando");
+  const aviso = avisoFijo("Preguntando a Garmin…");
+  try {
+    const estado = await garmin.funcion("sincronizar");
+    aviso.remove();
+    if (!estado.conectada) { abrirAjustes(); return; }
+    const total = await traerDeGarmin();
+    if (!total) avisar(estado.error ? `Garmin: ${estado.error}` : "No hay nada nuevo");
+  } catch (e) {
+    aviso.remove();
+    avisar(e.message);
+  } finally {
+    boton?.classList.remove("girando");
+  }
+}
+
+// =====================================================================
+// AJUSTES: Garmin y pulsaciones máximas para las zonas
 // =====================================================================
 function fcMaxima() {
   const a = almacen.ajustes();
@@ -228,17 +267,22 @@ function fcMaxima() {
 function abrirAjustes() {
   const hoja = document.getElementById("hoja");
   const fc = fcMaxima();
+  hoja.dataset.tipo = "entreno";
   hoja.querySelector(".hoja-contenido").innerHTML = `
-    <h2>Ajustes de entreno</h2>
+    <header class="form-cabecera"><h2>⚙️ Ajustes de entreno</h2></header>
+    <div class="form-cuerpo">
+    <section class="garmin-ajustes" aria-live="polite"><p class="nota">Mirando tu conexión con Garmin…</p></section>
     <form class="form-entreno" id="form-ajustes-entreno">
       <label class="campo"><span>Pulsaciones máximas</span>
         <input name="fcMax" type="number" min="120" max="230" inputmode="numeric" value="${almacen.ajustes().fcMax || ""}" placeholder="${fc.valor}">
       </label>
       <p class="nota">Sirven para calcular tus zonas de pulso. ${fc.estimada ? `Ahora uso ${fc.valor}, el máximo que he visto en tus actividades.` : ""} Si la conoces de una prueba o de tu reloj (Garmin la muestra en Zonas de frecuencia cardiaca), escríbela aquí.</p>
       <div class="fila-botones"><button class="boton-principal">Guardar</button></div>
-    </form>`;
+    </form>
+    </div>`;
   hoja.showModal();
-  hoja.querySelector("form").addEventListener("submit", (e) => {
+  pintarGarmin(hoja.querySelector(".garmin-ajustes"));
+  hoja.querySelector("#form-ajustes-entreno").addEventListener("submit", (e) => {
     e.preventDefault();
     const v = Number(new FormData(e.target).get("fcMax")) || null;
     almacen.guardarAjustes({ fcMax: v });
@@ -246,6 +290,71 @@ function abrirAjustes() {
     mostrar(location.hash.split("/").slice(1).join("/"));
   });
 }
+
+const haceCuanto = (iso) => {
+  const min = Math.round((Date.now() - new Date(iso)) / 60000);
+  if (min < 1) return "ahora mismo";
+  if (min < 60) return `hace ${min} min`;
+  if (min < 48 * 60) return `hace ${Math.round(min / 60)} h`;
+  return new Date(iso).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+};
+
+async function pintarGarmin(zona, estado = null, error = "") {
+  if (!estado) {
+    try { estado = await garmin.funcion("estado"); }
+    catch (e) { estado = { conectada: false }; error = e.message; }
+  }
+  const fallo = error ? `<p class="form-error">${escapar(error)}</p>` : "";
+  if (!estado.conectada) {
+    zona.innerHTML = `
+      <h3>⌚ Garmin</h3>
+      <p class="nota">Conecta tu cuenta para que tus actividades lleguen solas. Solo hay que hacerlo una vez (y renovar la clave cuando caduque).</p>
+      <ol class="pasos-garmin">
+        <li>Abre <a href="https://connect.garmin.com/app/settings/personalApiToken" target="_blank" rel="noopener">tu página de clave personal de Garmin</a> y entra con tu cuenta.</li>
+        <li>Toca <b>Create Key</b>, acepta las condiciones y elige la caducidad más larga (1 año).</li>
+        <li>Copia la clave (solo se enseña una vez) y pégala aquí:</li>
+      </ol>
+      <form class="form-entreno" data-form="garmin">
+        <input name="clave" type="password" autocomplete="off" spellcheck="false" placeholder="Tu clave de Garmin" required>
+        <button class="boton-principal">Conectar</button>
+      </form>
+      ${fallo}
+      <p class="nota">La clave se guarda en tu Supabase, en una tabla que la web no puede leer.</p>`;
+    return;
+  }
+  const partes = [];
+  if (estado.ultimaSync) partes.push(`Última comprobación: ${haceCuanto(estado.ultimaSync)}.`);
+  partes.push(`${estado.descargadas} ${estado.descargadas === 1 ? "actividad traída" : "actividades traídas"}.`);
+  if (estado.pendientes) partes.push(`Faltan ${estado.pendientes} por traer (van llegando de 12 en 12 cada 10 minutos).`);
+  if (!estado.historialCompleto) partes.push("Todavía estoy repasando tu historial antiguo.");
+  if (estado.fallidas) partes.push(`${estado.fallidas} no se han podido descargar (por ejemplo, actividades sin archivo).`);
+  zona.innerHTML = `
+    <h3>⌚ Garmin <span class="garmin-ok">Conectado</span></h3>
+    <p class="nota">${partes.join(" ")}</p>
+    ${estado.error ? `<p class="form-error">Último problema: ${escapar(estado.error)}</p>` : ""}
+    ${fallo}
+    <div class="fila-botones">
+      <button class="boton-secundario" data-accion="garmin-ya">🔄 Traer ahora</button>
+      <button class="boton-peligro" data-accion="garmin-desconectar">Desconectar</button>
+    </div>`;
+}
+
+document.addEventListener("submit", async (e) => {
+  const form = e.target.closest?.('[data-form="garmin"]');
+  if (!form) return;
+  e.preventDefault();
+  const zona = form.closest(".garmin-ajustes");
+  const boton = form.querySelector("button");
+  boton.disabled = true;
+  boton.textContent = "Conectando…";
+  try {
+    const estado = await garmin.funcion("conectar", { clave: new FormData(form).get("clave") });
+    await pintarGarmin(zona, estado);
+    traerDeGarmin();
+  } catch (err) {
+    await pintarGarmin(zona, { conectada: false }, err.message);
+  }
+});
 
 // =====================================================================
 // FICHA DE UNA ACTIVIDAD
@@ -489,6 +598,24 @@ document.addEventListener("click", async (e) => {
   if (filtroBtn) { filtro = filtroBtn.dataset.filtro; pintarLista(); return; }
   const accion = e.target.closest("[data-accion]")?.dataset.accion;
   if (accion === "ajustes") abrirAjustes();
+  if (accion === "sincronizar-garmin") sincronizarGarmin(e.target.closest("button"));
+  if (accion === "garmin-ya" || accion === "garmin-desconectar") {
+    const zona = e.target.closest(".garmin-ajustes");
+    const boton = e.target.closest("button");
+    if (accion === "garmin-desconectar" && !boton.classList.contains("confirmar")) {
+      boton.classList.add("confirmar");
+      boton.textContent = "Toca otra vez";
+      return;
+    }
+    zona.querySelectorAll("button").forEach((b) => (b.disabled = true));
+    try {
+      const estado = await garmin.funcion(accion === "garmin-ya" ? "sincronizar" : "desconectar");
+      await pintarGarmin(zona, estado);
+      if (accion === "garmin-ya") traerDeGarmin();
+    } catch (err) {
+      await pintarGarmin(zona, null, err.message);
+    }
+  }
   if (accion === "borrar") {
     const boton = e.target.closest("button");
     // Primer toque: pide confirmación. Segundo toque: borra.
