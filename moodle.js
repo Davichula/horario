@@ -134,8 +134,11 @@ function informesDePracticas(clases, deMoodle) {
     const asignatura = MIS_ASIGNATURAS[codigo];
     if (!asignatura) continue;
     const sesiones = clases.filter((c) => c.codigo === codigo && c.clase === "practicas");
-    for (let i = 0; i + 1 < sesiones.length; i++) {
-      const limite = sesiones[i + 1].inicio;
+    // La última práctica no tiene sesión siguiente: su informe se entrega
+    // dos lunes después, a la misma hora a la que empezaba la sesión
+    for (let i = 0; i < sesiones.length; i++) {
+      const ultima = i + 1 === sesiones.length;
+      const limite = ultima ? dosLunesDespues(sesiones[i].inicio) : sesiones[i + 1].inicio;
       const yaEnMoodle = deMoodle.some((m) => m.codigo === codigo && m.etiqueta === "Entrega" && mismoDia(m.fin, limite));
       if (yaEnMoodle) continue;
       resultado.push({
@@ -146,7 +149,9 @@ function informesDePracticas(clases, deMoodle) {
         codigo,
         asignatura,
         nombre: `Informe de la práctica ${i + 1}`,
-        descripcion: `Se entrega al empezar la sesión ${i + 2} de prácticas (${fechaLarga(limite)}, ${hora(limite)}).`,
+        descripcion: ultima
+          ? `Es la última práctica: se entrega dos lunes después de la sesión (${fechaLarga(limite)}, ${hora(limite)}).`
+          : `Se entrega al empezar la sesión ${i + 2} de prácticas (${fechaLarga(limite)}, ${hora(limite)}).`,
         limite,
         inicio: new Date(limite - DURACION_ENTREGA),
         fin: limite,
@@ -161,6 +166,15 @@ function informesDePracticas(clases, deMoodle) {
     }
   }
   return resultado;
+}
+
+// El segundo lunes después de una fecha, a la misma hora
+// (miércoles 9 -> lunes 14 es el primero -> lunes 21 es el segundo)
+function dosLunesDespues(fecha) {
+  const d = new Date(fecha);
+  const hastaLunes = ((8 - d.getDay()) % 7) || 7; // días hasta el próximo lunes
+  d.setDate(d.getDate() + hastaLunes + 7);
+  return d;
 }
 
 // La ficha que sale al tocar una entrega
