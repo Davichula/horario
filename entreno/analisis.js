@@ -379,14 +379,15 @@ export function lunesDe(fecha) {
 }
 
 // periodo: "semana" | "mes"; n: cuántos periodos hacia atrás (incluido el actual)
+// (periodo también puede ser "dia")
 export function totales(lista, periodo, n, u = umbrales(lista)) {
-  const inicioDe = periodo === "semana" ? lunesDe : (f) => { const d = diaDe(f); d.setDate(1); return d; };
-  const siguiente = (d) => { const x = new Date(d); if (periodo === "semana") x.setDate(x.getDate() + 7); else x.setMonth(x.getMonth() + 1); return x; };
+  const inicioDe = periodo === "semana" ? lunesDe : periodo === "dia" ? diaDe : (f) => { const d = diaDe(f); d.setDate(1); return d; };
+  const mover = (d, k) => { if (periodo === "semana") d.setDate(d.getDate() + 7 * k); else if (periodo === "dia") d.setDate(d.getDate() + k); else d.setMonth(d.getMonth() + k); return d; };
   const periodos = [];
   let d = inicioDe(new Date());
   for (let i = 0; i < n; i++) {
-    periodos.unshift({ desde: new Date(d), hasta: siguiente(d), deportes: {}, horas: 0, carga: 0, sesiones: 0, distancia: 0 });
-    if (periodo === "semana") d.setDate(d.getDate() - 7); else d.setMonth(d.getMonth() - 1);
+    periodos.unshift({ desde: new Date(d), hasta: mover(new Date(d), 1), deportes: {}, horas: 0, carga: 0, sesiones: 0, distancia: 0 });
+    mover(d, -1);
   }
   for (const a of lista) {
     const f = new Date(a.inicio);

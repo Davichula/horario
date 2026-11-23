@@ -6,43 +6,51 @@
    ===================================================================== */
 
 :root {
-  --fondo: #f4f5f9;
+  /* Modo claro: grises neutros y un solo color de acento (verde) */
+  --fondo: #f2f2f4;
   --tarjeta: #ffffff;
-  --texto: #1f2a44;
-  --suave: #6b7590;
-  --linea: #e3e6ee;
-  --acento: #1f2a44;
-  --hoy: #fff4d6;
+  --elevado: #f2f2f4;      /* cajitas dentro de una tarjeta */
+  --texto: #111111;
+  --suave: #6e6e73;
+  --linea: #e3e3e6;
+  --acento: #12a150;       /* el verde: botones, pestaña activa, lo importante */
+  --sobre-acento: #ffffff; /* texto encima del verde */
+  --hoy: #e8f6ee;
   --ahora: #e5484d;
-  --sombra: 0 1px 2px rgb(16 24 40 / 0.06), 0 1px 3px rgb(16 24 40 / 0.08);
+  --sombra: 0 1px 2px rgb(0 0 0 / 0.05);
 }
 
-/* Si el móvil está en modo oscuro, cambiamos solo los colores */
-/* Colores del modo oscuro. Se usan en dos casos:
+/* Colores del modo oscuro: NEGRO de verdad (como Strava), tarjetas gris
+   muy oscuro y el verde como único color de acento.
+   Se usan en dos casos:
    1) el tema está en "auto" y el móvil está en modo oscuro
    2) has elegido "oscuro" a mano (data-tema="oscuro") */
 @media (prefers-color-scheme: dark) {
   :root:not([data-tema="claro"]) {
-    --fondo: #11141b;
-    --tarjeta: #1b202b;
-    --texto: #e8ebf2;
-    --suave: #98a1b6;
-    --linea: #2a3040;
-    --acento: #e8ebf2;
-    --hoy: #2c2717;
-    --sombra: 0 1px 3px rgb(0 0 0 / 0.4);
+    --fondo: #000000;
+    --tarjeta: #141414;
+    --elevado: #1f1f1f;
+    --texto: #f5f5f5;
+    --suave: #8e8e93;
+    --linea: #2a2a2c;
+    --acento: #2fd27a;
+    --sobre-acento: #03140a;
+    --hoy: #0f2a1b;
+    --sombra: none;
     color-scheme: dark;
   }
 }
 :root[data-tema="oscuro"] {
-  --fondo: #11141b;
-  --tarjeta: #1b202b;
-  --texto: #e8ebf2;
-  --suave: #98a1b6;
-  --linea: #2a3040;
-  --acento: #e8ebf2;
-  --hoy: #2c2717;
-  --sombra: 0 1px 3px rgb(0 0 0 / 0.4);
+  --fondo: #000000;
+  --tarjeta: #141414;
+  --elevado: #1f1f1f;
+  --texto: #f5f5f5;
+  --suave: #8e8e93;
+  --linea: #2a2a2c;
+  --acento: #2fd27a;
+  --sobre-acento: #03140a;
+  --hoy: #0f2a1b;
+  --sombra: none;
   color-scheme: dark;
 }
 
@@ -204,7 +212,7 @@ main { flex: 1; padding: 0 16px 16px; }
 }
 .cab-dia strong { font-size: 1.1rem; color: var(--texto); }
 .col-dia.hoy .cab-dia { background: var(--acento); }
-.col-dia.hoy .cab-dia, .col-dia.hoy .cab-dia strong { color: var(--fondo); }
+.col-dia.hoy .cab-dia, .col-dia.hoy .cab-dia strong { color: var(--sobre-acento); }
 .col-dia.festivo .cuerpo { background: repeating-linear-gradient(45deg, transparent 0 8px, var(--linea) 8px 9px); border-radius: 8px; }
 .festivo-texto { position: absolute; top: 40%; width: 100%; text-align: center; color: var(--suave); font-size: 0.8rem; }
 
@@ -386,7 +394,7 @@ main { flex: 1; padding: 0 16px 16px; }
   font-weight: 600;
   font-size: 0.92rem;
 }
-.boton-principal { background: var(--acento); color: var(--fondo); }
+.boton-principal { background: var(--acento); color: var(--sobre-acento); }
 .boton-secundario { background: var(--linea); }
 .boton-peligro { background: transparent; color: var(--ahora); padding-left: 4px; }
 .boton-peligro.confirmar { background: var(--ahora); color: #fff; padding-left: 16px; }
@@ -402,7 +410,7 @@ main { flex: 1; padding: 0 16px 16px; }
   border-radius: 50%;
   border: 0;
   background: var(--acento);
-  color: var(--fondo);
+  color: var(--sobre-acento);
   font-size: 1.8rem;
   box-shadow: 0 6px 20px rgb(0 0 0 / 0.25);
   z-index: 20;
@@ -522,7 +530,7 @@ main { flex: 1; padding: 0 16px 16px; }
   left: 50%;
   bottom: max(90px, calc(env(safe-area-inset-bottom) + 80px));
   transform: translateX(-50%);
-  background: var(--acento);
+  background: var(--texto);
   color: var(--fondo);
   padding: 10px 18px;
   border-radius: 999px;
@@ -719,8 +727,8 @@ main { flex: 1; padding: 0 16px 16px; }
 .pastilla strong { font-size: 1.1rem; color: var(--texto); }
 .vista-semana .col-dia.hoy .cab-dia span,
 .vista-semana .col-dia.hoy .cab-dia strong { color: inherit; }
-.vista-semana .col-dia.hoy .pastilla { background: var(--acento); color: var(--fondo); }
-.vista-semana .col-dia.hoy .pastilla strong { color: var(--fondo); }
+.vista-semana .col-dia.hoy .pastilla { background: var(--acento); color: var(--sobre-acento); }
+.vista-semana .col-dia.hoy .pastilla strong { color: var(--sobre-acento); }
 @media (max-width: 520px) { .pastilla { padding: 2px 4px; } .pastilla strong { font-size: 0.95rem; } }
 
 /* ---------- Tipo automático en el formulario ---------- */
@@ -794,7 +802,7 @@ main { flex: 1; padding: 0 16px 16px; }
   background: var(--fondo); color: var(--texto);
 }
 .anadir-rapido input:focus { outline: none; border-color: var(--acento); }
-.anadir-rapido button { width: 36px; border: 0; border-radius: 10px; background: var(--acento); color: var(--fondo); font-size: 1.1rem; }
+.anadir-rapido button { width: 36px; border: 0; border-radius: 10px; background: var(--acento); color: var(--sobre-acento); font-size: 1.1rem; }
 .contador { background: var(--ahora); color: #fff; border-radius: 999px; padding: 0 6px; font-size: 0.68rem; margin-left: 4px; }
 .contador:empty { display: none; }
 

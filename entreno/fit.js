@@ -25,17 +25,21 @@ const MAX_PUNTOS = 2000;
 // ----- Deportes -----
 // Garmin dice "running", "swimming", "tennis"... Lo agrupamos en familias
 // (cada una con su color) y cada actividad lleva su propio icono.
+// Iconos de línea (SVG) para cada familia: toman el color del texto, así
+// quedan sobrios y siguen el modo claro/oscuro. El emoji se queda para
+// los sitios donde solo cabe texto.
+const ico = (t) => `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${t}</svg>`;
 const DEPORTES = {
-  correr: { nombre: "Carrera", icono: "🏃" },
-  nadar: { nombre: "Natación", icono: "🏊" },
-  bici: { nombre: "Bici", icono: "🚴" },
-  gimnasio: { nombre: "Gimnasio", icono: "🏋️" },
-  andar: { nombre: "Senderismo", icono: "🥾" },
-  raqueta: { nombre: "Tenis", icono: "🎾" },
-  nieve: { nombre: "Esquí", icono: "⛷️" },
-  escalada: { nombre: "Escalada", icono: "🧗" },
-  agua: { nombre: "Remo y agua", icono: "🚣" },
-  otro: { nombre: "Otros", icono: "🏅" },
+  correr: { nombre: "Carrera", icono: "🏃", svg: ico(`<circle cx="15" cy="4.5" r="2"/><path d="M8 21l3.5-5.5L14 17v4M11.5 15.5l1-5.5-3 1.5-1.5 3M12.5 10l3 3h3"/>`) },
+  nadar: { nombre: "Natación", icono: "🏊", svg: ico(`<circle cx="17" cy="7.5" r="2"/><path d="M4 12.5l5-3.5 3.5 3.5-3 2.5M2 18c2 0 2-1.5 4-1.5s2 1.5 4 1.5 2-1.5 4-1.5 2 1.5 4 1.5 2-1.5 4-1.5"/>`) },
+  bici: { nombre: "Bici", icono: "🚴", svg: ico(`<circle cx="5.5" cy="16" r="3.5"/><circle cx="18.5" cy="16" r="3.5"/><path d="M5.5 16l4-7h6l3 7M9.5 9l3.5 7H5.5M13.5 5h2.5l-.5 4"/>`) },
+  gimnasio: { nombre: "Gimnasio", icono: "🏋️", svg: ico(`<path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/>`) },
+  andar: { nombre: "Senderismo", icono: "🥾", svg: ico(`<path d="M2.5 20l6.5-11 4 6 2.5-3.5L21.5 20z"/>`) },
+  raqueta: { nombre: "Tenis", icono: "🎾", svg: ico(`<ellipse cx="10" cy="9.5" rx="5" ry="6" transform="rotate(-45 10 9.5)"/><path d="M13.5 13.5l6.5 6.5"/><circle cx="19" cy="5" r="1.6"/>`) },
+  nieve: { nombre: "Esquí", icono: "⛷️", svg: ico(`<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5L12 7l2.5-2.5M9.5 19.5L12 17l2.5 2.5"/>`) },
+  escalada: { nombre: "Escalada", icono: "🧗", svg: ico(`<path d="M4 20l5.5-9 4 2.5L19 4"/><circle cx="8" cy="6" r="1.6"/><circle cx="16" cy="15" r="1.6"/><circle cx="19.5" cy="19.5" r="1"/>`) },
+  agua: { nombre: "Remo y agua", icono: "🚣", svg: ico(`<path d="M2 17c2 0 2-1.5 4-1.5s2 1.5 4 1.5 2-1.5 4-1.5 2 1.5 4 1.5 2-1.5 4-1.5M5 11.5h14l-2.5 3h-9zM12 3.5v8"/>`) },
+  otro: { nombre: "Otros", icono: "🏅", svg: ico(`<path d="M2.5 12h4l2.5-6 4 12 2.5-6h6"/>`) },
 };
 export { DEPORTES };
 
@@ -63,7 +67,9 @@ const ICONOS = {
   soccer: "⚽", basketball: "🏀", volleyball: "🏐", golf: "⛳", boxing: "🥊", dance: "💃", horsebackRiding: "🏇",
   inlineSkating: "🛼", iceSkating: "⛸️", multisport: "🏅", triathlon: "🏅", fishing: "🎣", hunting: "🏕️",
 };
-export const iconoDe = (a) => ICONOS[a.subSport] || ICONOS[a.sport] || DEPORTES[a.deporte]?.icono || "🏅";
+// (el emoji afinado por tipo se sigue usando en los textos; en pantalla va el SVG de la familia)
+export const emojiDe = (a) => ICONOS[a.subSport] || ICONOS[a.sport] || DEPORTES[a.deporte]?.icono || "🏅";
+export const iconoDe = (a) => (DEPORTES[a.deporte] || DEPORTES.otro).svg;
 
 // Nombre bonito para el título de la actividad
 const NOMBRES = {
