@@ -4,7 +4,7 @@
 --
 -- Cómo funciona:
 --   - La función "garmin" (supabase/functions/garmin/index.ts) se ejecuta
---     cada 10 minutos. Con tu clave personal de Garmin pregunta qué
+--     cada minuto. Con tu clave personal de Garmin pregunta qué
 --     actividades nuevas tienes y descarga su archivo original (.FIT).
 --   - Deja cada archivo en la tabla garmin_archivos.
 --   - Cuando abres la app, la pestaña Entreno recoge esos archivos, los lee
@@ -22,6 +22,7 @@ create table public.garmin_conexion (
   historial_completo boolean not null default false,
   ultima_sync timestamptz,
   ultimo_error text,
+  pausa_hasta timestamptz,                     -- si Garmin pide ir más despacio, hasta cuándo esperar
   creada timestamptz not null default now()
 );
 alter table public.garmin_conexion enable row level security;
@@ -56,10 +57,11 @@ grant select, insert, update, delete on table public.garmin_conexion to service_
 grant select, insert, update, delete on table public.garmin_actividades to service_role;
 grant select, insert, update, delete on table public.garmin_archivos to service_role;
 
--- 5. Llamar a la función cada 10 minutos
+-- 5. Llamar a la función cada minuto (si no hay nada pendiente, ella misma
+--    solo pregunta a Garmin cada 3 minutos)
 create extension if not exists pg_net;
 create extension if not exists pg_cron;
-select cron.schedule('traer-garmin', '*/10 * * * *', $$
+select cron.schedule('traer-garmin', '* * * * *', $$
   select net.http_post(
     url := 'https://hcehbosfskzhfockbdor.supabase.co/functions/v1/garmin',
     headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhjZWhib3Nmc2t6aGZvY2tiZG9yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUzODM1NTIsImV4cCI6MjExMDk1OTU1Mn0.bwnh1O8j4UGCDB9hV6JX5zoDJqlFFVpbZksHGaRCt5U"}'::jsonb,
@@ -67,3 +69,8 @@ select cron.schedule('traer-garmin', '*/10 * * * *', $$
     timeout_milliseconds := 60000
   );
 $$);
+
+-- ---------------------------------------------------------------------
+-- Si ya lo tenías instalado de antes (cada 10 min), basta con esto:
+--   alter table public.garmin_conexion add column if not exists pausa_hasta timestamptz;
+--   select cron.alter_job((select jobid from cron.job where jobname = 'traer-garmin'), schedule := '* * * * *');
