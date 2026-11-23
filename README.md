@@ -46,3 +46,7 @@ El enlace es privado (quien lo tenga puede ver tu calendario de Moodle, pero no 
 ## Entreno (actividades del Garmin)
 
 En la pestaña **Entreno**, el botón **⬆ Subir** acepta archivos `.fit` o el `.zip` que da Garmin Connect con "Exportar original" (se pueden elegir varios). La lista se sincroniza como el resto; el detalle de cada actividad se guarda en Supabase con la clave `entreno:<id>` y solo se descarga al abrirla. El lector de archivos es el oficial de Garmin (FIT SDK) y se descarga de cdn.jsdelivr.net la primera vez, porque su licencia no permite copiarlo en el repositorio. El mapa usa Leaflet (`entreno/vendor/leaflet`, licencia BSD).
+
+### Sincronización automática con Garmin
+
+`supabase/functions/garmin` (función de Supabase) usa tu clave personal de la API de Garmin para, cada 10 minutos, descargar el archivo original de tus actividades nuevas (y poco a poco tu historial) a la tabla `garmin_archivos`. La pestaña Entreno los recoge al abrirse (`entreno/garmin.js`), los lee y los borra de esa tabla. Puesta en marcha: ejecutar `supabase/garmin.sql`, desplegar la función `garmin` y pegar la clave en Entreno → ⚙️.
