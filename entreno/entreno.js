@@ -25,6 +25,10 @@ export function iniciar(elemento) {
   traerDeGarmin();
   // Al volver a la app (p. ej. después de entrenar), miramos si hay algo nuevo
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") traerDeGarmin(); });
+  // Mientras tienes Entreno abierto, cada minuto recogemos lo que haya traído Garmin
+  setInterval(() => {
+    if (document.visibilityState === "visible" && /^#\/?entreno/.test(location.hash)) traerDeGarmin();
+  }, 60e3);
   // Si llegan actividades desde otro dispositivo, redibujamos la lista
   window.addEventListener("storage", (e) => { if (e.key === "mi-horario:entreno" && !location.hash.includes("/")) pintarLista(); });
   return { mostrar };

@@ -2,8 +2,9 @@
 // Función "garmin" de Supabase: trae tus actividades del Garmin solas.
 // ---------------------------------------------------------------------
 // Se ejecuta en los servidores de Supabase, no en la web. La llaman:
-//   - pg_cron, cada 10 minutos (ver supabase/garmin.sql), sin usuario:
-//     sincroniza a todos los que hayan conectado su Garmin.
+//   - pg_cron, cada minuto (ver supabase/garmin.sql), sin usuario:
+//     sincroniza a todos los que hayan conectado su Garmin. Si no queda
+//     nada pendiente, solo pregunta a Garmin cada pocos minutos.
 //   - la app, con tu sesión iniciada, para:
 //       { accion: "conectar", clave }  guardar tu clave personal de Garmin
 //       { accion: "sincronizar" }      traer lo nuevo ahora mismo
@@ -13,8 +14,8 @@
 // Cada sincronización:
 //   1. Cambia tu clave personal por un "token" (un pase que dura 24 h).
 //   2. Pide a Garmin tus últimas actividades y, poco a poco, tu historial.
-//   3. Descarga el archivo original de las que faltan (como mucho unas
-//      pocas cada vez, para no pedirle demasiado a Garmin de golpe).
+//   3. Descarga el archivo original de las que faltan, varias a la vez,
+//      durante unos 40 segundos como mucho por vuelta.
 //   4. Las deja en la tabla garmin_archivos. La app las recoge y las lee.
 //
 // Tu clave solo se guarda en garmin_conexion, que la web no puede leer.
@@ -27,8 +28,13 @@ import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
 const GARMIN = "https://personal.connectapi.garmin.com";
 const RUTA_TOKEN = "/personalapitoken-service/personal-api/personal-api-key/token";
-const DESCARGAS_POR_VEZ = 12;   // archivos que descarga en cada llamada
-const HISTORIAL_POR_VEZ = 50;   // actividades antiguas que mira en cada llamada
+const TIEMPO_POR_VUELTA = 40e3;  // ms de trabajo como mucho en cada llamada
+const A_LA_VEZ = 4;              // descargas en paralelo
+// Garmin corta (error 429) si pides ~100 archivos de golpe: como mucho 25 por vuelta (25 por minuto)
+const MAX_DESCARGAS_POR_VUELTA = 25;
+const HISTORIAL_POR_PAGINA = 100; // actividades antiguas por cada consulta de la lista
+const CADA_CUANTO_SI_NADA = 3 * 60e3; // sin nada pendiente, preguntar a Garmin cada 3 min
+const PAUSA_SI_429 = 15 * 60e3;  // si Garmin dice "demasiadas peticiones", esperar 15 min
 const MAX_INTENTOS = 3;
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -84,6 +90,7 @@ async function pedir(conexion: Conexion, ruta: string, aceptar = "application/js
 type Conexion = {
   user_id: string; clave: string; token: string | null; token_caduca: string | null;
   historial_desde: number; historial_completo: boolean;
+  ultima_sync?: string | null; pausa_hasta?: string | null;
 };
 
 async function tokenValido(c: Conexion, forzar = false): Promise<string> {
@@ -119,54 +126,85 @@ function aBase64(bytes: Uint8Array): string {
   return btoa(binario);
 }
 
-async function sincronizar(c: Conexion) {
-  const resultado = { nuevas: 0, descargadas: 0, error: null as string | null };
+// Descarga una actividad y la deja en garmin_archivos
+async function descargar(c: Conexion, p: { activity_id: number; intentos: number }) {
+  try {
+    const r = await pedir(c, `/download-service/files/activity/${p.activity_id}`,
+      "application/zip, application/x-zip-compressed, application/octet-stream");
+    const bytes = new Uint8Array(await r.arrayBuffer());
+    if (!bytes.length) throw new ErrorGarmin(204, "archivo vacío");
+    await supabase.from("garmin_archivos").upsert(
+      { user_id: c.user_id, activity_id: p.activity_id, archivo: aBase64(bytes) },
+      { onConflict: "user_id,activity_id", ignoreDuplicates: true });
+    await supabase.from("garmin_actividades").update({ estado: "descargada" })
+      .eq("user_id", c.user_id).eq("activity_id", p.activity_id);
+    return true;
+  } catch (e) {
+    // 429 = "demasiadas peticiones": lo sube arriba para parar la vuelta
+    if (e instanceof ErrorGarmin && e.status === 429) throw e;
+    const intentos = (p.intentos ?? 0) + 1;
+    await supabase.from("garmin_actividades")
+      .update({ intentos, estado: intentos >= MAX_INTENTOS ? "error" : "pendiente" })
+      .eq("user_id", c.user_id).eq("activity_id", p.activity_id);
+    return false;
+  }
+}
+
+const contarPendientes = async (userId: string) => (await supabase.from("garmin_actividades")
+  .select("activity_id", { count: "exact", head: true }).eq("user_id", userId).eq("estado", "pendiente")).count ?? 0;
+
+// porReloj = la llama pg_cron (puede saltarse la vuelta si no hay nada que hacer)
+async function sincronizar(c: Conexion, porReloj = false) {
+  // Si la pide la app, respondemos antes (no te dejamos esperando 40 s); el reloj sigue después
+  const tiempo = porReloj ? TIEMPO_POR_VUELTA : 15e3;
+  const resultado = { descargadas: 0, saltada: false, error: null as string | null };
+  const inicio = Date.now();
+  const queda = () => tiempo - (Date.now() - inicio);
+
+  if (c.pausa_hasta && new Date(c.pausa_hasta).getTime() > Date.now()) return { ...resultado, saltada: true };
+  if (porReloj && c.historial_completo && c.ultima_sync &&
+      Date.now() - new Date(c.ultima_sync).getTime() < CADA_CUANTO_SI_NADA &&
+      (await contarPendientes(c.user_id)) === 0) {
+    return { ...resultado, saltada: true };
+  }
+
+  let pausa: string | null = null;
   try {
     // 1. Lo más reciente
-    const recientes = await listar(c, 0, 20);
-    await apuntar(c, recientes);
+    await apuntar(c, await listar(c, 0, 20));
 
-    // 2. Un trozo de tu historial antiguo, hasta tenerlo entero
-    if (!c.historial_completo) {
-      const antiguas = await listar(c, c.historial_desde, HISTORIAL_POR_VEZ);
+    // 2. Tu historial antiguo, a páginas grandes, hasta tenerlo entero
+    while (!c.historial_completo && queda() > tiempo / 2) {
+      const antiguas = await listar(c, c.historial_desde, HISTORIAL_POR_PAGINA);
       await apuntar(c, antiguas);
       c.historial_desde += antiguas.length;
-      c.historial_completo = antiguas.length < HISTORIAL_POR_VEZ;
+      c.historial_completo = antiguas.length < HISTORIAL_POR_PAGINA;
     }
 
-    // 3. Descargar las pendientes, las más nuevas primero
-    const { data: pendientes } = await supabase.from("garmin_actividades")
-      .select("activity_id, intentos").eq("user_id", c.user_id).eq("estado", "pendiente")
-      .order("inicio", { ascending: false, nullsFirst: false }).limit(DESCARGAS_POR_VEZ);
-    for (const p of pendientes ?? []) {
-      try {
-        const r = await pedir(c, `/download-service/files/activity/${p.activity_id}`,
-          "application/zip, application/x-zip-compressed, application/octet-stream");
-        const bytes = new Uint8Array(await r.arrayBuffer());
-        if (!bytes.length) throw new ErrorGarmin(204, "archivo vacío");
-        await supabase.from("garmin_archivos").upsert(
-          { user_id: c.user_id, activity_id: p.activity_id, archivo: aBase64(bytes) },
-          { onConflict: "user_id,activity_id", ignoreDuplicates: true });
-        await supabase.from("garmin_actividades").update({ estado: "descargada" })
-          .eq("user_id", c.user_id).eq("activity_id", p.activity_id);
-        resultado.descargadas++;
-      } catch (e) {
-        // 429 = "demasiadas peticiones": paramos y seguimos en la próxima vuelta
-        if (e instanceof ErrorGarmin && e.status === 429) throw e;
-        const intentos = (p.intentos ?? 0) + 1;
-        await supabase.from("garmin_actividades")
-          .update({ intentos, estado: intentos >= MAX_INTENTOS ? "error" : "pendiente" })
-          .eq("user_id", c.user_id).eq("activity_id", p.activity_id);
+    // 3. Descargar las pendientes, las más nuevas primero, varias a la vez
+    while (queda() > 8e3 && resultado.descargadas < MAX_DESCARGAS_POR_VUELTA) {
+      const { data: pendientes } = await supabase.from("garmin_actividades")
+        .select("activity_id, intentos").eq("user_id", c.user_id).eq("estado", "pendiente")
+        .order("inicio", { ascending: false, nullsFirst: false }).limit(A_LA_VEZ * 2);
+      if (!pendientes?.length) break;
+      for (let i = 0; i < pendientes.length && queda() > 8e3 && resultado.descargadas < MAX_DESCARGAS_POR_VUELTA; i += A_LA_VEZ) {
+        const hechas = await Promise.all(pendientes.slice(i, i + A_LA_VEZ).map((p) => descargar(c, p)));
+        resultado.descargadas += hechas.filter(Boolean).length;
       }
     }
   } catch (e) {
     resultado.error = e instanceof Error ? e.message : String(e);
+    if (e instanceof ErrorGarmin && e.status === 429) {
+      pausa = new Date(Date.now() + PAUSA_SI_429).toISOString();
+      resultado.error = "Garmin pide ir más despacio: sigo dentro de 15 minutos";
+    }
   }
   await supabase.from("garmin_conexion").update({
     historial_desde: c.historial_desde,
     historial_completo: c.historial_completo,
     ultima_sync: new Date().toISOString(),
     ultimo_error: resultado.error,
+    pausa_hasta: pausa,
   }).eq("user_id", c.user_id);
   return resultado;
 }
@@ -188,7 +226,7 @@ async function estado(userId: string) {
   };
 }
 
-const COLUMNAS = "user_id, clave, token, token_caduca, historial_desde, historial_completo";
+const COLUMNAS = "user_id, clave, token, token_caduca, historial_desde, historial_completo, ultima_sync, pausa_hasta";
 
 Deno.serve(async (peticion) => {
   if (peticion.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -201,7 +239,7 @@ Deno.serve(async (peticion) => {
   if (!user) {
     const { data: conexiones } = await supabase.from("garmin_conexion").select(COLUMNAS);
     const resultados = [];
-    for (const c of conexiones ?? []) resultados.push(await sincronizar(c));
+    for (const c of conexiones ?? []) resultados.push(await sincronizar(c, true));
     return responder({ ok: true, usuarios: resultados.length });
   }
 
@@ -224,7 +262,7 @@ Deno.serve(async (peticion) => {
   }
   if (accion === "conectar" || accion === "sincronizar") {
     const { data: c } = await supabase.from("garmin_conexion").select(COLUMNAS).eq("user_id", user.id).maybeSingle();
-    if (c) await sincronizar(c);
+    if (c) await sincronizar({ ...c, pausa_hasta: accion === "conectar" ? null : c.pausa_hasta });
   }
   return responder(await estado(user.id));
 });
