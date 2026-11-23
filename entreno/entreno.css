@@ -198,3 +198,110 @@
 .garmin-ajustes input { font-size: 16px; } /* 16 px: así el iPhone no hace zoom al escribir */
 .hoja[data-tipo="entreno"] .cerrar { background: var(--linea); color: var(--texto); }
 .form-entreno .campo input { font-size: 16px; }
+
+/* =====================================================================
+   PANEL (panel.js): tarjetas, forma, riesgo, totales, natación
+   ===================================================================== */
+:root {
+  --forma-ctl: #2a78d6; --forma-atl: #d6457a;
+  --tsb-pos: #1baf7a; --tsb-neg: #eda100; --tsb-riesgo: #e34948;
+  --franja: rgba(27, 175, 122, 0.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) { --forma-ctl: #5598e7; --forma-atl: #e66b98; --tsb-pos: #199e70; --tsb-neg: #c98500; --tsb-riesgo: #e66767; --franja: rgba(25, 158, 112, 0.12); }
+}
+:root[data-tema="oscuro"] { --forma-ctl: #5598e7; --forma-atl: #e66b98; --tsb-pos: #199e70; --tsb-neg: #c98500; --tsb-riesgo: #e66767; --franja: rgba(25, 158, 112, 0.12); }
+
+/* Panel | Actividades */
+.vistas { display: flex; margin: 0 16px 4px; padding: 3px; background: var(--linea); border-radius: 12px; gap: 2px; }
+.vistas button { flex: 1; border: 0; background: none; border-radius: 9px; padding: 8px; font-weight: 600; color: var(--suave); font-size: 0.92rem; }
+.vistas button[aria-selected="true"] { background: var(--tarjeta); color: var(--texto); box-shadow: var(--sombra); }
+.panel-entreno { display: flex; flex-direction: column; gap: 16px; }
+
+/* Tarjetas de arriba */
+.tarjetas-panel { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+@media (max-width: 620px) { .tarjetas-panel { grid-template-columns: repeat(2, 1fr); } }
+.tarjeta-dato {
+  background: var(--tarjeta); border-radius: 16px; box-shadow: var(--sombra); padding: 14px;
+  display: flex; flex-direction: column; gap: 2px; min-width: 0;
+}
+.tarjeta-dato span { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--suave); font-weight: 700; }
+.tarjeta-dato b { font-size: clamp(1.35rem, 6vw, 1.7rem); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tarjeta-dato small { font-size: 0.78rem; font-weight: 600; color: var(--suave); }
+.tarjeta-dato small.sube { color: var(--tsb-pos); }
+.tarjeta-dato small.baja { color: var(--tsb-neg); }
+.tarjeta-dato em { font-style: normal; font-size: 0.76rem; color: var(--suave); }
+.etiqueta-forma { align-self: flex-start; padding: 2px 8px; border-radius: 999px; font-weight: 700; margin-top: 2px; }
+.forma-fresco .etiqueta-forma { background: color-mix(in srgb, var(--tsb-pos) 18%, transparent); color: var(--tsb-pos); }
+.forma-optimo .etiqueta-forma { background: color-mix(in srgb, var(--forma-ctl) 18%, transparent); color: var(--forma-ctl); }
+.forma-neutro .etiqueta-forma { background: var(--linea); color: var(--texto); }
+.forma-transicion .etiqueta-forma { background: color-mix(in srgb, var(--tsb-neg) 20%, transparent); color: var(--tsb-neg); }
+.forma-riesgo .etiqueta-forma { background: color-mix(in srgb, var(--tsb-riesgo) 18%, transparent); color: var(--tsb-riesgo); }
+.por-deporte.sin-borde { border-top: 0; margin: 0; padding: 0; }
+.por-deporte li[data-deporte] .punto-deporte { background: var(--serie); }
+
+/* Cabecera de cada tarjeta con sus botoncitos */
+.panel-titulo { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.panel-titulo h2 { margin: 0; }
+.chips-mini button { padding: 4px 10px; font-size: 0.8rem; }
+.panel-totales > .chips-mini { margin-bottom: 6px; }
+.grafica-panel { box-shadow: none; padding: 0; background: none; }
+.grafica-panel figcaption { justify-content: flex-end; padding: 0 0 4px; min-height: 1.3em; }
+.grafica-panel figcaption b { font-size: 0.84rem; font-weight: 600; color: var(--suave); }
+.grafica-panel.activa figcaption b { color: var(--texto); }
+.grafica .rejilla.cero { stroke: var(--suave); opacity: 0.6; }
+.grafica-linea.gruesa { stroke-width: 2.5; }
+.franja-optima { fill: var(--franja); }
+.barra-tsb.pos { fill: var(--tsb-pos); opacity: 0.55; }
+.barra-tsb.neg { fill: var(--tsb-neg); opacity: 0.5; }
+.barra-tsb.riesgo { fill: var(--tsb-riesgo); opacity: 0.6; }
+.leyenda { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.82rem; }
+.leyenda li { display: inline-flex; align-items: center; gap: 6px; }
+.leyenda li span { color: var(--suave); }
+.leyenda i { width: 14px; height: 4px; border-radius: 2px; display: inline-block; }
+.leyenda i.barrita { width: 8px; height: 12px; background: linear-gradient(var(--tsb-pos) 50%, var(--tsb-neg) 50%); opacity: 0.7; }
+.explica { margin-top: 10px; font-size: 0.88rem; }
+.explica summary { cursor: pointer; color: var(--suave); font-weight: 600; }
+.explica p { line-height: 1.5; margin: 8px 0 0; }
+
+/* Riesgo de lesión */
+.riesgo-titulo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.05rem; margin: 0 0 4px; }
+.semaforo { width: 14px; height: 14px; border-radius: 50%; background: var(--suave); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 0%, transparent); }
+.riesgo-bien .semaforo { background: var(--tsb-pos); }
+.riesgo-medio .semaforo { background: var(--tsb-neg); }
+.riesgo-alto .semaforo { background: var(--tsb-riesgo); }
+.riesgo-bajo .semaforo { background: var(--forma-ctl); }
+.riesgo-texto { margin: 0 0 14px; color: var(--suave); line-height: 1.45; }
+.medidor { position: relative; height: 10px; margin: 6px 0 4px; }
+.medidor-zonas { display: grid; grid-template-columns: 40fr 25fr 10fr 25fr; height: 100%; border-radius: 999px; overflow: hidden; gap: 2px; }
+.z-bajo { background: color-mix(in srgb, var(--forma-ctl) 45%, transparent); }
+.z-bien { background: var(--tsb-pos); }
+.z-medio { background: var(--tsb-neg); }
+.z-alto { background: var(--tsb-riesgo); }
+.medidor i { position: absolute; top: -4px; width: 4px; height: 18px; border-radius: 2px; background: var(--texto); transform: translateX(-50%); box-shadow: 0 0 0 2px var(--tarjeta); }
+.medidor-marcas { position: relative; height: 16px; font-size: 0.72rem; color: var(--suave); font-variant-numeric: tabular-nums; }
+.medidor-marcas span { position: absolute; transform: translateX(-50%); }
+.medidor-marcas span:first-child { left: 0; transform: none; }
+.medidor-marcas span:last-child { transform: translateX(-100%); }
+.riesgo-cifras { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 12px 0 4px; }
+@media (max-width: 620px) { .riesgo-cifras { grid-template-columns: repeat(2, 1fr); } }
+.riesgo-cifras div { display: flex; flex-direction: column; gap: 2px; }
+.riesgo-cifras span { font-size: 0.74rem; color: var(--suave); }
+.riesgo-cifras b { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+
+/* Natación */
+.panel-nado h3 { font-size: 0.95rem; margin: 16px 0 8px; }
+.css-caja { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--serie) 10%, transparent); }
+.css-caja div { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.css-caja span { font-size: 0.85rem; color: var(--suave); }
+.css-caja b { font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+.css-caja .nota { margin: 0; }
+.tabla-scroll { overflow-x: auto; }
+.tabla-records { width: 100%; border-collapse: collapse; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.tabla-records th { text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--suave); font-weight: 700; padding: 6px 8px; border-bottom: 1px solid var(--linea); }
+.tabla-records td { padding: 9px 8px; border-bottom: 1px solid var(--linea); white-space: nowrap; }
+.tabla-records tr:last-child td { border-bottom: 0; }
+.tabla-records a { color: var(--serie); font-weight: 700; text-decoration: none; }
+.graficas-nado { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.graficas-nado .grafica { box-shadow: none; padding: 0; background: none; }
+.tabla-records td small { display: block; color: var(--suave); font-size: 0.76rem; }

@@ -16,6 +16,8 @@
 //          "entreno:<id>". Solo se descarga cuando abres esa actividad.
 // =====================================================================
 
+import { mejoresNado } from "./analisis.js";
+
 const CLAVE = "mi-horario:entreno";
 const CLAVE_AJUSTES = "mi-horario:entreno-ajustes";
 const CLAVE_PENDIENTES = "mi-horario:entreno-pendientes"; // detalles que aún no se han podido subir
@@ -34,7 +36,16 @@ export function resumenDe(act) {
   const { puntos, vueltas, largosDetalle, series, ...resumen } = act;
   resumen.vueltasN = vueltas?.length || 0;
   if (series) resumen.seriesN = series.filter((s) => !s.descanso).length;
+  if (act.deporte === "nadar" && largosDetalle) resumen.mejores = mejoresNado(act); // mejores 100, 200, 400 m...
   return resumen;
+}
+
+// Añade datos calculados al resumen de una actividad (p. ej. sus mejores tiempos)
+// cambios = { id: { campo: valor } }
+export function actualizarResumenes(cambios) {
+  const lista = leer(CLAVE, []);
+  for (const a of lista) if (cambios[a.id]) Object.assign(a, cambios[a.id]);
+  escribir(CLAVE, lista);
 }
 
 // ----- Ajustes (pulsaciones máximas, etc.) -----
