@@ -15,9 +15,13 @@ import { leerArchivos, DEPORTES, ESTILOS } from "./fit.js";
 import * as almacen from "./almacen.js";
 import * as garmin from "./garmin.js";
 import { graficaLinea, graficaBarras, crearGrupo, suavizar, mapa } from "./graficas.js";
+import { pintarPanel } from "./panel.js";
+import * as analisis from "./analisis.js";
 
 let caja = null;
 let filtro = "todo";
+// "panel" (resumen, gráficas, récords) o "lista" (todas tus actividades)
+let vista = (() => { try { return localStorage.getItem("mi-horario:entreno-vista") || "panel"; } catch { return "panel"; } })();
 
 export function iniciar(elemento) {
   caja = elemento;
@@ -72,13 +76,6 @@ function velocidadDe(a, v = a.velMedia) {
 // =====================================================================
 // LISTA
 // =====================================================================
-function lunesDe(fecha) {
-  const d = new Date(fecha);
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-  return d;
-}
-
 function pintarLista() {
   const todas = almacen.listar();
   const lista = filtro === "todo" ? todas : todas.filter((a) => a.deporte === filtro);
@@ -91,41 +88,20 @@ function pintarLista() {
       <button class="boton-icono" data-accion="ajustes" aria-label="Ajustes de entreno" title="Ajustes">⚙️</button>
       <label class="boton-principal boton-subir">⬆ Subir<input type="file" multiple data-accion="subir" hidden></label>
     </header>
+    ${todas.length ? `<div class="vistas" role="tablist">
+      <button role="tab" data-vista="panel" aria-selected="${vista === "panel"}">Panel</button>
+      <button role="tab" data-vista="lista" aria-selected="${vista === "lista"}">Actividades</button>
+    </div>` : ""}
     <div class="entreno-cuerpo">
-      ${todas.length ? resumenSemana(todas) : ""}
-      ${presentes.length > 1 ? `<div class="chips" role="group" aria-label="Filtrar por deporte">
+      ${todas.length && vista === "panel" ? `<div class="panel-entreno"></div>` : ""}
+      ${vista === "panel" && todas.length ? "" : `${presentes.length > 1 ? `<div class="chips" role="group" aria-label="Filtrar por deporte">
         ${["todo", ...presentes].map((d) => `<button data-filtro="${d}" class="${filtro === d ? "activo" : ""}" aria-pressed="${filtro === d}">
           ${d === "todo" ? "Todo" : `<span class="punto-deporte" data-deporte="${d}"></span>${DEPORTES[d].nombre}`}</button>`).join("")}
       </div>` : ""}
-      ${todas.length ? listaPorMes(lista) : vacio()}
+      ${todas.length ? listaPorMes(lista) : vacio()}`}
     </div>`;
-}
-
-function resumenSemana(todas) {
-  const lunes = lunesDe(new Date());
-  const semana = todas.filter((a) => new Date(a.inicio) >= lunes);
-  const anterior = todas.filter((a) => { const d = new Date(a.inicio); return d < lunes && d >= new Date(lunes.getTime() - 7 * 864e5); });
-  const total = (xs) => xs.reduce((s, a) => s + (a.duracion || 0), 0);
-  const t = total(semana), t0 = total(anterior);
-  const cambio = t0 ? Math.round(((t - t0) / t0) * 100) : null;
-  const porDeporte = Object.keys(DEPORTES).map((d) => {
-    const xs = semana.filter((a) => a.deporte === d);
-    if (!xs.length) return "";
-    const dist = xs.reduce((s, a) => s + (a.distancia || 0), 0);
-    return `<li><span class="punto-deporte" data-deporte="${d}"></span>${DEPORTES[d].icono} ${DEPORTES[d].nombre}
-      <b>${dist ? (d === "nadar" ? metros(dist) : km(dist, 1)) : `${xs.length} ${xs.length === 1 ? "sesión" : "sesiones"}`}</b>
-      <span>${tiempo(total(xs), true)}</span></li>`;
-  }).join("");
-  return `
-    <section class="tarjeta-entreno semana">
-      <h2>Esta semana</h2>
-      <div class="cifras">
-        <div><span>Tiempo</span><b>${tiempo(t, true)}</b>${cambio != null ? `<small>${cambio >= 0 ? "▲" : "▼"} ${Math.abs(cambio)} % que la anterior</small>` : ""}</div>
-        <div><span>Sesiones</span><b>${semana.length}</b></div>
-        <div><span>Calorías</span><b>${semana.reduce((s, a) => s + (a.calorias || 0), 0).toLocaleString("es-ES")}</b></div>
-      </div>
-      ${porDeporte ? `<ul class="por-deporte">${porDeporte}</ul>` : `<p class="nota">Aún no hay nada esta semana.</p>`}
-    </section>`;
+  const panel = caja.querySelector(".panel-entreno");
+  if (panel) pintarPanel(panel, { alCambiar: () => { if (!location.hash.includes("/") && vista === "panel") pintarLista(); } });
 }
 
 function listaPorMes(lista) {
@@ -271,6 +247,8 @@ function fcMaxima() {
 function abrirAjustes() {
   const hoja = document.getElementById("hoja");
   const fc = fcMaxima();
+  const aj = almacen.ajustes();
+  const u = analisis.umbrales();
   hoja.dataset.tipo = "entreno";
   hoja.querySelector(".hoja-contenido").innerHTML = `
     <header class="form-cabecera"><h2>⚙️ Ajustes de entreno</h2></header>
@@ -281,6 +259,17 @@ function abrirAjustes() {
         <input name="fcMax" type="number" min="120" max="230" inputmode="numeric" value="${almacen.ajustes().fcMax || ""}" placeholder="${fc.valor}">
       </label>
       <p class="nota">Sirven para calcular tus zonas de pulso. ${fc.estimada ? `Ahora uso ${fc.valor}, el máximo que he visto en tus actividades.` : ""} Si la conoces de una prueba o de tu reloj (Garmin la muestra en Zonas de frecuencia cardiaca), escríbela aquí.</p>
+      <label class="campo"><span>Pulso en reposo</span>
+        <input name="fcReposo" type="number" min="30" max="100" inputmode="numeric" value="${aj.fcReposo || ""}" placeholder="50">
+      </label>
+      <p class="nota">El que tienes al despertar. Garmin lo enseña en Frecuencia cardiaca → En reposo. Si no lo pones, uso 50.</p>
+      <label class="campo"><span>CSS de natación (min:seg por 100 m)</span>
+        <input name="css" type="text" inputmode="numeric" pattern="\d{1,2}:\d{2}" value="${aj.css ? tiempo(aj.css) : ""}" placeholder="${u.css && u.cssEstimada ? tiempo(u.css) : "1:50"}">
+      </label>
+      <p class="nota">Tu ritmo umbral en piscina. Si lo dejas vacío lo calculo con tus mejores 200 y 400 m.</p>
+      <label class="campo"><span>FTP de bici (vatios)</span>
+        <input name="ftp" type="number" min="50" max="600" inputmode="numeric" value="${aj.ftp || ""}" placeholder="Solo si tienes medidor de potencia">
+      </label>
       <div class="fila-botones"><button class="boton-principal">Guardar</button></div>
     </form>
     </div>`;
@@ -288,8 +277,14 @@ function abrirAjustes() {
   pintarGarmin(hoja.querySelector(".garmin-ajustes"));
   hoja.querySelector("#form-ajustes-entreno").addEventListener("submit", (e) => {
     e.preventDefault();
-    const v = Number(new FormData(e.target).get("fcMax")) || null;
-    almacen.guardarAjustes({ fcMax: v });
+    const datos = new FormData(e.target);
+    const [m, sg] = String(datos.get("css") || "").split(":").map(Number);
+    almacen.guardarAjustes({
+      fcMax: Number(datos.get("fcMax")) || null,
+      fcReposo: Number(datos.get("fcReposo")) || null,
+      css: m >= 0 && sg >= 0 && m * 60 + sg > 30 ? m * 60 + sg : null,
+      ftp: Number(datos.get("ftp")) || null,
+    });
     hoja.close();
     mostrar(location.hash.split("/").slice(1).join("/"));
   });
@@ -434,7 +429,9 @@ function cifras(a) {
   pon("Potencia", a.potencia && `${a.potencia} W`, a.potenciaNormalizada ? `normalizada ${a.potenciaNormalizada} W` : "");
   pon("Calorías", a.calorias && `${a.calorias.toLocaleString("es-ES")} kcal`);
   pon("Efecto aeróbico", a.efectoAerobico, a.efectoAnaerobico != null ? `anaeróbico ${a.efectoAnaerobico}` : "");
-  pon("Carga", a.carga);
+  const carga = analisis.cargaDe(a, analisis.umbrales());
+  pon("Carga (TSS)", carga.tss || null, analisis.NOMBRE_METODO[carga.metodo]);
+  pon("Carga Garmin", a.carga);
   return c.join("");
 }
 
@@ -598,6 +595,13 @@ function seriesHtml(a) {
 // =====================================================================
 document.addEventListener("click", async (e) => {
   if (!caja?.contains(e.target) && !e.target.closest("#hoja")) return;
+  const vistaBtn = e.target.closest("[data-vista]");
+  if (vistaBtn) {
+    vista = vistaBtn.dataset.vista;
+    try { localStorage.setItem("mi-horario:entreno-vista", vista); } catch {}
+    pintarLista();
+    return;
+  }
   const filtroBtn = e.target.closest("[data-filtro]");
   if (filtroBtn) { filtro = filtroBtn.dataset.filtro; pintarLista(); return; }
   const accion = e.target.closest("[data-accion]")?.dataset.accion;

@@ -11,7 +11,7 @@
 // momento.
 // =====================================================================
 
-const NS = "http://www.w3.org/2000/svg";
+export const NS = "http://www.w3.org/2000/svg";
 const ALTO = 150;
 const MARGEN = { izq: 44, der: 10, arr: 10, aba: 24 };
 
@@ -28,7 +28,7 @@ export function suavizar(ys, ventana = 5) {
 }
 
 // Unos valores "redondos" para las marcas del eje (0, 5, 10...)
-function marcas(min, max, cuantas = 4) {
+export function marcas(min, max, cuantas = 4) {
   const rango = max - min || 1;
   const paso0 = rango / cuantas;
   const pot = 10 ** Math.floor(Math.log10(paso0));
