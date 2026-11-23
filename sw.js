@@ -18,7 +18,7 @@ const ESENCIALES = [
   "tareas.js", "resumen.js", "estudio.js", "estadisticas.js",
   "sincronizar.js", "avisos.js", "vendor/supabase.js", "secciones.js",
   "entreno/entreno.js", "entreno/entreno.css", "entreno/fit.js", "entreno/almacen.js", "entreno/graficas.js", "entreno/garmin.js",
-  "entreno/analisis.js", "entreno/panel.js",
+  "entreno/analisis.js", "entreno/panel.js", "entreno/series.js", "entreno/salud.js",
   "calendario.ics", "manifest.json", "icono.svg", "icono-180.png", "icono-512.png",
 ];
 

@@ -15,13 +15,20 @@ import { leerArchivos, DEPORTES, ESTILOS } from "./fit.js";
 import * as almacen from "./almacen.js";
 import * as garmin from "./garmin.js";
 import { graficaLinea, graficaBarras, crearGrupo, suavizar, mapa } from "./graficas.js";
-import { pintarPanel } from "./panel.js";
+import { pintarResumen, pintarForma, pintarSalud, pintarNatacion } from "./panel.js";
 import * as analisis from "./analisis.js";
 
 let caja = null;
 let filtro = "todo";
-// "panel" (resumen, gráficas, récords) o "lista" (todas tus actividades)
-let vista = (() => { try { return localStorage.getItem("mi-horario:entreno-vista") || "panel"; } catch { return "panel"; } })();
+// Los apartados de Entreno: cada uno tiene su dirección (#entreno/forma...)
+const APARTADOS = [
+  { id: "resumen", nombre: "Resumen", icono: "◉" },
+  { id: "forma", nombre: "Forma", icono: "📈" },
+  { id: "salud", nombre: "Salud", icono: "❤️" },
+  { id: "natacion", nombre: "Natación", icono: "🏊" },
+  { id: "actividades", nombre: "Actividades", icono: "☰" },
+];
+let apartado = "resumen";
 
 export function iniciar(elemento) {
   caja = elemento;
@@ -34,14 +41,16 @@ export function iniciar(elemento) {
     if (document.visibilityState === "visible" && /^#\/?entreno/.test(location.hash)) traerDeGarmin();
   }, 60e3);
   // Si llegan actividades desde otro dispositivo, redibujamos la lista
-  window.addEventListener("storage", (e) => { if (e.key === "mi-horario:entreno" && !location.hash.includes("/")) pintarLista(); });
+  window.addEventListener("storage", (e) => { if (e.key === "mi-horario:entreno" && enApartado()) pintarLista(); });
   return { mostrar };
 }
 
 function mostrar(ruta) {
-  if (ruta) pintarFicha(decodeURIComponent(ruta));
-  else pintarLista();
+  const r = decodeURIComponent(ruta || "");
+  if (!r || APARTADOS.some((a) => a.id === r)) { apartado = r || "resumen"; pintarLista(); }
+  else pintarFicha(r);
 }
+const enApartado = () => !location.hash.includes("/") || APARTADOS.some((a) => location.hash === `#entreno/${a.id}`);
 
 // =====================================================================
 // Formatos: cómo escribir tiempos, distancias y ritmos
@@ -80,28 +89,34 @@ function pintarLista() {
   const todas = almacen.listar();
   const lista = filtro === "todo" ? todas : todas.filter((a) => a.deporte === filtro);
   const presentes = Object.keys(DEPORTES).filter((d) => todas.some((a) => a.deporte === d));
+  const titulo = APARTADOS.find((a) => a.id === apartado)?.nombre;
 
   caja.innerHTML = `
     <header class="cabecera entreno-cabecera">
-      <h1>Entreno</h1>
+      <h1>Entreno${todas.length && apartado !== "resumen" ? `<small> · ${titulo}</small>` : ""}</h1>
       <button class="boton-icono" data-accion="sincronizar-garmin" aria-label="Traer actividades de Garmin" title="Traer de Garmin">🔄</button>
       <button class="boton-icono" data-accion="ajustes" aria-label="Ajustes de entreno" title="Ajustes">⚙️</button>
       <label class="boton-principal boton-subir">⬆ Subir<input type="file" multiple data-accion="subir" hidden></label>
     </header>
-    ${todas.length ? `<div class="vistas" role="tablist">
-      <button role="tab" data-vista="panel" aria-selected="${vista === "panel"}">Panel</button>
-      <button role="tab" data-vista="lista" aria-selected="${vista === "lista"}">Actividades</button>
-    </div>` : ""}
+    ${todas.length ? `<nav class="apartados" aria-label="Apartados de Entreno">
+      ${APARTADOS.map((a) => `<a href="#entreno${a.id === "resumen" ? "" : "/" + a.id}" ${a.id === apartado ? 'aria-current="page"' : ""}>${a.nombre}</a>`).join("")}
+    </nav>` : ""}
     <div class="entreno-cuerpo">
-      ${todas.length && vista === "panel" ? `<div class="panel-entreno"></div>` : ""}
-      ${vista === "panel" && todas.length ? "" : `${presentes.length > 1 ? `<div class="chips" role="group" aria-label="Filtrar por deporte">
+      ${!todas.length ? vacio() : apartado !== "actividades" ? `<div class="panel-entreno"></div>` : `${presentes.length > 1 ? `<div class="chips" role="group" aria-label="Filtrar por deporte">
         ${["todo", ...presentes].map((d) => `<button data-filtro="${d}" class="${filtro === d ? "activo" : ""}" aria-pressed="${filtro === d}">
           ${d === "todo" ? "Todo" : `<span class="punto-deporte" data-deporte="${d}"></span>${DEPORTES[d].nombre}`}</button>`).join("")}
       </div>` : ""}
-      ${todas.length ? listaPorMes(lista) : vacio()}`}
+      ${listaPorMes(lista)}`}
     </div>`;
+  // Que el apartado elegido se vea en la barra (en el móvil puede quedar fuera)
+  caja.querySelector('.apartados [aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "center" });
   const panel = caja.querySelector(".panel-entreno");
-  if (panel) pintarPanel(panel, { alCambiar: () => { if (!location.hash.includes("/") && vista === "panel") pintarLista(); } });
+  if (!panel) return;
+  const repintar = () => { if (enApartado()) pintarLista(); };
+  if (apartado === "forma") pintarForma(panel);
+  else if (apartado === "salud") pintarSalud(panel);
+  else if (apartado === "natacion") pintarNatacion(panel, { alCambiar: repintar });
+  else pintarResumen(panel, { alCambiar: repintar });
 }
 
 function listaPorMes(lista) {
@@ -212,7 +227,7 @@ async function traerDeGarmin() {
   aviso?.remove();
   if (total) {
     avisar(`${total} ${total === 1 ? "actividad nueva" : "actividades nuevas"} de Garmin`);
-    if (!location.hash.includes("/")) pintarLista();
+    if (enApartado()) pintarLista();
   }
   return total;
 }
@@ -362,7 +377,7 @@ async function pintarFicha(id) {
   const resumen = almacen.buscar(id);
   caja.innerHTML = `
     <header class="cabecera entreno-cabecera">
-      <a href="#entreno" class="volver" aria-label="Volver a la lista">‹ Entreno</a>
+      <a href="#entreno/actividades" class="volver" aria-label="Volver a tus actividades">‹ Actividades</a>
     </header>
     <div class="entreno-cuerpo"><p class="nota">Cargando la actividad…</p></div>`;
   window.scrollTo({ top: 0 });
@@ -595,13 +610,6 @@ function seriesHtml(a) {
 // =====================================================================
 document.addEventListener("click", async (e) => {
   if (!caja?.contains(e.target) && !e.target.closest("#hoja")) return;
-  const vistaBtn = e.target.closest("[data-vista]");
-  if (vistaBtn) {
-    vista = vistaBtn.dataset.vista;
-    try { localStorage.setItem("mi-horario:entreno-vista", vista); } catch {}
-    pintarLista();
-    return;
-  }
   const filtroBtn = e.target.closest("[data-filtro]");
   if (filtroBtn) { filtro = filtroBtn.dataset.filtro; pintarLista(); return; }
   const accion = e.target.closest("[data-accion]")?.dataset.accion;

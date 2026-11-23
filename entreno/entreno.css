@@ -206,16 +206,13 @@
   --forma-ctl: #2a78d6; --forma-atl: #d6457a;
   --tsb-pos: #1baf7a; --tsb-neg: #eda100; --tsb-riesgo: #e34948;
   --franja: rgba(27, 175, 122, 0.08);
+  --carga-dia: rgba(107, 117, 144, 0.45);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-tema="claro"]) { --forma-ctl: #5598e7; --forma-atl: #e66b98; --tsb-pos: #199e70; --tsb-neg: #c98500; --tsb-riesgo: #e66767; --franja: rgba(25, 158, 112, 0.12); }
 }
 :root[data-tema="oscuro"] { --forma-ctl: #5598e7; --forma-atl: #e66b98; --tsb-pos: #199e70; --tsb-neg: #c98500; --tsb-riesgo: #e66767; --franja: rgba(25, 158, 112, 0.12); }
 
-/* Panel | Actividades */
-.vistas { display: flex; margin: 0 16px 4px; padding: 3px; background: var(--linea); border-radius: 12px; gap: 2px; }
-.vistas button { flex: 1; border: 0; background: none; border-radius: 9px; padding: 8px; font-weight: 600; color: var(--suave); font-size: 0.92rem; }
-.vistas button[aria-selected="true"] { background: var(--tarjeta); color: var(--texto); box-shadow: var(--sombra); }
 .panel-entreno { display: flex; flex-direction: column; gap: 16px; }
 
 /* Tarjetas de arriba */
@@ -305,3 +302,104 @@
 .graficas-nado { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
 .graficas-nado .grafica { box-shadow: none; padding: 0; background: none; }
 .tabla-records td small { display: block; color: var(--suave); font-size: 0.76rem; }
+
+/* =====================================================================
+   APARTADOS (lote 2): barra de apartados, tarjetas, gráficas con leyenda
+   ===================================================================== */
+.entreno-cabecera h1 small { font-size: 0.6em; color: var(--suave); font-weight: 600; letter-spacing: 0; }
+@media (max-width: 620px) { .entreno-cabecera h1 small { display: none; } }
+
+.apartados {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none;
+  margin: 0 0 4px; padding: 6px 16px 0;
+  background: color-mix(in srgb, var(--fondo) 88%, transparent);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--linea);
+}
+.apartados::-webkit-scrollbar { display: none; }
+.apartados a {
+  flex: none; padding: 10px 12px 11px; color: var(--suave); text-decoration: none;
+  font-weight: 600; font-size: 0.92rem; border-bottom: 2.5px solid transparent; margin-bottom: -1px;
+}
+.apartados a[aria-current="page"] { color: var(--texto); border-bottom-color: var(--texto); }
+.apartados a:hover { color: var(--texto); }
+
+.tarjeta-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.tarjeta-cabecera h2 { margin: 0; display: flex; align-items: center; gap: 8px; }
+.tarjeta-cabecera h2 span { font-size: 0.95rem; filter: saturate(0.9); }
+.ver-mas { font-size: 0.85rem; font-weight: 600; color: var(--suave); text-decoration: none; white-space: nowrap; }
+.ver-mas:hover { color: var(--texto); }
+.fila-chips { display: flex; justify-content: flex-start; margin-bottom: 8px; }
+.panel-entreno > .fila-chips { margin: 0; }
+.plegable .explica-texto p { font-size: 0.9rem; line-height: 1.55; margin: 0 0 8px; color: var(--suave); }
+.plegable .explica-texto b { color: var(--texto); }
+
+/* Tarjetas de arriba: enlaces con mini gráfica */
+a.tarjeta-dato, button.tarjeta-dato { color: inherit; text-decoration: none; text-align: left; border: 0; font: inherit; cursor: pointer; position: relative; transition: transform 0.12s, box-shadow 0.12s; }
+a.tarjeta-dato:hover, button.tarjeta-dato:hover { box-shadow: 0 0 0 1.5px var(--linea), var(--sombra); }
+a.tarjeta-dato:active, button.tarjeta-dato:active { transform: scale(0.985); }
+.sparkline { width: 100%; height: 28px; margin-top: 6px; display: block; }
+.sparkline polyline { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; opacity: 0.85; }
+
+/* Cómo estás hoy */
+.estado-hoy { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.estado-hoy li { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: start; }
+.estado-hoy .semaforo { margin-top: 4px; }
+.estado-hoy b { font-size: 0.98rem; }
+.estado-hoy p { margin: 2px 0 0; color: var(--suave); font-size: 0.88rem; line-height: 1.4; }
+.forma-fresco .semaforo { background: var(--tsb-pos); }
+.forma-optimo .semaforo { background: var(--forma-ctl); }
+.forma-neutro .semaforo, .semaforo.neutro { background: var(--suave); }
+.forma-transicion .semaforo { background: var(--tsb-neg); }
+.forma-riesgo .semaforo { background: var(--tsb-riesgo); }
+
+/* Últimas actividades */
+.ultimas { list-style: none; margin: 0; padding: 0; display: grid; }
+.ultimas li + li { border-top: 1px solid var(--linea); }
+.ultimas a { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 9px 0; color: inherit; text-decoration: none; }
+.ultimas .actividad-icono { width: 36px; height: 36px; font-size: 1.1rem; border-radius: 10px; }
+.ultimas strong { display: block; font-size: 0.95rem; }
+.ultimas small { display: block; color: var(--suave); font-size: 0.8rem; }
+.ultimas-datos { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; font-size: 0.92rem; }
+.ultimas-datos small { font-weight: 500; }
+
+/* Gráficas con leyenda que se puede tocar */
+.grafica-series { box-shadow: none; padding: 0; background: none; margin: 0; }
+.grafica-series figcaption { justify-content: flex-end; padding: 0 0 4px; min-height: 1.35em; }
+.grafica-series figcaption b { font-size: 0.84rem; font-weight: 600; color: var(--suave); text-align: right; }
+.grafica-series.activa figcaption b { color: var(--texto); }
+.grafica .eje-der { text-anchor: start; }
+.grafica .banda-optima { fill: var(--franja); }
+.grafica-linea.discontinua { stroke-dasharray: 5 4; }
+.barra-serie { opacity: 0.7; }
+.punto-serie { opacity: 0.55; }
+.leyenda-series { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.leyenda-series button {
+  display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px; border-radius: 999px;
+  border: 1px solid var(--linea); background: var(--tarjeta); font-size: 0.82rem; color: var(--texto); cursor: pointer;
+}
+.leyenda-series button[aria-pressed="false"] { color: var(--suave); opacity: 0.6; }
+.leyenda-series button[aria-pressed="false"] .muestra { background: transparent !important; border-color: var(--suave); }
+.muestra { width: 14px; height: 4px; border-radius: 2px; background: var(--c); border: 1px solid transparent; flex: none; }
+.muestra.barras { width: 10px; height: 10px; border-radius: 3px; }
+.muestra.area { height: 8px; border-radius: 2px; }
+.muestra.puntos { width: 8px; height: 8px; border-radius: 50%; }
+.muestra.discontinua { background: repeating-linear-gradient(90deg, var(--c) 0 4px, transparent 4px 6px); }
+
+/* Forma: cifras de hoy */
+.cifras-forma { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; }
+.cifras-forma div { display: flex; flex-direction: column; gap: 2px; }
+.cifras-forma span { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--suave); }
+.cifras-forma span i { width: 10px; height: 4px; border-radius: 2px; display: inline-block; }
+.cifras-forma span i.barrita { width: 6px; height: 10px; background: linear-gradient(var(--tsb-pos) 50%, var(--tsb-neg) 50%); }
+.cifras-forma b { font-size: 1.5rem; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.cifras-forma .etiqueta-forma { font-style: normal; font-size: 0.74rem; padding: 1px 8px; border-radius: 999px; align-self: flex-start; font-weight: 700; }
+
+/* Salud */
+.aviso-salud { background: color-mix(in srgb, var(--tsb-neg) 12%, var(--tarjeta)); border-radius: 16px; padding: 14px 16px; box-shadow: var(--sombra); }
+.aviso-salud b { display: block; margin-bottom: 4px; }
+.aviso-salud p { margin: 0; font-size: 0.88rem; line-height: 1.45; color: var(--suave); }
+.tarjetas-salud { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+@media (max-width: 620px) { .tarjetas-salud { grid-template-columns: repeat(2, 1fr); } }
+.tarjeta-salud.elegida { box-shadow: 0 0 0 2px var(--texto), var(--sombra); }
