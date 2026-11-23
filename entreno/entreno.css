@@ -1,0 +1,184 @@
+/* =====================================================================
+   entreno/entreno.css — cómo se ve la sección Entreno
+   (y la barra de pestañas, que se carga con la página: está en styles.css)
+   ===================================================================== */
+
+/* Colores de cada deporte. Comprobados para que se distingan también con
+   daltonismo; aun así siempre van con su icono y su nombre. */
+:root {
+  --dep-nadar: #2a78d6;
+  --dep-correr: #eb6834;
+  --dep-bici: #1baf7a;
+  --dep-gimnasio: #eda100;
+  --dep-otro: #6b7590;
+  --serie-pulso: #e34948;
+  --serie-neutra: #6250d6;
+  --estilo-1: #2a78d6; --estilo-2: #eb6834; --estilo-3: #1baf7a; --estilo-4: #eda100; --estilo-5: #e87ba4;
+  /* Zonas de pulso: un solo color, de claro (suave) a oscuro (fuerte) */
+  --zona-1: #86b6ef; --zona-2: #5598e7; --zona-3: #2a78d6; --zona-4: #1c5cab; --zona-5: #104281;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) {
+    --dep-nadar: #3987e5; --dep-correr: #d95926; --dep-bici: #199e70; --dep-gimnasio: #c98500; --dep-otro: #98a1b6;
+    --serie-pulso: #e66767; --serie-neutra: #9085e9;
+    --estilo-1: #3987e5; --estilo-2: #d95926; --estilo-3: #199e70; --estilo-4: #c98500; --estilo-5: #d55181;
+    --zona-1: #184f95; --zona-2: #256abf; --zona-3: #3987e5; --zona-4: #6da7ec; --zona-5: #9ec5f4;
+  }
+}
+:root[data-tema="oscuro"] {
+  --dep-nadar: #3987e5; --dep-correr: #d95926; --dep-bici: #199e70; --dep-gimnasio: #c98500; --dep-otro: #98a1b6;
+  --serie-pulso: #e66767; --serie-neutra: #9085e9;
+  --estilo-1: #3987e5; --estilo-2: #d95926; --estilo-3: #199e70; --estilo-4: #c98500; --estilo-5: #d55181;
+  --zona-1: #184f95; --zona-2: #256abf; --zona-3: #3987e5; --zona-4: #6da7ec; --zona-5: #9ec5f4;
+}
+[data-deporte="nadar"] { --serie: var(--dep-nadar); }
+[data-deporte="correr"] { --serie: var(--dep-correr); }
+[data-deporte="bici"] { --serie: var(--dep-bici); }
+[data-deporte="gimnasio"] { --serie: var(--dep-gimnasio); }
+[data-deporte="otro"] { --serie: var(--dep-otro); }
+
+#seccion-entreno { flex: 1; width: 100%; max-width: 920px; margin: 0 auto; }
+.entreno-cabecera .boton-subir { cursor: pointer; padding: 9px 14px; }
+.entreno-cuerpo { padding: 4px 16px 32px; display: flex; flex-direction: column; gap: 16px; }
+.volver { color: var(--texto); text-decoration: none; font-weight: 600; font-size: 1.05rem; padding: 6px 0; }
+
+.tarjeta-entreno {
+  background: var(--tarjeta);
+  border-radius: 16px;
+  box-shadow: var(--sombra);
+  padding: 16px;
+}
+.tarjeta-entreno h2, .mes-entreno h2 {
+  font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--suave); margin: 0 0 12px; font-weight: 700;
+}
+
+/* ----- Resumen de la semana ----- */
+.cifras { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.cifras div, .cifras-grandes div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cifras span, .cifras-grandes span { font-size: 0.78rem; color: var(--suave); }
+.cifras b { font-size: clamp(1.1rem, 5vw, 1.45rem); letter-spacing: -0.02em; white-space: nowrap; }
+.cifras small, .cifras-grandes small { font-size: 0.74rem; color: var(--suave); }
+.por-deporte { list-style: none; padding: 12px 0 0; margin: 12px 0 0; border-top: 1px solid var(--linea); display: grid; gap: 8px; }
+.por-deporte li { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 8px; font-size: 0.92rem; }
+.por-deporte li > span:last-child { color: var(--suave); font-size: 0.85rem; min-width: 70px; text-align: right; }
+.punto-deporte { width: 10px; height: 10px; border-radius: 50%; background: var(--serie); display: inline-block; }
+
+/* ----- Filtros ----- */
+.chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.chips button {
+  border: 1px solid var(--linea); background: var(--tarjeta); border-radius: 999px;
+  padding: 7px 14px; font-size: 0.88rem; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.chips button.activo { background: var(--acento); color: var(--fondo); border-color: var(--acento); }
+
+/* ----- Lista de actividades ----- */
+.mes-entreno h2 { display: flex; justify-content: space-between; gap: 8px; margin: 4px 4px 8px; }
+.mes-entreno h2 span { text-transform: none; letter-spacing: 0; font-weight: 500; }
+.actividades { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.actividad {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px;
+  background: var(--tarjeta); border-radius: 14px; box-shadow: var(--sombra);
+  padding: 12px 14px; color: inherit; text-decoration: none;
+  border-left: 4px solid var(--serie);
+}
+.actividad:active { transform: scale(0.99); }
+.actividad-icono {
+  width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 1.3rem;
+  background: color-mix(in srgb, var(--serie) 16%, transparent);
+}
+.actividad-icono.grande { width: 52px; height: 52px; font-size: 1.7rem; border-radius: 14px; }
+.actividad-texto { display: flex; flex-direction: column; min-width: 0; }
+.actividad-texto strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.actividad-texto small { color: var(--suave); }
+.actividad-datos { display: flex; gap: 12px; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+.actividad-datos span:first-child { font-weight: 700; }
+@media (max-width: 620px) {
+  .actividad { grid-template-columns: auto 1fr; row-gap: 6px; }
+  .actividad-datos { grid-column: 2; flex-wrap: wrap; gap: 4px 12px; color: var(--suave); }
+  .actividad-datos span:first-child { color: var(--texto); }
+}
+
+/* ----- Estado vacío ----- */
+.vacio { text-align: center; padding: 28px 20px; }
+.vacio-icono { font-size: 2rem; letter-spacing: 0.2em; margin-bottom: 8px; }
+.vacio h2 { font-size: 1.1rem; text-transform: none; letter-spacing: 0; color: var(--texto); }
+.vacio p { color: var(--suave); line-height: 1.5; margin: 0 auto 12px; max-width: 440px; }
+.vacio details { text-align: left; max-width: 440px; margin: 0 auto; background: var(--fondo); border-radius: 12px; padding: 10px 14px; }
+.vacio summary { cursor: pointer; font-weight: 600; }
+.vacio ol { padding-left: 20px; line-height: 1.55; }
+.vacio a { color: var(--dep-nadar); }
+
+/* ----- Ficha de una actividad ----- */
+.ficha-entreno-cabecera { display: flex; align-items: center; gap: 14px; }
+.ficha-entreno-cabecera h1 { font-size: 1.4rem; margin: 0; letter-spacing: -0.02em; }
+.ficha-entreno-cabecera p { margin: 2px 0 0; color: var(--suave); font-size: 0.88rem; }
+.ficha-entreno-cabecera p::first-letter { text-transform: uppercase; }
+
+.mapa-entreno { height: 280px; border-radius: 16px; overflow: hidden; box-shadow: var(--sombra); background: var(--linea); z-index: 0; }
+@media (max-width: 620px) { .mapa-entreno { height: 230px; } }
+
+.cifras-grandes {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 14px 12px;
+  background: var(--tarjeta); border-radius: 16px; box-shadow: var(--sombra); padding: 16px;
+}
+.cifras-grandes b { font-size: 1.3rem; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+
+/* ----- Gráficas ----- */
+.graficas-entreno { display: flex; flex-direction: column; gap: 12px; }
+.graficas-entreno:empty { display: none; }
+.grafica { margin: 0; background: var(--tarjeta); border-radius: 16px; box-shadow: var(--sombra); padding: 12px 12px 4px; }
+.grafica figcaption { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 0 4px 6px; }
+.grafica figcaption span { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--suave); font-weight: 700; }
+.grafica figcaption b { font-size: 0.92rem; font-variant-numeric: tabular-nums; text-align: right; }
+.grafica svg { display: block; width: 100%; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.grafica .rejilla { stroke: var(--linea); stroke-width: 1; }
+.grafica .eje { fill: var(--suave); font-size: 11px; font-variant-numeric: tabular-nums; }
+.grafica-linea { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.grafica-area { opacity: 0.12; }
+.grafica .cursor line { stroke: var(--texto); stroke-width: 1; opacity: 0.5; }
+.grafica .cursor circle { stroke: var(--tarjeta); stroke-width: 2; }
+.grafica .barra { transition: opacity 0.1s; }
+.grafica .barra.tenue { opacity: 0.35; }
+.largos-grafica .grafica { box-shadow: none; padding: 0; }
+
+/* ----- Zonas ----- */
+.zonas ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.zonas li { display: grid; grid-template-columns: 150px 1fr 70px; align-items: center; gap: 10px; font-size: 0.9rem; }
+.zona-nombre small, .zona-tiempo small { display: block; color: var(--suave); font-size: 0.74rem; }
+.zona-barra { height: 14px; background: var(--fondo); border-radius: 4px; overflow: hidden; }
+.zona-barra span { display: block; height: 100%; border-radius: 0 4px 4px 0; min-width: 2px; }
+.zona-barra [data-zona="1"] { background: var(--zona-1); }
+.zona-barra [data-zona="2"] { background: var(--zona-2); }
+.zona-barra [data-zona="3"] { background: var(--zona-3); }
+.zona-barra [data-zona="4"] { background: var(--zona-4); }
+.zona-barra [data-zona="5"] { background: var(--zona-5); }
+.zona-tiempo { text-align: right; font-variant-numeric: tabular-nums; }
+.zonas .nota { margin: 12px 0 0; }
+@media (max-width: 520px) { .zonas li { grid-template-columns: 112px 1fr 62px; font-size: 0.85rem; } }
+
+/* ----- Tablas (vueltas, series) ----- */
+.tarjeta-entreno table { width: 100%; border-collapse: collapse; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.tarjeta-entreno th { text-align: left; color: var(--suave); font-weight: 600; font-size: 0.78rem; padding: 0 6px 8px; }
+.tarjeta-entreno td { padding: 7px 6px; border-top: 1px solid var(--linea); }
+.celda-barra { position: relative; min-width: 90px; }
+.celda-barra span:last-child { position: relative; font-weight: 600; }
+.mini-barra { position: absolute; left: 0; top: 5px; bottom: 5px; border-radius: 4px; background: color-mix(in srgb, var(--serie, var(--dep-otro)) 22%, transparent); }
+.vueltas { --serie: inherit; }
+.leyenda-estilos { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.85rem; margin: 0 0 8px; }
+.leyenda-estilos i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; }
+
+/* ----- Gimnasio ----- */
+.ejercicios ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.ejercicios li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; }
+.series-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.series-chips span { background: var(--fondo); border-radius: 8px; padding: 3px 8px; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+
+.ficha-entreno-pie { display: flex; justify-content: center; padding-top: 8px; }
+.form-entreno { display: flex; flex-direction: column; gap: 12px; padding: 4px 0 8px; }
+
+/* Leaflet: que los controles del mapa sigan el tema */
+.leaflet-container { font: inherit; background: var(--linea); }
+.leaflet-bar a { background: var(--tarjeta); color: var(--texto); border-color: var(--linea); }
+.leaflet-control-attribution { font-size: 9px; }
+#seccion-entreno .cabecera h1 { visibility: visible; }

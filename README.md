@@ -11,6 +11,8 @@ Web personal para ver mi horario de la escuela de ingeniería, filtrado a mis as
 | `app.js` | El programa: lee el calendario, filtra mis clases y las dibuja. |
 | `config.js` | **Mis datos**: asignaturas, grupo de prácticas, colores y categorías de mis cosas. |
 | `personal.js` | Guarda y lee mis cosas personales (estudio, entreno, comida...) en el navegador. |
+| `secciones.js` | Las pestañas de abajo (Horario, Entreno). Para añadir una sección nueva se añade una línea aquí. |
+| `entreno/` | La sección **Entreno**: leer los .FIT del Garmin (`fit.js`), guardarlos (`almacen.js`), gráficas y mapa (`graficas.js`) y las pantallas (`entreno.js`, `entreno.css`). |
 | `calendario.ics` | El calendario completo que exporta la escuela. |
 | `moodle.js` | Lee mis entregas de Moodle, quita las de otros grupos de prácticas y las prepara para dibujarlas. |
 | `moodle.ics` | Mi calendario de Moodle. Lo descarga solo el robot de abajo. |
@@ -40,3 +42,7 @@ Para que se actualicen solas, una vez:
 3. En la pestaña **Actions → Actualizar entregas de Moodle → Run workflow** para probarlo la primera vez.
 
 El enlace es privado (quien lo tenga puede ver tu calendario de Moodle, pero no entrar en tu cuenta), por eso va como secreto y nunca en el código.
+
+## Entreno (actividades del Garmin)
+
+En la pestaña **Entreno**, el botón **⬆ Subir** acepta archivos `.fit` o el `.zip` que da Garmin Connect con "Exportar original" (se pueden elegir varios). La lista se sincroniza como el resto; el detalle de cada actividad se guarda en Supabase con la clave `entreno:<id>` y solo se descarga al abrirla. El lector de archivos es el oficial de Garmin (FIT SDK) y se descarga de cdn.jsdelivr.net la primera vez, porque su licencia no permite copiarlo en el repositorio. El mapa usa Leaflet (`entreno/vendor/leaflet`, licencia BSD).
