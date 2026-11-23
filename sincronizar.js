@@ -31,6 +31,8 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
     "mi-horario:ajustes-plan",
     "mi-horario:avisos",            // tus preferencias de avisos (avisos.js)
     "mi-horario:avisos-programados", // la lista de avisos que manda Supabase
+    "mi-horario:entreno",           // la lista de tus actividades (entreno/)
+    "mi-horario:entreno-ajustes",   // tus pulsaciones máximas, etc.
   ];
   const CLAVE_SELLOS = "mi-horario:sync-sellos"; // cuándo cambió cada cosa en ESTE dispositivo
   const CLAVE_ULTIMA = "mi-horario:sync-ultima"; // última sincronización que salió bien
@@ -104,7 +106,9 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
       const { data: { session } } = await sb.auth.getSession();
       if (!session) return;
 
-      const { data: filas, error } = await sb.from("datos").select("clave, valor, cambiado");
+      const { data: filas, error } = await sb.from("datos").select("clave, valor, cambiado").in("clave", CLAVES);
+      // (.in: solo estas claves. El detalle de cada entreno también vive en
+      // "datos", pero se descarga aparte y solo cuando abres esa actividad)
       if (error) throw error;
       const nube = Object.fromEntries(filas.map((f) => [f.clave, f]));
       const sellos = leerJSON(CLAVE_SELLOS, {});
