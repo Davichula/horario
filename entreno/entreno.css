@@ -3,36 +3,43 @@
    (y la barra de pestañas, que se carga con la página: está en styles.css)
    ===================================================================== */
 
-/* Colores de cada deporte. Comprobados para que se distingan también con
-   daltonismo; aun así siempre van con su icono y su nombre. */
+/* ---------------------------------------------------------------------
+   COLORES
+   La app trabaja con UN color de acento (el verde, --acento en
+   styles.css). Los demás colores solo aparecen cuando SIGNIFICAN algo:
+     - cada dato tiene su color fijo en todas las gráficas
+       (pulso rojo, ritmo azul, cadencia morado, potencia amarillo...)
+     - cada deporte tiene un tono apagado, solo para distinguirlos en
+       las barras apiladas (los iconos van en gris/blanco)
+   --------------------------------------------------------------------- */
 :root {
-  --dep-nadar: #2a78d6;
-  --dep-correr: #eb6834;
-  --dep-bici: #1baf7a;
-  --dep-gimnasio: #eda100;
-  --dep-otro: #6b7590;
-  --dep-andar: #8b6a3e; --dep-raqueta: #8fa51a; --dep-nieve: #3aa6c9; --dep-escalada: #9a4fc7; --dep-agua: #1f8f9e;
-  --serie-pulso: #e34948;
-  --serie-neutra: #6250d6;
-  --estilo-1: #2a78d6; --estilo-2: #eb6834; --estilo-3: #1baf7a; --estilo-4: #eda100; --estilo-5: #e87ba4;
-  /* Zonas de pulso: un solo color, de claro (suave) a oscuro (fuerte) */
-  --zona-1: #86b6ef; --zona-2: #5598e7; --zona-3: #2a78d6; --zona-4: #1c5cab; --zona-5: #104281;
+  --c-pulso: #e5383b; --c-ritmo: #1f7ae0; --c-cadencia: #8b5cf6; --c-altitud: #8e8e93; --c-potencia: #d99a00;
+  --c-sueno: #6d5fd6; --c-vfc: #12a150; --c-energia: #12a150; --c-estres: #d97706; --c-pasos: #8e8e93;
+  --dep-nadar: #3b82c4; --dep-correr: #d9733b; --dep-bici: #3f9e6e; --dep-gimnasio: #9b7fd1;
+  --dep-otro: #8e8e93; --dep-andar: #a08463; --dep-raqueta: #a3a83a; --dep-nieve: #5aa9c6; --dep-escalada: #b0708f; --dep-agua: #3c9aa3;
+  --serie-pulso: var(--c-pulso);
+  --serie-neutra: var(--c-sueno);
+  --estilo-1: #3b82c4; --estilo-2: #d9733b; --estilo-3: #3f9e6e; --estilo-4: #c9a227; --estilo-5: #b0708f;
+  /* Zonas de pulso: el rojo del pulso, de suave a fuerte */
+  --zona-1: #f4b4b5; --zona-2: #ec8587; --zona-3: #e5383b; --zona-4: #b8282b; --zona-5: #7f1a1c;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-tema="claro"]) {
-    --dep-nadar: #3987e5; --dep-correr: #d95926; --dep-bici: #199e70; --dep-gimnasio: #c98500; --dep-otro: #98a1b6;
-    --dep-andar: #b08a5a; --dep-raqueta: #a9c22a; --dep-nieve: #5cc0e0; --dep-escalada: #b47be0; --dep-agua: #34aebd;
-    --serie-pulso: #e66767; --serie-neutra: #9085e9;
-    --estilo-1: #3987e5; --estilo-2: #d95926; --estilo-3: #199e70; --estilo-4: #c98500; --estilo-5: #d55181;
-    --zona-1: #184f95; --zona-2: #256abf; --zona-3: #3987e5; --zona-4: #6da7ec; --zona-5: #9ec5f4;
+    --c-pulso: #ff4d4f; --c-ritmo: #3d9bff; --c-cadencia: #a78bfa; --c-altitud: #9a9aa0; --c-potencia: #ffc233;
+    --c-sueno: #8b7dff; --c-vfc: #2fd27a; --c-energia: #2fd27a; --c-estres: #ff9f0a; --c-pasos: #9a9aa0;
+    --dep-nadar: #4f9ee8; --dep-correr: #f08a4b; --dep-bici: #45b37c; --dep-gimnasio: #b39ae6;
+    --dep-otro: #8e8e93; --dep-andar: #b89a76; --dep-raqueta: #bfc44a; --dep-nieve: #6fc0dd; --dep-escalada: #cf8aac; --dep-agua: #4fb5bf;
+    --estilo-1: #4f9ee8; --estilo-2: #f08a4b; --estilo-3: #45b37c; --estilo-4: #e0b93a; --estilo-5: #cf8aac;
+    --zona-1: #5c1f20; --zona-2: #8f2b2d; --zona-3: #d13a3c; --zona-4: #ff5c5e; --zona-5: #ff9a9b;
   }
 }
 :root[data-tema="oscuro"] {
-  --dep-nadar: #3987e5; --dep-correr: #d95926; --dep-bici: #199e70; --dep-gimnasio: #c98500; --dep-otro: #98a1b6;
-  --dep-andar: #b08a5a; --dep-raqueta: #a9c22a; --dep-nieve: #5cc0e0; --dep-escalada: #b47be0; --dep-agua: #34aebd;
-  --serie-pulso: #e66767; --serie-neutra: #9085e9;
-  --estilo-1: #3987e5; --estilo-2: #d95926; --estilo-3: #199e70; --estilo-4: #c98500; --estilo-5: #d55181;
-  --zona-1: #184f95; --zona-2: #256abf; --zona-3: #3987e5; --zona-4: #6da7ec; --zona-5: #9ec5f4;
+  --c-pulso: #ff4d4f; --c-ritmo: #3d9bff; --c-cadencia: #a78bfa; --c-altitud: #9a9aa0; --c-potencia: #ffc233;
+  --c-sueno: #8b7dff; --c-vfc: #2fd27a; --c-energia: #2fd27a; --c-estres: #ff9f0a; --c-pasos: #9a9aa0;
+  --dep-nadar: #4f9ee8; --dep-correr: #f08a4b; --dep-bici: #45b37c; --dep-gimnasio: #b39ae6;
+  --dep-otro: #8e8e93; --dep-andar: #b89a76; --dep-raqueta: #bfc44a; --dep-nieve: #6fc0dd; --dep-escalada: #cf8aac; --dep-agua: #4fb5bf;
+  --estilo-1: #4f9ee8; --estilo-2: #f08a4b; --estilo-3: #45b37c; --estilo-4: #e0b93a; --estilo-5: #cf8aac;
+  --zona-1: #5c1f20; --zona-2: #8f2b2d; --zona-3: #d13a3c; --zona-4: #ff5c5e; --zona-5: #ff9a9b;
 }
 [data-deporte="nadar"] { --serie: var(--dep-nadar); }
 [data-deporte="correr"] { --serie: var(--dep-correr); }
@@ -78,7 +85,7 @@
   border: 1px solid var(--linea); background: var(--tarjeta); border-radius: 999px;
   padding: 7px 14px; font-size: 0.88rem; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
 }
-.chips button.activo { background: var(--acento); color: var(--fondo); border-color: var(--acento); }
+.chips button.activo { background: var(--acento); color: var(--sobre-acento); border-color: var(--acento); }
 
 /* ----- Lista de actividades ----- */
 .mes-entreno h2 { display: flex; justify-content: space-between; gap: 8px; margin: 4px 4px 8px; }
@@ -211,15 +218,17 @@
    PANEL (panel.js): tarjetas, forma, riesgo, totales, natación
    ===================================================================== */
 :root {
-  --forma-ctl: #2a78d6; --forma-atl: #d6457a;
-  --tsb-pos: #1baf7a; --tsb-neg: #eda100; --tsb-riesgo: #e34948;
-  --franja: rgba(27, 175, 122, 0.08);
-  --carga-dia: rgba(107, 117, 144, 0.45);
+  /* Forma: forma física = el verde (lo importante), cansancio = morado,
+     frescura según su zona (verde bien, ámbar cargado, rojo riesgo) */
+  --forma-ctl: var(--acento); --forma-atl: #8b5cf6;
+  --tsb-pos: #12a150; --tsb-neg: #d99a00; --tsb-riesgo: #e5383b;
+  --franja: color-mix(in srgb, var(--acento) 10%, transparent);
+  --carga-dia: color-mix(in srgb, var(--suave) 55%, transparent);
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-tema="claro"]) { --forma-ctl: #5598e7; --forma-atl: #e66b98; --tsb-pos: #199e70; --tsb-neg: #c98500; --tsb-riesgo: #e66767; --franja: rgba(25, 158, 112, 0.12); }
+  :root:not([data-tema="claro"]) { --forma-atl: #a78bfa; --tsb-pos: #2fd27a; --tsb-neg: #ffb020; --tsb-riesgo: #ff4d4f; }
 }
-:root[data-tema="oscuro"] { --forma-ctl: #5598e7; --forma-atl: #e66b98; --tsb-pos: #199e70; --tsb-neg: #c98500; --tsb-riesgo: #e66767; --franja: rgba(25, 158, 112, 0.12); }
+:root[data-tema="oscuro"] { --forma-atl: #a78bfa; --tsb-pos: #2fd27a; --tsb-neg: #ffb020; --tsb-riesgo: #ff4d4f; }
 
 .panel-entreno { display: flex; flex-direction: column; gap: 16px; }
 
@@ -531,3 +540,168 @@ a.tarjeta-dato:active, button.tarjeta-dato:active { transform: scale(0.985); }
 .form-sesion input { min-width: 0; padding: 9px 11px; border: 1px solid var(--linea); border-radius: 10px; background: var(--fondo); color: var(--texto); font: inherit; font-size: 0.9rem; }
 @media (max-width: 560px) { .form-sesion { grid-template-columns: 1fr; } .form-sesion button { justify-self: start; } }
 .aviso-sesion { margin-bottom: 12px; }
+
+/* =====================================================================
+   ESTILO GENERAL (rediseño nov. 2026)
+   Bloques tipo Strava: fondo negro, tarjetas gris muy oscuro sin sombra,
+   títulos claros en blanco, y el verde solo para lo que está activo o es
+   importante. Va al final para mandar sobre lo de arriba.
+   ===================================================================== */
+.ico { width: 1.25em; height: 1.25em; display: block; flex: none; }
+.boton-icono .ico { width: 22px; height: 22px; }
+.boton-icono { display: inline-flex; color: var(--texto); }
+.boton-subir { display: inline-flex; align-items: center; gap: 6px; }
+.boton-subir .ico { width: 18px; height: 18px; }
+
+.entreno-cabecera h1 { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.03em; }
+.entreno-cuerpo { gap: 12px; }
+
+/* Tarjetas */
+.tarjeta-entreno, .tarjeta-dato, .tarjeta-deporte, .cifras-grandes, .grafica, .actividad, .aviso-salud {
+  background: var(--tarjeta); box-shadow: none; border-radius: 14px;
+}
+.tarjeta-entreno { padding: 16px; }
+.tarjeta-entreno h2, .tarjeta-cabecera h2 {
+  font-size: 1.02rem; text-transform: none; letter-spacing: -0.01em; color: var(--texto); font-weight: 700;
+}
+.tarjeta-cabecera { margin-bottom: 12px; }
+.ver-mas { color: var(--acento); }
+.ver-mas:hover { color: var(--acento); opacity: 0.8; }
+.mes-entreno h2 { font-size: 0.95rem; text-transform: none; letter-spacing: 0; color: var(--texto); }
+
+/* Cifras: etiqueta pequeña gris + número grande blanco */
+.tarjeta-dato { padding: 14px; gap: 4px; }
+.tarjeta-dato span, .objetivo-cifras span, .cifras-constancia span, .cifras-mini span {
+  font-size: 0.7rem; letter-spacing: 0.05em; color: var(--suave); font-weight: 600;
+}
+.tarjeta-dato b { font-weight: 800; }
+.cifras-constancia > div, .cifras-mini > div, .objetivo-cifras > div { background: var(--elevado); border-radius: 10px; }
+a.tarjeta-dato:hover, button.tarjeta-dato:hover, .tarjeta-deporte:hover { box-shadow: 0 0 0 1px var(--linea); }
+.sparkline polyline { opacity: 1; }
+
+/* Pestañas de los apartados: subrayado verde en la activa */
+.apartados { background: color-mix(in srgb, var(--fondo) 92%, transparent); border-bottom-color: var(--linea); gap: 2px; }
+.apartados a { font-size: 0.95rem; padding: 11px 12px 12px; border-bottom-width: 3px; }
+.apartados a[aria-current="page"] { color: var(--texto); border-bottom-color: var(--acento); }
+
+/* Botoncitos (filtros): contorno gris; el elegido, verde */
+.chips button {
+  background: transparent; border-color: var(--linea); color: var(--suave); font-weight: 600;
+}
+.chips button.activo {
+  background: color-mix(in srgb, var(--acento) 16%, transparent);
+  border-color: color-mix(in srgb, var(--acento) 55%, transparent); color: var(--acento);
+}
+.leyenda-series button { background: transparent; }
+
+/* Iconos de deporte: en gris claro sobre una cajita, sin colores */
+.actividad-icono, .tarjeta-deporte-icono, .prep-icono, .cabecera-deporte h2 span, .objetivo-icono {
+  background: var(--elevado); color: var(--texto);
+}
+.actividad-icono .ico, .tarjeta-deporte-icono .ico, .prep-icono .ico { width: 22px; height: 22px; }
+.actividad-icono.grande .ico, .cabecera-deporte h2 span .ico { width: 28px; height: 28px; }
+.objetivo-icono .ico { width: 22px; height: 22px; }
+.actividad { border-left: 0; }
+.tarjeta-deporte { border-top: 0; }
+.por-deporte a { display: inline-flex; align-items: center; gap: 8px; }
+.por-deporte .ico { width: 18px; height: 18px; color: var(--suave); }
+
+/* Mapa: la ruta en verde */
+.mapa-entreno { --serie: var(--acento); border-radius: 14px; box-shadow: none; }
+
+/* Semáforos y etiquetas un poco más finos */
+.semaforo { width: 10px; height: 10px; margin-top: 6px; }
+.etiqueta-forma { font-size: 0.72rem; }
+
+/* Mapa de calor: escala de verdes */
+.nivel-0 { fill: var(--elevado); background: var(--elevado); }
+.nivel-1 { fill: color-mix(in srgb, var(--acento) 28%, var(--elevado)); background: color-mix(in srgb, var(--acento) 28%, var(--elevado)); }
+.nivel-2 { fill: color-mix(in srgb, var(--acento) 52%, var(--elevado)); background: color-mix(in srgb, var(--acento) 52%, var(--elevado)); }
+.nivel-3 { fill: color-mix(in srgb, var(--acento) 76%, var(--elevado)); background: color-mix(in srgb, var(--acento) 76%, var(--elevado)); }
+.nivel-4 { fill: var(--acento); background: var(--acento); }
+.dia-cal.hoy { stroke: var(--texto); }
+.dia-cal.elegido { stroke: var(--texto); stroke-width: 2; }
+
+/* Gráficas */
+.grafica .rejilla { stroke: var(--linea); }
+.grafica-area { opacity: 0.16; }
+
+/* Desplegable de periodo (arriba a la derecha de cada tarjeta) */
+.desplegable { position: relative; display: inline-flex; }
+.desplegable select {
+  appearance: none; -webkit-appearance: none; font: inherit; font-size: 0.85rem; font-weight: 600;
+  color: var(--texto); background: var(--elevado); border: 1px solid var(--linea); border-radius: 999px;
+  padding: 6px 30px 6px 12px; cursor: pointer;
+}
+.desplegable::after {
+  content: ""; position: absolute; right: 12px; top: 50%; width: 6px; height: 6px; margin-top: -5px;
+  border-right: 2px solid var(--acento); border-bottom: 2px solid var(--acento); transform: rotate(45deg); pointer-events: none;
+}
+.desplegable select:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+.fila-periodo { align-items: center; justify-content: space-between; gap: 10px; }
+.fila-periodo > span { font-size: 0.85rem; color: var(--suave); font-weight: 600; }
+
+/* Gráfica de forma (dos paneles) */
+.grafica-forma .barra-carga { fill: var(--carga-dia); opacity: 0.55; }
+.grafica-forma .linea-tsb { stroke: var(--texto); stroke-width: 2; }
+.grafica-forma .punto-tsb { fill: var(--texto); }
+.grafica-forma .titulo-panel { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; }
+.grafica-forma .etiqueta-zona { font-size: 10px; font-weight: 600; }
+.zt-transicion { fill: color-mix(in srgb, var(--c-ritmo) 12%, transparent); }
+.zt-fresco { fill: color-mix(in srgb, var(--acento) 9%, transparent); }
+.zt-neutro { fill: color-mix(in srgb, var(--suave) 10%, transparent); }
+.zt-optimo { fill: color-mix(in srgb, var(--acento) 20%, transparent); }
+.zt-riesgo { fill: color-mix(in srgb, var(--tsb-riesgo) 18%, transparent); }
+.zt-txt-transicion { fill: var(--c-ritmo); } .zt-txt-fresco, .zt-txt-optimo { fill: var(--acento); }
+.zt-txt-neutro { fill: var(--suave); } .zt-txt-riesgo { fill: var(--tsb-riesgo); }
+.grafica-forma .cursor circle { stroke: var(--tarjeta); stroke-width: 2; }
+
+/* Mapa de calor: el texto del día elegido, con altura fija (2 líneas) */
+.calendario-valor { margin: 8px 0 0; height: 2.6em; line-height: 1.3; overflow: hidden; color: var(--texto); font-weight: 500; }
+.calendario-valor::first-letter { text-transform: uppercase; }
+.calendario-scroll { padding-top: 2px; }
+.calendario { display: block; }
+/* Vista de mes */
+.calendario-nav { display: grid; grid-template-columns: 38px 1fr 38px; align-items: center; text-align: center; margin-bottom: 8px; }
+.calendario-nav b { display: block; font-size: 1rem; text-transform: capitalize; }
+.calendario-nav small { color: var(--suave); font-size: 0.8rem; }
+.calendario-nav .boton-icono { font-size: 1.5rem; background: var(--elevado); border-radius: 50%; width: 36px; height: 36px; }
+.calendario-nav .boton-icono:disabled { opacity: 0.3; }
+.mes-cabecera, .mes-rejilla { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.mes-cabecera span { text-align: center; font-size: 0.72rem; color: var(--suave); font-weight: 600; padding-bottom: 4px; }
+.mes-dia {
+  aspect-ratio: 1; border: 0; border-radius: 9px; padding: 0; display: grid; place-items: center;
+  font-size: 0.85rem; font-weight: 600; color: var(--texto); font-variant-numeric: tabular-nums;
+}
+.mes-dia.nivel-3, .mes-dia.nivel-4 { color: var(--sobre-acento); }
+.mes-dia.vacio-dia { background: none; }
+.mes-dia.futuro { background: transparent; color: var(--suave); opacity: 0.45; }
+.mes-dia.hoy { box-shadow: inset 0 0 0 2px var(--texto); }
+.mes-dia.elegido { box-shadow: inset 0 0 0 2px var(--texto), 0 0 0 2px var(--tarjeta), 0 0 0 4px var(--acento); }
+.grafica-forma .etiqueta-zona { paint-order: stroke; stroke: var(--tarjeta); stroke-width: 3px; stroke-linejoin: round; }
+.hueco-grafica + .nota, .grafica + .nota { margin-top: 12px; }
+.leyenda-series.estatica { margin-top: 10px; }
+
+/* Subpestañas (dentro de cada apartado): control segmentado sobrio */
+.subpestanas {
+  display: flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--tarjeta);
+  overflow-x: auto; scrollbar-width: none;
+}
+.subpestanas::-webkit-scrollbar { display: none; }
+.subpestanas button {
+  flex: 1 0 auto; border: 0; background: transparent; color: var(--suave); font-weight: 600; font-size: 0.88rem;
+  padding: 8px 12px; border-radius: 9px; white-space: nowrap;
+}
+.subpestanas button.activo { background: var(--elevado); color: var(--texto); box-shadow: inset 0 -2px 0 var(--acento); }
+.cabecera-deporte + .subpestanas { margin-top: -4px; }
+
+/* Arreglos: celdas del mes y texto fijo encima de las gráficas */
+.mes-dia { min-width: 0; width: 100%; }
+.calendario-nav b { text-transform: none; }
+.calendario-nav b::first-letter { text-transform: uppercase; }
+.grafica-series figcaption { min-height: 2.7em; align-items: flex-start; }
+.cuerpo-deporte { display: flex; flex-direction: column; gap: 12px; }
+.tarjeta-entreno ul + .nota, .tarjeta-entreno table + .nota, .tabla-scroll + .nota { margin-top: 12px; }
+.fila-periodo { margin: 0; }
+.cifras-forma span i.barrita { width: 10px; height: 4px; background: var(--texto); }
+.tarjeta-salud.elegida { box-shadow: inset 0 0 0 1.5px var(--acento); }

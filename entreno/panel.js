@@ -36,24 +36,44 @@ const CLAVE_PREF = "mi-horario:entreno-panel";
 const pref = (() => { try { return JSON.parse(localStorage.getItem(CLAVE_PREF)) || {}; } catch { return {}; } })();
 const guardarPref = () => { try { localStorage.setItem(CLAVE_PREF, JSON.stringify(pref)); } catch {} };
 pref.rango ??= 90; pref.periodo ??= "semana"; pref.medida ??= "horas"; pref.ocultosTot ??= [];
-pref.rangoSalud ??= 90; pref.metricaSalud ??= null; pref.rangoNado ??= 365; pref.rangoDep ??= 365; pref.deporteZonas ??= "todo";
+pref.rangoSalud ??= 90; pref.rangoTot ??= 90; pref.rangoZonas ??= 90; pref.rangoMono ??= 112; pref.vistaCal ??= "anio"; pref.metricaSalud ??= null; pref.rangoNado ??= 365; pref.rangoDep ??= 365; pref.deporteZonas ??= "todo";
 
 function chips(nombre, opciones, extra = "") {
   return `<div class="chips chips-mini ${extra}" role="group">${opciones.map(([v, t]) =>
     `<button type="button" data-pref="${nombre}" data-valor="${v}" class="${pref[nombre] === v ? "activo" : ""}" aria-pressed="${pref[nombre] === v}">${t}</button>`).join("")}</div>`;
 }
-// Los botoncitos de cada apartado: guardan la elección y repintan ese apartado
+// Desplegable para elegir el periodo de una gráfica (va arriba a la derecha
+// de cada tarjeta). valores: los periodos que tienen sentido en esa gráfica.
+const RANGOS = { 7: "Última semana", 30: "Último mes", 42: "6 semanas", 90: "3 meses", 112: "16 semanas", 182: "6 meses", 365: "Último año", 730: "2 años", 0: "Todo" };
+function desplegable(nombre, valores, etiquetas = RANGOS) {
+  if (!valores.map(String).includes(String(pref[nombre]))) pref[nombre] = valores[Math.min(2, valores.length - 1)];
+  return `<label class="desplegable"><select data-pref="${nombre}" aria-label="Periodo">${valores.map((v) =>
+    `<option value="${v}"${String(pref[nombre]) === String(v) ? " selected" : ""}>${etiquetas[v] ?? v}</option>`).join("")}</select></label>`;
+}
+// Subpestañas: dentro de un apartado, cada pestaña enseña solo un tema
+// (así no se amontona todo en una pantalla). Se recuerda la última.
+function subpestanas(nombre, opciones) {
+  if (!opciones.some(([v]) => v === pref[nombre])) pref[nombre] = opciones[0][0];
+  return `<nav class="subpestanas" aria-label="Subapartados">${opciones.map(([v, t]) =>
+    `<button type="button" data-pref="${nombre}" data-valor="${v}" class="${pref[nombre] === v ? "activo" : ""}" aria-pressed="${pref[nombre] === v}">${t}</button>`).join("")}</nav>`;
+}
+// Los botoncitos y desplegables de cada apartado: guardan la elección y repintan ese apartado
+const valorDe = (v) => (v === "" || isNaN(v) ? v : Number(v));
 function escucharChips(cont, repintar) {
-  cont.querySelectorAll("[data-pref]").forEach((b) => b.addEventListener("click", () => {
-    const v = b.dataset.valor;
-    pref[b.dataset.pref] = v === "" || isNaN(v) ? v : Number(v);
+  cont.querySelectorAll("button[data-pref]").forEach((b) => b.addEventListener("click", () => {
+    pref[b.dataset.pref] = valorDe(b.dataset.valor);
+    guardarPref();
+    repintar();
+  }));
+  cont.querySelectorAll("select[data-pref]").forEach((s) => s.addEventListener("change", () => {
+    pref[s.dataset.pref] = valorDe(s.value);
     guardarPref();
     repintar();
   }));
 }
 const tarjeta = (titulo, cuerpo, { clase = "", accion = "", icono = "" } = {}) => `
   <section class="tarjeta-entreno ${clase}">
-    <header class="tarjeta-cabecera"><h2>${icono ? `<span aria-hidden="true">${icono}</span>` : ""}${titulo}</h2>${accion}</header>
+    <header class="tarjeta-cabecera"><h2>${titulo}</h2>${accion}</header>
     ${cuerpo}
   </section>`;
 const enlace = (seccion, texto = "Ver más") => `<a class="ver-mas" href="#entreno/${seccion}">${texto} ›</a>`;
@@ -78,21 +98,35 @@ export function pintarResumen(cont, { alCambiar } = {}) {
   const dSalud = salud.enCache();
   const vo2 = [...dSalud].reverse().find((d) => d.vo2);
   const porDeporte = Object.entries(actual.deportes).map(([d, x]) => `
-    <li data-deporte="${d}"><span class="punto-deporte"></span><a href="#entreno/deportes/${d}">${DEPORTES[d].icono} ${DEPORTES[d].nombre}</a>
+    <li data-deporte="${d}"><span class="punto-deporte"></span><a href="#entreno/deportes/${d}">${DEPORTES[d].svg}${DEPORTES[d].nombre}</a>
       <b>${x.distancia ? (d === "nadar" ? `${num(x.distancia)} m` : `${num(x.distancia / 1000, 1)} km`) : `${x.sesiones} ${x.sesiones === 1 ? "sesión" : "sesiones"}`}</b>
       <span>${horas(x.horas)}</span></li>`).join("");
   const ultimas = lista.slice(0, 4);
 
-  cont.innerHTML = `
+  const sub = subpestanas("subResumen", [["hoy", "Hoy"], ["totales", "Totales"], ["constancia", "Constancia"]]);
+  cont.innerHTML = sub + (pref.subResumen === "totales" ? `
+    ${porDeporte ? tarjeta("Esta semana por deporte", `<ul class="por-deporte sin-borde">${porDeporte}</ul>`, { icono: "📅" }) : ""}
+
+    ${tarjeta("Totales", `
+      <div class="fila-chips">${chips("medida", [["horas", "Horas"], ["carga", "Carga"], ["sesiones", "Sesiones"]])}</div>
+      <div class="hueco-grafica" data-grafica="totales"></div>
+      <div class="leyenda-series" data-leyenda="totales">${Object.keys(DEPORTES).filter((d) => lista.some((a) => a.deporte === d)).map((d) =>
+        `<button type="button" data-deporte="${d}" data-toggle-dep="${d}" aria-pressed="${!pref.ocultosTot.includes(d)}"><i class="muestra barras" style="--c:var(--dep-${d})"></i>${DEPORTES[d].nombre}</button>`).join("")}</div>`,
+      { accion: desplegable("rangoTot", [7, 30, 90, 182, 365, 730]), icono: "📊" })}
+
+` : pref.subResumen === "constancia" ? `
+    ${tarjetaConstancia(lista)}
+
+` : `
     <section class="tarjetas-panel">
       <a class="tarjeta-dato" href="#entreno/actividades"><span>Esta semana</span><b>${horas(actual.horas)}</b>
-        <em>${actual.sesiones} ${actual.sesiones === 1 ? "sesión" : "sesiones"} · antes ${horas(anterior.horas)}</em>${sparkline(semanas.map((s) => s.horas), "var(--suave)")}</a>
+        <em>${actual.sesiones} ${actual.sesiones === 1 ? "sesión" : "sesiones"} · antes ${horas(anterior.horas)}</em>${sparkline(semanas.map((s) => s.horas), "var(--acento)")}</a>
       <a class="tarjeta-dato" href="#entreno/forma"><span>Carga semanal</span><b>${num(actual.carga)}</b>
-        <em>la anterior ${num(anterior.carga)}</em>${sparkline(semanas.map((s) => s.carga), "var(--forma-atl)")}</a>
+        <em>la anterior ${num(anterior.carga)}</em>${sparkline(semanas.map((s) => s.carga), "var(--acento)")}</a>
       <a class="tarjeta-dato" href="#entreno/forma"><span>Forma física</span><b>${num(hoy.ctl)}</b>
         ${hace4 ? flecha(hoy.ctl - hace4.ctl) : ""}<em>en 4 semanas</em>${sparkline(dias.slice(-42).map((d) => d.ctl))}</a>
       <a class="tarjeta-dato forma-${zona.clase}" href="#entreno/forma"><span>Frescura</span><b>${conSigno(hoy.tsb)}</b>
-        <em class="etiqueta-forma">${zona.nombre}</em>${sparkline(dias.slice(-42).map((d) => d.tsb), "var(--tsb-neg)")}</a>
+        <em class="etiqueta-forma">${zona.nombre}</em>${sparkline(dias.slice(-42).map((d) => d.tsb), "var(--acento)")}</a>
     </section>
 
     ${tarjetaObjetivo(lista, dias)}
@@ -104,25 +138,13 @@ export function pintarResumen(cont, { alCambiar } = {}) {
         ${vo2 ? `<li><span class="semaforo neutro"></span><div><b>VO2max ${num(vo2.vo2, 1)}</b><p>Último valor de Garmin (${fechaCorta(vo2.fecha)}).</p></div></li>` : ""}
       </ul>`, { accion: enlace("forma"), icono: "🧭" })}
 
-    ${porDeporte ? tarjeta("Esta semana por deporte", `<ul class="por-deporte sin-borde">${porDeporte}</ul>`, { icono: "📅" }) : ""}
-
-    ${tarjeta("Totales", `
-      <div class="fila-chips">${chips("medida", [["horas", "Horas"], ["carga", "Carga"], ["sesiones", "Sesiones"]])}</div>
-      <div class="hueco-grafica" data-grafica="totales"></div>
-      <div class="leyenda-series" data-leyenda="totales">${Object.keys(DEPORTES).filter((d) => lista.some((a) => a.deporte === d)).map((d) =>
-        `<button type="button" data-deporte="${d}" data-toggle-dep="${d}" aria-pressed="${!pref.ocultosTot.includes(d)}"><i class="muestra barras" style="--c:var(--dep-${d})"></i>${DEPORTES[d].nombre}</button>`).join("")}</div>`,
-      { accion: chips("periodo", [["semana", "Semanas"], ["mes", "Meses"]]), icono: "📊" })}
-
-    ${tarjetaConstancia(lista)}
-
     ${tarjeta("Últimas actividades", `<ul class="ultimas">${ultimas.map((a) => `
       <li><a href="#entreno/${encodeURIComponent(a.id)}" data-deporte="${a.deporte}">
         <span class="actividad-icono" aria-hidden="true">${iconoDe(a)}</span>
         <span><strong>${a.nombre}</strong><small>${new Date(a.inicio).toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" })}</small></span>
         <span class="ultimas-datos">${a.distancia ? (a.deporte === "nadar" ? `${num(a.distancia)} m` : `${num(a.distancia / 1000, 1)} km`) : horas((a.duracion || 0) / 3600)}<small>carga ${an.cargaDe(a, u).tss}</small></span>
-      </a></li>`).join("")}</ul>`, { accion: enlace("actividades", "Ver todas"), icono: "🕑" })}`;
-
-  dibujarTotales(cont.querySelector('[data-grafica="totales"]'), lista, u);
+      </a></li>`).join("")}</ul>`, { accion: enlace("actividades", "Ver todas"), icono: "🕑" })}`);
+  if (cont.querySelector('[data-grafica="totales"]')) dibujarTotales(cont.querySelector('[data-grafica="totales"]'), lista, u);
   dibujarCalendario(cont.querySelector('[data-grafica="calendario"]'), lista, u);
   cont.querySelectorAll("[data-toggle-dep]").forEach((b) => b.addEventListener("click", () => {
     const d = b.dataset.toggleDep;
@@ -141,19 +163,21 @@ export function pintarResumen(cont, { alCambiar } = {}) {
 // ---------------------------------------------------------------------
 function dibujarTotales(hueco, lista, u) {
   const M = { izq: 40, der: 12, arr: 12, aba: 26 };
-  const periodos = an.totales(lista, pref.periodo, 12, u);
+  // El periodo elegido decide si cada barra es un día, una semana o un mes
+  const [periodo, n] = { 7: ["dia", 7], 30: ["dia", 30], 90: ["semana", 13], 182: ["semana", 26], 365: ["mes", 12], 730: ["mes", 24] }[pref.rangoTot] || ["semana", 13];
+  const periodos = an.totales(lista, periodo, n, u);
   const deportes = Object.keys(DEPORTES).filter((d) => !pref.ocultosTot.includes(d));
   const valorDe = (x) => (pref.medida === "horas" ? x.horas : pref.medida === "carga" ? x.carga : x.sesiones);
   const sumaDe = (p) => deportes.reduce((s, d) => s + (p.deportes[d] ? valorDe(p.deportes[d]) : 0), 0);
   const fmt = (v) => (pref.medida === "horas" ? horas(v) : num(v));
-  const etiqueta = (p) => (pref.periodo === "semana" ? fechaCorta(p.desde) : p.desde.toLocaleDateString("es-ES", { month: "short" }));
-  const resumen = `Media ${fmt(periodos.reduce((s, p) => s + sumaDe(p), 0) / periodos.length)} por ${pref.periodo}`;
+  const etiqueta = (p) => (periodo === "semana" ? fechaCorta(p.desde) : periodo === "dia" ? (n <= 7 ? p.desde.toLocaleDateString("es-ES", { weekday: "short" }) : String(p.desde.getDate())) : p.desde.toLocaleDateString("es-ES", { month: "short" }));
+  const resumen = `Total ${fmt(periodos.reduce((s, p) => s + sumaDe(p), 0))} · media ${fmt(periodos.reduce((s, p) => s + sumaDe(p), 0) / periodos.length)} por ${periodo === "dia" ? "día" : periodo}`;
   const figura = document.createElement("figure");
   figura.className = "grafica grafica-series";
   figura.innerHTML = `<figcaption><b class="grafica-valor">${resumen}</b></figcaption>`;
   const svg = document.createElementNS(NS, "svg");
   svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", `Totales por ${pref.periodo}. ${resumen}`);
+  svg.setAttribute("aria-label", `Totales por ${periodo}. ${resumen}`);
   figura.append(svg);
   hueco.replaceChildren(figura);
   const valor = figura.querySelector(".grafica-valor");
@@ -175,7 +199,7 @@ function dibujarTotales(hueco, lista, u) {
     const salto = Math.ceil(periodos.length / Math.max(2, Math.floor(ancho / 52)));
     periodos.forEach((p, i) => {
       let base = M.arr + zona;
-      const x = M.izq + i * w + w * 0.16, bw = w * 0.68;
+      const bw = Math.min(w * 0.68, 28), x = M.izq + i * w + (w - bw) / 2;
       deportes.forEach((d) => {
         const v = p.deportes[d] ? valorDe(p.deportes[d]) : 0;
         if (!v) return;
@@ -193,8 +217,8 @@ function dibujarTotales(hueco, lista, u) {
     if (i < 0 || i >= periodos.length) return;
     const p = periodos[i];
     svg.querySelectorAll(".barra").forEach((b) => b.classList.toggle("tenue", +b.dataset.i !== i));
-    const partes = deportes.filter((d) => p.deportes[d]).map((d) => `${DEPORTES[d].icono} ${fmt(valorDe(p.deportes[d]))}`);
-    const cuando = pref.periodo === "semana" ? `Semana del ${fechaCorta(p.desde)}` : p.desde.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
+    const partes = deportes.filter((d) => p.deportes[d]).map((d) => `${DEPORTES[d].nombre} ${fmt(valorDe(p.deportes[d]))}`);
+    const cuando = periodo === "semana" ? `Semana del ${fechaCorta(p.desde)}` : periodo === "dia" ? p.desde.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "short" }) : p.desde.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
     valor.textContent = `${cuando}: ${fmt(sumaDe(p))}${partes.length > 1 ? ` (${partes.join(" · ")})` : ""}`;
   };
   svg.addEventListener("pointermove", mostrar);
@@ -214,56 +238,150 @@ export function pintarForma(cont) {
   const r = an.riesgo(todos);
   const dias = pref.rango ? todos.slice(-pref.rango) : todos;
 
-  cont.innerHTML = `
-    ${tarjeta("Forma física, cansancio y frescura", `
+  const sub = subpestanas("subForma", [["forma", "Forma"], ["intensidad", "Intensidad"], ["monotonia", "Monotonía"]]);
+  cont.innerHTML = sub + (pref.subForma === "forma" ? `
+    ${tarjeta("Estado de forma", `
       <div class="cifras-forma">
         <div><span><i style="background:var(--forma-ctl)"></i>Forma física</span><b>${num(hoy.ctl)}</b></div>
         <div><span><i style="background:var(--forma-atl)"></i>Cansancio</span><b>${num(hoy.atl)}</b></div>
         <div class="forma-${zona.clase}"><span><i class="barrita"></i>Frescura</span><b>${conSigno(hoy.tsb)}</b><em class="etiqueta-forma">${zona.nombre}</em></div>
       </div>
-      <div class="fila-chips">${chips("rango", [[42, "6 sem"], [90, "3 meses"], [182, "6 meses"], [365, "1 año"], [0, "Todo"]])}</div>
       <div class="hueco-grafica" data-grafica="forma"></div>
-      <p class="nota">Toca los nombres de debajo de la gráfica para enseñar u ocultar cada dato. La franja verde es la zona en la que mejoras.</p>`,
-      { icono: "📈" })}
-    ${tarjetaRiesgo(r)}
+      <p class="nota">Las barras grises son la carga de cada día. En la zona "Construyendo" es donde mejoras.</p>
+      <details class="explica"><summary>Cómo se calcula</summary>
+      <div class="explica-texto">
+        <p>Cada entreno suma <b>carga</b> (100 = una hora a tope sostenible). La <b>forma física</b> es la media de tu carga de las últimas 6 semanas: sube despacio si entrenas con constancia. El <b>cansancio</b> es la media de la última semana: sube y baja rápido. La <b>frescura</b> es la diferencia.</p>
+        <p>Frescura entre −10 y −30: estás mejorando. Por debajo de −30: demasiada carga. Por encima de +5: fresco para competir.</p>
+        <p>Tu carga se calcula con el pulso (reposo ${u.fcReposo}, máximo ${u.fcMax}, umbral ${u.lthr} ppm)${u.css ? ` y en piscina con tu ritmo frente a tu CSS (${reloj(u.css)} /100 m)` : ""}. Cámbialo en Ajustes (la rueda de arriba).</p>
+      </div></details>`,
+      { accion: desplegable("rango", [7, 30, 42, 90, 182, 365, 0]), clase: "plegable" })}
+    ${tarjetaRiesgo(r)}` : pref.subForma === "intensidad" ? `
     ${tarjeta("Intensidad: suave y fuerte", `
       <div class="fila-chips">${chips("deporteZonas", [["todo", "Todo"], ["correr", "Carrera"], ["bici", "Bici"], ["nadar", "Natación"]])}</div>
       <div class="reparto-intensidad" data-reparto></div>
       <div class="hueco-grafica" data-grafica="zonas"></div>
-      <p class="nota">Tiempo en cada zona de pulso por semana. Los que más mejoran hacen un <b>80 %</b> suave (Z1–Z2) y un 20 % fuerte. Zonas con pulsaciones máximas de ${u.fcMax} (las mismas que tu Garmin).</p>`, { icono: "🫀" })}
+      <p class="nota">Tiempo en cada zona de pulso. Los que más mejoran hacen un <b>80 %</b> suave (Z1–Z2) y un 20 % fuerte. Zonas con pulsaciones máximas de ${u.fcMax} (las mismas que tu Garmin).</p>`, { accion: desplegable("rangoZonas", [7, 30, 90, 182, 365]) })}` : `
     ${tarjeta("Monotonía y estrés", `<div class="hueco-grafica" data-grafica="monotonia"></div>
-      <p class="nota">Monotonía = si cada día cargas lo mismo. Por encima de 2, entrenas siempre igual y sube el riesgo de sobrecarga o de enfermar: alterna días duros, suaves y de descanso. Estrés = carga de la semana × monotonía.</p>`, { icono: "🔁" })}
-    ${tarjeta("Cómo se calcula", `
-      <div class="explica-texto">
-        <p>Cada entreno suma <b>carga</b> (100 = una hora a tope sostenible). La <b>forma física</b> es la media de tu carga de las últimas 6 semanas: sube despacio si entrenas con constancia. El <b>cansancio</b> es la media de la última semana: sube y baja rápido. La <b>frescura</b> es la diferencia.</p>
-        <p>Frescura entre −10 y −30: estás mejorando. Por debajo de −30: demasiada carga. Por encima de +5: fresco para competir.</p>
-        <p>Tu carga se calcula con el pulso (reposo ${u.fcReposo}, máximo ${u.fcMax}, umbral ${u.lthr} ppm)${u.css ? ` y en piscina con tu ritmo frente a tu CSS (${reloj(u.css)} /100 m)` : ""}. Cámbialo en ⚙️ Ajustes.</p>
-      </div>`, { icono: "ℹ️", clase: "plegable" })}`;
+      <p class="nota">Monotonía = si cada día cargas lo mismo. Por encima de 2, entrenas siempre igual y sube el riesgo de sobrecarga o de enfermar: alterna días duros, suaves y de descanso. Estrés = carga de la semana × monotonía.</p>`, { accion: desplegable("rangoMono", [42, 112, 182, 365]) })}`);
 
-  if (dias.length >= 2) {
-    const xs = dias.map((d) => d.fecha.getTime());
-    const vo2 = salud.serieDiaria(dSalud, salud.METRICAS.find((m) => m.id === "vo2"), dias[0].fecha, dias.at(-1).fecha).ys;
-    const g = graficaSeries({
-      id: "forma", xs, alto: 230,
-      resumen: `Hoy: forma ${num(hoy.ctl)} · cansancio ${num(hoy.atl)} · frescura ${conSigno(hoy.tsb)}`,
-      bandas: [{ desde: -30, hasta: -10, clase: "banda-optima" }],
-      series: [
-        { id: "tsb", nombre: "Frescura", tipo: "barras", valores: dias.map((d) => d.tsb), formato: (v) => conSigno(v),
-          color: (v) => (v >= 0 ? "var(--tsb-pos)" : v < -30 ? "var(--tsb-riesgo)" : "var(--tsb-neg)") },
-        { id: "ctl", nombre: "Forma física", tipo: "area", color: "var(--forma-ctl)", grosor: 2.5, valores: dias.map((d) => d.ctl) },
-        { id: "atl", nombre: "Cansancio", tipo: "linea", color: "var(--forma-atl)", valores: dias.map((d) => d.atl) },
-        { id: "carga", nombre: "Carga del día", tipo: "barras", eje: "der", color: "var(--carga-dia)", valores: dias.map((d) => d.carga || null), ocultaAlEmpezar: true },
-        { id: "vo2", nombre: "VO2max", tipo: "linea", eje: "der", color: "var(--dep-correr)", discontinua: true, valores: vo2, formato: (v) => num(v, 1), ocultaAlEmpezar: true },
-      ],
-    });
-    cont.querySelector('[data-grafica="forma"]').replaceChildren(g);
-  } else {
-    cont.querySelector('[data-grafica="forma"]').innerHTML = `<p class="nota">Hacen falta al menos un par de días de entrenos.</p>`;
-  }
+  const huecoForma = cont.querySelector('[data-grafica="forma"]');
+  if (huecoForma && dias.length >= 2) huecoForma.replaceChildren(graficaForma(dias));
+  else if (huecoForma) huecoForma.innerHTML = `<p class="nota">Hacen falta al menos un par de días de entrenos.</p>`;
   dibujarZonas(cont, u);
   dibujarMonotonia(cont.querySelector('[data-grafica="monotonia"]'), todos);
   escucharChips(cont, () => pintarForma(cont));
   if (!dSalud.length) salud.cargar().then((d) => { if (d.length && cont.isConnected) pintarForma(cont); });
+}
+
+// ---------------------------------------------------------------------
+// Gráfica de forma: dos paneles que comparten el eje de fechas
+//   arriba → forma física (área verde), cansancio (línea morada) y la
+//            carga de cada día (barras grises, con su propia escala)
+//   abajo  → frescura (línea) sobre sus cinco zonas de color
+// Al deslizar el dedo, una línea vertical cruza los dos paneles.
+// ---------------------------------------------------------------------
+const ZONAS_FRESCURA = [
+  { desde: 25, hasta: Infinity, clase: "transicion", nombre: "Perdiendo forma" },
+  { desde: 5, hasta: 25, clase: "fresco", nombre: "Fresco" },
+  { desde: -10, hasta: 5, clase: "neutro", nombre: "Equilibrado" },
+  { desde: -30, hasta: -10, clase: "optimo", nombre: "Construyendo" },
+  { desde: -Infinity, hasta: -30, clase: "riesgo", nombre: "Sobrecarga" },
+];
+function graficaForma(dias) {
+  const fig = document.createElement("figure");
+  fig.className = "grafica grafica-series grafica-forma";
+  fig.innerHTML = `<figcaption><b class="grafica-valor"></b></figcaption>`;
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("role", "img");
+  fig.append(svg);
+  const valor = fig.querySelector(".grafica-valor");
+  const ult = dias.at(-1);
+  const resumen = "Desliza el dedo para ver cada día";
+  svg.setAttribute("aria-label", `Forma física ${num(ult.ctl)}, cansancio ${num(ult.atl)}, frescura ${conSigno(ult.tsb)}`);
+  valor.textContent = resumen;
+
+  const n = dias.length;
+  const M = { izq: 34, der: 10, arr: 10 }, ALTO_A = 150, HUECO = 30, ALTO_B = 100, ABA = 22;
+  const alto = M.arr + ALTO_A + HUECO + ALTO_B + ABA;
+  const maxA = Math.max(10, ...dias.map((d) => Math.max(d.ctl, d.atl))) * 1.12;
+  const maxCarga = Math.max(1, ...dias.map((d) => d.carga));
+  const tsbs = dias.map((d) => d.tsb);
+  const loB = Math.min(-35, Math.min(...tsbs) - 4), hiB = Math.max(12, Math.max(...tsbs) + 4);
+  const topB = M.arr + ALTO_A + HUECO;
+  const yA = (v) => M.arr + (1 - v / maxA) * ALTO_A;
+  const yB = (v) => topB + (1 - (v - loB) / (hiB - loB)) * ALTO_B;
+  let ancho = 0;
+  const zonaX = () => ancho - M.izq - M.der;
+  // Con pocos días, cada día ocupa una "columna" y el punto va en su centro
+  const xEn = (i) => M.izq + ((i + 0.5) / n) * zonaX();
+
+  function dibujar() {
+    ancho = fig.clientWidth || 600;
+    svg.setAttribute("viewBox", `0 0 ${ancho} ${alto}`);
+    svg.setAttribute("width", ancho); svg.setAttribute("height", alto);
+    let h = "";
+    // --- Panel de arriba ---
+    for (const v of marcas(0, maxA, 3)) {
+      h += `<line class="rejilla" x1="${M.izq}" x2="${ancho - M.der}" y1="${yA(v)}" y2="${yA(v)}"/>`;
+      h += `<text class="eje" x="${M.izq - 6}" y="${yA(v) + 4}" text-anchor="end">${v}</text>`;
+    }
+    const bw = Math.max(1.5, Math.min(18, zonaX() / n - 1.5));
+    dias.forEach((d, i) => {
+      if (!d.carga) return;
+      const hh = (d.carga / maxCarga) * ALTO_A * 0.45;
+      h += `<rect class="barra-carga" x="${xEn(i) - bw / 2}" y="${M.arr + ALTO_A - hh}" width="${bw}" height="${hh}" rx="${Math.min(2, bw / 2)}"/>`;
+    });
+    const linea = (f) => dias.map((d, i) => `${i ? "L" : "M"}${xEn(i).toFixed(1)},${f(d).toFixed(1)}`).join("");
+    const dCtl = linea((d) => yA(d.ctl));
+    h += `<path class="grafica-area" style="fill:var(--forma-ctl)" d="${dCtl}L${xEn(n - 1)},${yA(0)}L${xEn(0)},${yA(0)}Z"/>`;
+    h += `<path class="grafica-linea" style="stroke:var(--forma-ctl);stroke-width:2.5" d="${dCtl}"/>`;
+    h += `<path class="grafica-linea" style="stroke:var(--forma-atl);stroke-width:1.8" d="${linea((d) => yA(d.atl))}"/>`;
+    // --- Panel de abajo: zonas de frescura ---
+    h += `<text class="eje titulo-panel" x="${M.izq}" y="${topB - 9}">FRESCURA</text>`;
+    for (const z of ZONAS_FRESCURA) {
+      const a = Math.min(hiB, z.hasta), b = Math.max(loB, z.desde);
+      if (a <= b) continue;
+      const y1 = yB(a), y2 = yB(b);
+      h += `<rect class="zona-tsb zt-${z.clase}" x="${M.izq}" y="${y1}" width="${zonaX()}" height="${y2 - y1}"/>`;
+      if (y2 - y1 > 13) h += `<text class="eje etiqueta-zona zt-txt-${z.clase}" x="${ancho - M.der - 4}" y="${(y1 + y2) / 2 + 3.5}" text-anchor="end">${z.nombre}</text>`;
+    }
+    for (const v of [-30, -10, 5, 25]) {
+      if (v < loB || v > hiB) continue;
+      h += `<text class="eje" x="${M.izq - 6}" y="${yB(v) + 3.5}" text-anchor="end">${v > 0 ? "+" + v : v}</text>`;
+    }
+    h += `<line class="rejilla cero" x1="${M.izq}" x2="${ancho - M.der}" y1="${yB(0)}" y2="${yB(0)}"/>`;
+    h += `<path class="grafica-linea linea-tsb" d="${linea((d) => yB(d.tsb))}"/>`;
+    if (n <= 45) dias.forEach((d, i) => { h += `<circle class="punto-tsb" cx="${xEn(i)}" cy="${yB(d.tsb)}" r="2.6"/>`; });
+    // --- Fechas ---
+    const cuantas = Math.min(n, Math.max(2, Math.floor(zonaX() / 70)));
+    const fmtX = (f) => (n <= 7 ? f.toLocaleDateString("es-ES", { weekday: "short", day: "numeric" }) : fechaCorta(f));
+    for (let k = 0; k < cuantas; k++) {
+      const i = cuantas === 1 ? n - 1 : Math.round((k / (cuantas - 1)) * (n - 1));
+      h += `<text class="eje" x="${xEn(i)}" y="${alto - 6}" text-anchor="${n > 7 && k === 0 ? "start" : n > 7 && k === cuantas - 1 ? "end" : "middle"}">${fmtX(dias[i].fecha)}</text>`;
+    }
+    // --- Cursor ---
+    h += `<g class="cursor" display="none"><line y1="${M.arr}" y2="${topB + ALTO_B}"/>
+      <circle class="c-ctl" r="4" style="fill:var(--forma-ctl)"/><circle class="c-atl" r="3.5" style="fill:var(--forma-atl)"/><circle class="c-tsb" r="4" style="fill:var(--texto)"/></g>`;
+    svg.innerHTML = h;
+  }
+
+  function mover(e) {
+    const r = svg.getBoundingClientRect();
+    const px = ((e.clientX - r.left) / r.width) * ancho;
+    const i = Math.max(0, Math.min(n - 1, Math.floor(((px - M.izq) / zonaX()) * n)));
+    const d = dias[i], x = xEn(i);
+    const g = svg.querySelector(".cursor");
+    g.removeAttribute("display");
+    g.querySelector("line").setAttribute("x1", x); g.querySelector("line").setAttribute("x2", x);
+    for (const [c, y] of [["c-ctl", yA(d.ctl)], ["c-atl", yA(d.atl)], ["c-tsb", yB(d.tsb)]]) { const k = g.querySelector("." + c); k.setAttribute("cx", x); k.setAttribute("cy", y); }
+    valor.textContent = `${d.fecha.toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" })} · forma ${num(d.ctl)} · cansancio ${num(d.atl)} · frescura ${conSigno(d.tsb)}${d.carga ? ` · carga ${num(d.carga)}` : " · descanso"}`;
+    fig.classList.add("activa");
+  }
+  svg.addEventListener("pointermove", mover);
+  svg.addEventListener("pointerdown", mover);
+  svg.addEventListener("pointerleave", () => { svg.querySelector(".cursor")?.setAttribute("display", "none"); valor.textContent = resumen; fig.classList.remove("activa"); });
+  new ResizeObserver(() => { if (fig.clientWidth && fig.clientWidth !== ancho) dibujar(); }).observe(fig);
+  return fig;
 }
 
 function tarjetaRiesgo(r) {
@@ -314,11 +432,11 @@ export function pintarSalud(cont) {
     const sel = conDatos.find((x) => x.m.id === pref.metricaSalud);
     const fmt = (m, v) => (v == null ? "—" : `${num(v, m.decimales || 0)}${m.unidad ? ` ${m.unidad}` : ""}`);
 
-    cont.innerHTML = `
-      ${tarjetaDiario()}
+    const sub = subpestanas("subSalud", [["datos", "Datos de Garmin"], ["diario", "Diario de molestias"]]);
+    cont.innerHTML = sub + (pref.subSalud === "diario" ? tarjetaDiario() : `
       ${sinNoche || poco ? `<div class="aviso-salud"><b>⌚ Lleva el reloj también por la noche</b>
         <p>Ahora casi solo lo llevas para entrenar, así que Garmin no puede medir tu sueño, tu VFC ni tu Body Battery, y el pulso "en reposo" sale demasiado alto (por eso lo escondo en los días con pocas horas de reloj). Si duermes con él, aquí aparecerán solos.</p></div>` : ""}
-      <div class="fila-chips">${chips("rangoSalud", [[30, "30 días"], [90, "3 meses"], [182, "6 meses"], [365, "1 año"]])}</div>
+      <div class="fila-chips fila-periodo"><span>Periodo</span>${desplegable("rangoSalud", [7, 30, 90, 182, 365])}</div>
       <section class="tarjetas-salud">${conDatos.map(({ m, ys, validos }) => {
         const ult = [...ys].reverse().find((v) => v != null);
         const s7 = ys.slice(-7).filter((v) => v != null), s28 = ys.slice(-35, -7).filter((v) => v != null);
@@ -326,11 +444,11 @@ export function pintarSalud(cont) {
         const dif = med(s7) != null && med(s28) != null ? med(s7) - med(s28) : null;
         return `<button type="button" class="tarjeta-dato tarjeta-salud${m.id === pref.metricaSalud ? " elegida" : ""}" data-metrica="${m.id}" aria-pressed="${m.id === pref.metricaSalud}">
           <span>${m.nombre}</span><b>${fmt(m, ult)}</b>${dif != null && !m.escalonada ? flecha(dif, "", m.decimales || 0, m.mejorBajo) : `<small>${validos.length} días</small>`}
-          ${sparkline(salud.mediaMovil(ys, 3), m.color)}</button>`;
+          ${sparkline(salud.mediaMovil(ys, 3), m.id === pref.metricaSalud ? m.color : "var(--suave)")}</button>`;
       }).join("")}</section>
-      ${sel ? tarjeta(sel.m.nombre, `<div class="hueco-grafica" data-grafica="salud"></div><p class="nota">${sel.m.texto}</p>`, { icono: "❤️" }) : ""}`;
+      ${sel ? tarjeta(sel.m.nombre, `<div class="hueco-grafica" data-grafica="salud"></div><p class="nota">${sel.m.texto}</p>`, { icono: "❤️" }) : ""}`);
 
-    if (sel) {
+    if (sel && cont.querySelector('[data-grafica="salud"]')) {
       const { dias: diasForma } = datosBase();
       const porDia = new Map(diasForma.map((d) => [d.fecha.getTime(), d]));
       const g = graficaSeries({
@@ -369,18 +487,21 @@ export function pintarNatacion(cont, { alCambiar } = {}) {
   const metros = enRango.reduce((s, a) => s + (a.distancia || 0), 0);
   const swolfs = enRango.map((a) => a.swolf).filter(Boolean);
 
+  const sub = subpestanas("subNado", [["progreso", "Progreso"], ["tecnica", "Técnica"], ["records", "Récords"]]);
+  const ver = pref.subNado;
   cont.innerHTML = `
+    ${sub}
+    <div class="fila-chips fila-periodo"><span>Periodo</span>${desplegable("rangoNado", [30, 90, 182, 365, 0])}</div>
     <section class="tarjetas-panel" data-deporte="nadar">
       <div class="tarjeta-dato"><span>CSS (ritmo umbral)</span><b>${u.css ? reloj(u.css) : "—"}</b><em>${u.css ? "por 100 m · " + (u.cssEstimada ? "estimada" : "la tuya") : "faltan series de 200 y 400 m"}</em></div>
       <div class="tarjeta-dato"><span>Sesiones</span><b>${enRango.length}</b><em>${pref.rangoNado ? "en el periodo" : "en total"}</em></div>
       <div class="tarjeta-dato"><span>Metros</span><b>${num(metros / 1000, 1)} km</b><em>${enRango.length ? `${num(metros / enRango.length)} m por sesión` : ""}</em></div>
       <div class="tarjeta-dato"><span>SWOLF medio</span><b>${swolfs.length ? num(swolfs.reduce((s, x) => s + x, 0) / swolfs.length) : "—"}</b><em>menos es mejor</em></div>
     </section>
-    <div class="fila-chips">${chips("rangoNado", [[90, "3 meses"], [182, "6 meses"], [365, "1 año"], [0, "Todo"]])}</div>
-    ${tarjeta("Técnica y ritmo", `<div class="hueco-grafica" data-grafica="nado"></div>
+    ${ver !== "progreso" ? "" : tarjeta("Técnica y ritmo", `<div class="hueco-grafica" data-grafica="nado"></div>
       <p class="nota">Cada punto es una sesión; la línea gruesa es la tendencia (media de 5 sesiones). Arriba es mejor en las dos. Toca la leyenda para elegir qué ver.</p>`, { icono: "🏊", clase: "", })}
-    ${tarjetasNado(enRango, u)}
-    ${records.length ? tarjeta("Mejores tiempos", `
+    ${ver === "tecnica" ? tarjetasNado(enRango, u) : ""}
+    ${ver === "records" && records.length ? tarjeta("Mejores tiempos", `
       <div class="tabla-scroll"><table class="tabla-records" data-deporte="nadar">
         <thead><tr><th>Distancia</th><th>Mejor</th><th>Cuándo</th><th>Este año</th></tr></thead>
         <tbody>${records.map((r) => `<tr>
@@ -392,17 +513,17 @@ export function pintarNatacion(cont, { alCambiar } = {}) {
       </table></div>
       <p class="nota">Largos seguidos sin parar dentro de una sesión. "Este año" son los últimos 12 meses; 🏆 = tu récord es de ahí.</p>`, { icono: "🏆" }) : ""}`;
 
-  if (enRango.length >= 2) {
+  if (enRango.length >= 2 && cont.querySelector('[data-grafica="nado"]')) {
     const tend = (ys) => ys.map((_, i) => { const v = ys.slice(Math.max(0, i - 4), i + 1).filter((x) => x != null); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; });
     const sw = enRango.map((a) => a.swolf || null), rt = enRango.map((a) => (a.velMedia && a.distancia >= 300 ? 100 / a.velMedia : null));
     const g = graficaSeries({
       id: "nado", xs: enRango.map((a) => new Date(a.inicio).getTime()), alto: 220, invertirIzq: true, invertirDer: true,
       resumen: `Últ. SWOLF ${num([...sw].reverse().find(Boolean))} · ritmo ${(() => { const r = [...rt].reverse().find(Boolean); return r ? reloj(r) : "—"; })()}`,
       series: [
-        { id: "swolf", nombre: "SWOLF", tipo: "puntos", color: "var(--dep-nadar)", valores: sw, formatoEje: (v) => Math.round(v) },
-        { id: "swolfT", nombre: "SWOLF tendencia", tipo: "linea", grosor: 2.5, color: "var(--dep-nadar)", valores: tend(sw), unir: true, formatoEje: (v) => Math.round(v) },
-        { id: "ritmo", nombre: "Ritmo /100 m", tipo: "puntos", eje: "der", color: "var(--forma-atl)", valores: rt, formato: reloj, formatoEje: reloj, ocultaAlEmpezar: true },
-        { id: "ritmoT", nombre: "Ritmo tendencia", tipo: "linea", eje: "der", grosor: 2.5, color: "var(--forma-atl)", valores: tend(rt), unir: true, formato: reloj, formatoEje: reloj },
+        { id: "swolf", nombre: "SWOLF", tipo: "puntos", color: "var(--acento)", valores: sw, formatoEje: (v) => Math.round(v) },
+        { id: "swolfT", nombre: "SWOLF tendencia", tipo: "linea", grosor: 2.5, color: "var(--acento)", valores: tend(sw), unir: true, formatoEje: (v) => Math.round(v) },
+        { id: "ritmo", nombre: "Ritmo /100 m", tipo: "puntos", eje: "der", color: "var(--c-ritmo)", valores: rt, formato: reloj, formatoEje: reloj, ocultaAlEmpezar: true },
+        { id: "ritmoT", nombre: "Ritmo tendencia", tipo: "linea", eje: "der", grosor: 2.5, color: "var(--c-ritmo)", valores: tend(rt), unir: true, formato: reloj, formatoEje: reloj },
       ],
     });
     cont.querySelector('[data-grafica="nado"]').replaceChildren(g);
@@ -438,7 +559,7 @@ function tarjetaObjetivo(lista, dias) {
   const cuenta = faltan < 0 ? "Ya pasó" : faltan === 0 ? "¡Es hoy!" : faltan < 21 ? `${faltan} días` : `${Math.floor(semanas)} semanas`;
   return tarjeta("Objetivo", `
     <div class="objetivo-cabecera">
-      <span class="objetivo-icono" aria-hidden="true">${tipo.icono}</span>
+      <span class="objetivo-icono" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg></span>
       <div><b>${o.nombre ? escapar(o.nombre) : tipo.nombre}</b><small>${o.nombre ? `${tipo.nombre} · ` : ""}${fechaLarga(dia)}</small></div>
       <strong class="cuenta-atras">${cuenta}</strong>
     </div>
@@ -476,7 +597,7 @@ export function pintarDeportes(cont, { deporte, alCambiar } = {}) {
       const meses = porMes(acts, 12, u).map((p) => p.horas);
       const ult = acts[0];
       return `<a class="tarjeta-deporte" href="#entreno/deportes/${d}" data-deporte="${d}">
-        <span class="tarjeta-deporte-icono" aria-hidden="true">${DEPORTES[d].icono}</span>
+        <span class="tarjeta-deporte-icono" aria-hidden="true">${DEPORTES[d].svg}</span>
         <span class="tarjeta-deporte-nombre">${DEPORTES[d].nombre}</span>
         <b>${anio.length ? horas(h) : "—"}</b>
         <em>${anio.length} ${anio.length === 1 ? "sesión" : "sesiones"}${dist && d !== "gimnasio" && d !== "escalada" ? ` · ${distTexto(d, dist)}` : ""}</em>
@@ -490,7 +611,7 @@ function pintarDeporte(cont, d, { alCambiar } = {}) {
   const info = DEPORTES[d];
   const volver = `<a class="volver-deportes" href="#entreno/deportes">‹ Todos los deportes</a>`;
   if (!info) { cont.innerHTML = `${volver}<p class="nota">No conozco ese deporte.</p>`; return; }
-  const cabecera = `<header class="cabecera-deporte" data-deporte="${d}">${volver}<h2><span aria-hidden="true">${info.icono}</span>${info.nombre}</h2></header>`;
+  const cabecera = `<header class="cabecera-deporte" data-deporte="${d}">${volver}<h2><span aria-hidden="true">${info.svg}</span>${info.nombre}</h2></header>`;
   if (d === "nadar") {
     cont.innerHTML = `${cabecera}<div class="cuerpo-deporte"></div>`;
     pintarNatacion(cont.querySelector(".cuerpo-deporte"), { alCambiar });
@@ -515,20 +636,24 @@ function pintarDeporte(cont, d, { alCambiar } = {}) {
     conVel && dist && h ? [esRitmo ? "Ritmo medio" : "Velocidad media", esRitmo ? `${reloj(h * 3600 / (dist / 1000))}` : `${num(dist / 1000 / h, 1)} km/h`, esRitmo ? "por km" : ""]
       : desn > 0 ? ["Desnivel +", `${num(desn)} m`, ""] : ["Pulso medio", (() => { const f = acts.map((a) => a.fcMedia).filter(Boolean); return f.length ? `${num(f.reduce((s, x) => s + x, 0) / f.length)} ppm` : "—"; })(), ""],
   ];
+  const conRecords = d === "correr" || d === "bici";
+  const sub = subpestanas("subDep", [["progreso", "Progreso"], ...(conRecords ? [["records", "Récords"]] : []), ["sesiones", "Sesiones"]]);
+  const ver = pref.subDep;
   cont.innerHTML = `
     ${cabecera}
+    ${sub}
+    <div class="fila-chips fila-periodo"><span>Periodo</span>${desplegable("rangoDep", [30, 90, 182, 365, 730, 0])}</div>
     <section class="tarjetas-panel" data-deporte="${d}">${kpi.map(([t, v, e]) => `<div class="tarjeta-dato"><span>${t}</span><b>${v}</b><em>${e}</em></div>`).join("")}</section>
-    <div class="fila-chips">${chips("rangoDep", [[182, "6 meses"], [365, "1 año"], [730, "2 años"], [0, "Todo"]])}</div>
-    ${d === "correr" ? tarjetasCarrera(lista) : ""}
-    ${tarjeta("Volumen por mes", `<div class="hueco-grafica" data-grafica="volumen"></div>`, { icono: "📊" })}
-    ${conVel && cronol.filter((a) => a.velMedia).length >= 2 ? tarjeta(esRitmo ? "Ritmo y pulso" : "Velocidad y pulso", `<div class="hueco-grafica" data-grafica="ritmo"></div>
+    ${ver === "records" && d === "correr" ? tarjetasCarrera(lista) : ""}
+    ${ver !== "progreso" ? "" : tarjeta("Volumen por mes", `<div class="hueco-grafica" data-grafica="volumen"></div>`, { icono: "📊" })}
+    ${ver === "progreso" && conVel && cronol.filter((a) => a.velMedia).length >= 2 ? tarjeta(esRitmo ? "Ritmo y pulso" : "Velocidad y pulso", `<div class="hueco-grafica" data-grafica="ritmo"></div>
       <p class="nota">Cada punto es una sesión; la línea gruesa es la tendencia (media de 5). ${esRitmo ? "Más arriba = más rápido." : ""} Toca la leyenda para elegir qué ver.</p>`, { icono: "⏱️" }) : ""}
-    ${d === "correr" || d === "bici" ? tarjeta(d === "bici" && acts.some((a) => a.curvaPot) ? "Curva de potencia" : "Curva de ritmo", `<div class="hueco-grafica" data-grafica="curva"></div>
+    ${ver === "records" ? tarjeta(d === "bici" && acts.some((a) => a.curvaPot) ? "Curva de potencia" : "Curva de ritmo", `<div class="hueco-grafica" data-grafica="curva"></div>
       <p class="nota">Tu mejor ${d === "bici" && acts.some((a) => a.curvaPot) ? "potencia media" : d === "correr" ? "ritmo" : "velocidad media"} para cada duración, dentro de cualquier entreno: el periodo elegido contra todo lo anterior.</p>`, { icono: "📉" }) : ""}
-    ${conVel && cronol.filter((a) => a.ef).length >= 3 ? tarjeta("Eficiencia aeróbica", `<div class="hueco-grafica" data-grafica="ef"></div>
+    ${ver === "progreso" && conVel && cronol.filter((a) => a.ef).length >= 3 ? tarjeta("Eficiencia aeróbica", `<div class="hueco-grafica" data-grafica="ef"></div>
       <p class="nota">Eficiencia = ${cronol.some((a) => a.efPot) ? "vatios" : "metros por minuto"} por cada latido: si sube, a igual pulso vas más ${d === "bici" ? "fuerte" : "rápido"} (mejora tu base). Desacople = cuánto se cae la eficiencia de la 1ª mitad a la 2ª en entrenos de más de 40 min: por debajo del 5 % tu base aguanta esa duración.</p>`, { icono: "🫁" }) : ""}
-    ${d === "gimnasio" ? tarjetasGimnasio(acts) : ""}
-    ${tarjeta(`Últimas de ${info.nombre.toLowerCase()}`, `<ul class="ultimas">${todas.slice(0, 6).map((a) => `
+    ${ver === "progreso" && d === "gimnasio" ? tarjetasGimnasio(acts) : ""}
+    ${ver !== "sesiones" ? "" : tarjeta(`Últimas de ${info.nombre.toLowerCase()}`, `<ul class="ultimas">${todas.slice(0, 15).map((a) => `
       <li><a href="#entreno/${encodeURIComponent(a.id)}" data-deporte="${a.deporte}">
         <span class="actividad-icono" aria-hidden="true">${iconoDe(a)}</span>
         <span><strong>${escapar(a.nombre)}</strong><small>${new Date(a.inicio).toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</small></span>
@@ -539,11 +664,11 @@ function pintarDeporte(cont, d, { alCambiar } = {}) {
   const meses = Math.max(6, Math.min(36, pref.rangoDep ? Math.ceil(pref.rangoDep / 30.4) : Math.ceil((Date.now() - new Date(todas.at(-1).inicio)) / (30.4 * DIA)) + 1));
   const periodos = porMes(todas, meses, u);
   const huecoVol = cont.querySelector('[data-grafica="volumen"]');
-  huecoVol.replaceChildren(graficaSeries({
+  if (huecoVol) huecoVol.replaceChildren(graficaSeries({
     id: `vol-${d}`, xs: periodos.map((p) => p.desde.getTime()), alto: 200,
     resumen: `Media ${horas(periodos.reduce((s, p) => s + p.horas, 0) / periodos.length)} al mes`,
     series: [
-      { id: "horas", nombre: "Horas", tipo: "barras", color: `var(--dep-${d})`, valores: periodos.map((p) => p.horas || null), formato: horas, formatoEje: (v) => `${Math.round(v)} h` },
+      { id: "horas", nombre: "Horas", tipo: "barras", color: "var(--acento)", valores: periodos.map((p) => p.horas || null), formato: horas, formatoEje: (v) => `${Math.round(v)} h` },
       conDist ? { id: "dist", nombre: d === "nadar" ? "Metros" : "Km", tipo: "linea", eje: "der", color: "var(--texto)", valores: periodos.map((p) => (p.distancia ? p.distancia / 1000 : null)), formato: (v) => `${num(v, 1)} km`, formatoEje: (v) => Math.round(v), unir: true }
         : { id: "ses", nombre: "Sesiones", tipo: "linea", eje: "der", color: "var(--texto)", valores: periodos.map((p) => p.sesiones || null), formato: (v) => `${v} ses.`, unir: true },
       { id: "carga", nombre: "Carga", tipo: "linea", eje: "der", color: "var(--forma-atl)", discontinua: true, valores: periodos.map((p) => p.carga || null), formato: (v) => num(v), ocultaAlEmpezar: true, unir: true },
@@ -563,9 +688,9 @@ function pintarDeporte(cont, d, { alCambiar } = {}) {
       id: `ritmo-${d}`, xs: ses.map((a) => new Date(a.inicio).getTime()), alto: 220, invertirIzq: esRitmo,
       resumen: ses.length ? `Última: ${fmtV(vel.at(-1))}` : "",
       series: [
-        { id: "v", nombre: esRitmo ? "Ritmo" : "Velocidad", tipo: "puntos", color: `var(--dep-${d})`, valores: vel, formato: fmtV, formatoEje: ejeV },
-        { id: "vT", nombre: "Tendencia", tipo: "linea", grosor: 2.5, color: `var(--dep-${d})`, valores: tend(vel), formato: fmtV, formatoEje: ejeV, unir: true },
-        { id: "fc", nombre: "Pulso medio", tipo: "linea", eje: "der", color: "var(--serie-pulso)", valores: tend(fc), formato: (v) => `${Math.round(v)} ppm`, unir: true, ocultaAlEmpezar: true },
+        { id: "v", nombre: esRitmo ? "Ritmo" : "Velocidad", tipo: "puntos", color: "var(--c-ritmo)", valores: vel, formato: fmtV, formatoEje: ejeV },
+        { id: "vT", nombre: "Tendencia", tipo: "linea", grosor: 2.5, color: "var(--c-ritmo)", valores: tend(vel), formato: fmtV, formatoEje: ejeV, unir: true },
+        { id: "fc", nombre: "Pulso medio", tipo: "linea", eje: "der", color: "var(--c-pulso)", valores: tend(fc), formato: (v) => `${Math.round(v)} ppm`, unir: true, ocultaAlEmpezar: true },
       ],
     }));
   }
@@ -617,8 +742,9 @@ function tarjetasCarrera(lista) {
 }
 
 // =====================================================================
-// CONSTANCIA (Resumen): calendario de 12 meses tipo GitHub y rachas
+// CONSTANCIA (Resumen): mapa de calor del año (tipo GitHub) o de un mes
 // =====================================================================
+let mesCal = 0; // en la vista de mes: 0 = este mes, -1 = el anterior...
 function tarjetaConstancia(lista) {
   const r = an.rachas(lista);
   return tarjeta("Constancia", `
@@ -628,10 +754,10 @@ function tarjetaConstancia(lista) {
       <div><span>Semanas con 3+</span><b>${r.semanas} seguidas</b></div>
       <div><span>Días entrenados</span><b>${r.diasAnio}</b><small>en 12 meses</small></div>
     </div>
+    <div data-grafica="calendario"></div>
     <p class="calendario-valor" aria-live="polite">Toca un día para verlo</p>
-    <div class="tabla-scroll calendario-scroll" data-grafica="calendario"></div>
     <div class="leyenda-calendario"><span>Menos carga</span>${[0, 1, 2, 3, 4].map((n) => `<i class="nivel-${n}"></i>`).join("")}<span>Más</span></div>`,
-    { icono: "🗓️" });
+    { accion: desplegable("vistaCal", ["mes", "anio"], { mes: "Mes", anio: "Año" }) });
 }
 
 function dibujarCalendario(hueco, lista, u) {
@@ -639,15 +765,54 @@ function dibujarCalendario(hueco, lista, u) {
   const porDia = new Map();
   for (const a of lista) {
     const k = an.claveDia(an.diaDe(a.inicio));
-    const x = porDia.get(k) || { carga: 0, n: 0, deportes: new Set() };
-    x.carga += an.cargaDe(a, u).tss; x.n++; x.deportes.add(a.deporte);
+    const x = porDia.get(k) || { carga: 0, n: 0, deportes: new Set(), horas: 0 };
+    x.carga += an.cargaDe(a, u).tss; x.n++; x.deportes.add(a.deporte); x.horas += (a.duracion || 0) / 3600;
     porDia.set(k, x);
   }
+  const hoy = an.diaDe(new Date());
+  const nivel = (c) => (!c ? 0 : c < 40 ? 1 : c < 80 ? 2 : c < 130 ? 3 : 4);
+  const valor = hueco.parentElement.querySelector(".calendario-valor");
+  const contar = (k) => {
+    const x = porDia.get(k);
+    const f = new Date(k + "T12:00").toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
+    return x ? `${f}: ${[...x.deportes].map((d) => DEPORTES[d]?.nombre).join(", ")} · ${x.n} ${x.n === 1 ? "entreno" : "entrenos"} · carga ${Math.round(x.carga)}` : `${f}: descanso`;
+  };
+  const elegir = (celda) => {
+    hueco.querySelectorAll(".elegido").forEach((x) => x.classList.remove("elegido"));
+    celda.classList.add("elegido");
+    valor.textContent = contar(celda.dataset.dia);
+  };
+
+  if (pref.vistaCal === "mes") {
+    // ----- Un mes, como un calendario normal (L a D) -----
+    const primero = new Date(hoy.getFullYear(), hoy.getMonth() + mesCal, 1);
+    const finMes = new Date(primero.getFullYear(), primero.getMonth() + 1, 0);
+    const hueco0 = (primero.getDay() + 6) % 7;
+    let celdas = "", dias = 0, h = 0, carga = 0;
+    for (let i = 0; i < hueco0; i++) celdas += `<span class="mes-dia vacio-dia"></span>`;
+    for (let d = 1; d <= finMes.getDate(); d++) {
+      const f = new Date(primero.getFullYear(), primero.getMonth(), d), k = an.claveDia(f), x = porDia.get(k);
+      if (x) { dias++; h += x.horas; carga += x.carga; }
+      const futuro = f > hoy;
+      celdas += `<button type="button" class="mes-dia nivel-${nivel(x?.carga)}${k === an.claveDia(hoy) ? " hoy" : ""}${futuro ? " futuro" : ""}" data-dia="${k}"${futuro ? " disabled" : ""} aria-label="${contar(k)}"><span>${d}</span></button>`;
+    }
+    hueco.innerHTML = `
+      <div class="calendario-nav">
+        <button type="button" class="boton-icono" data-mes-cal="-1" aria-label="Mes anterior">‹</button>
+        <div><b>${primero.toLocaleDateString("es-ES", { month: "long", year: "numeric" })}</b><small>${dias} ${dias === 1 ? "día" : "días"} · ${horas(h)} · carga ${num(carga)}</small></div>
+        <button type="button" class="boton-icono" data-mes-cal="1" aria-label="Mes siguiente"${mesCal >= 0 ? " disabled" : ""}>›</button>
+      </div>
+      <div class="mes-cabecera">${["L", "M", "X", "J", "V", "S", "D"].map((t) => `<span>${t}</span>`).join("")}</div>
+      <div class="mes-rejilla">${celdas}</div>`;
+    hueco.querySelectorAll("[data-mes-cal]").forEach((b) => b.addEventListener("click", () => { mesCal = Math.min(0, mesCal + Number(b.dataset.mesCal)); dibujarCalendario(hueco, lista, u); valor.textContent = "Toca un día para verlo"; }));
+    hueco.querySelector(".mes-rejilla").addEventListener("click", (e) => { const c = e.target.closest("[data-dia]"); if (c) elegir(c); });
+    return;
+  }
+
+  // ----- El año: 53 columnas (semanas) × 7 filas (días) -----
   const C = 13, G = 3, IZQ = 22, ARR = 16, SEM = 53;
   const lunes = an.lunesDe(new Date());
   const inicio = new Date(lunes); inicio.setDate(inicio.getDate() - 7 * (SEM - 1));
-  const hoy = an.diaDe(new Date());
-  const nivel = (c) => (!c ? 0 : c < 40 ? 1 : c < 80 ? 2 : c < 130 ? 3 : 4);
   let h = "", mesAnt = -1;
   for (let s = 0; s < SEM; s++) {
     for (let d = 0; d < 7; d++) {
@@ -663,20 +828,14 @@ function dibujarCalendario(hueco, lista, u) {
   }
   ["L", "", "X", "", "V", "", "D"].forEach((t, d) => { if (t) h += `<text class="eje" x="0" y="${ARR + d * (C + G) + 10}">${t}</text>`; });
   const ancho = IZQ + SEM * (C + G), alto = ARR + 7 * (C + G);
-  hueco.innerHTML = `<svg class="calendario" width="${ancho}" height="${alto}" viewBox="0 0 ${ancho} ${alto}" role="img" aria-label="Calendario de entrenos de los últimos 12 meses">${h}</svg>`;
-  hueco.scrollLeft = hueco.scrollWidth;
-  const valor = hueco.parentElement.querySelector(".calendario-valor");
-  const mostrar = (e) => {
-    const r = e.target.closest?.("[data-dia]");
-    if (!r) return;
-    hueco.querySelectorAll(".elegido").forEach((x) => x.classList.remove("elegido"));
-    r.classList.add("elegido");
-    const x = porDia.get(r.dataset.dia);
-    const f = new Date(r.dataset.dia + "T12:00").toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
-    valor.textContent = x ? `${f}: ${[...x.deportes].map((d) => DEPORTES[d]?.icono).join(" ")} ${x.n} ${x.n === 1 ? "entreno" : "entrenos"} · carga ${Math.round(x.carga)}` : `${f}: descanso`;
-  };
-  hueco.addEventListener("pointerover", mostrar);
-  hueco.addEventListener("click", mostrar);
+  hueco.innerHTML = `<div class="tabla-scroll calendario-scroll"><svg class="calendario" width="${ancho}" height="${alto}" viewBox="0 0 ${ancho} ${alto}" role="img" aria-label="Calendario de entrenos de los últimos 12 meses">${h}</svg></div>`;
+  const scroll = hueco.firstElementChild;
+  scroll.scrollLeft = scroll.scrollWidth;
+  // Antes, al tocar un día el texto de arriba cambiaba de altura y movía el
+  // calendario justo entre "dedo encima" y "toque": se elegía el de arriba.
+  // Ahora el texto va debajo (con altura fija) y en el móvil solo cuenta el toque.
+  scroll.addEventListener("pointerover", (e) => { if (e.pointerType === "mouse") { const c = e.target.closest?.("[data-dia]"); if (c) elegir(c); } });
+  scroll.addEventListener("click", (e) => { const c = e.target.closest?.("[data-dia]"); if (c) elegir(c); });
 }
 
 // =====================================================================
@@ -687,27 +846,32 @@ function dibujarZonas(cont, u) {
   const hueco = cont.querySelector('[data-grafica="zonas"]');
   if (!hueco) return;
   const lista = almacen.listar().filter((a) => pref.deporteZonas === "todo" || a.deporte === pref.deporteZonas);
-  const semanas = an.zonasPorSemana(lista, 12, u.fcMax);
-  const ult4 = semanas.slice(-4).reduce((t, s) => t.map((x, i) => x + s.z[i]), [0, 0, 0, 0, 0]);
+  // Hasta un mes: barras por día; más: por semana
+  const porDias = pref.rangoZonas <= 30;
+  const semanas = porDias
+    ? an.totales(lista, "dia", pref.rangoZonas, u).map((p) => ({ desde: p.desde, z: an.segundosEnZonas(lista.filter((a) => { const f = new Date(a.inicio); return f >= p.desde && f < p.hasta; }).map((a) => a.fcHist), u.fcMax) }))
+    : an.zonasPorSemana(lista, Math.ceil(pref.rangoZonas / 7), u.fcMax);
+  const ult4 = semanas.reduce((t, s) => t.map((x, i) => x + s.z[i]), [0, 0, 0, 0, 0]);
   const total = ult4.reduce((s, x) => s + x, 0);
   const reparto = cont.querySelector("[data-reparto]");
   if (!total) {
     reparto.innerHTML = "";
-    hueco.innerHTML = `<p class="nota">No hay pulso en estas semanas${an.faltanCalculos().length ? " (o todavía estoy calculando tus actividades antiguas)" : ""}.</p>`;
+    hueco.innerHTML = `<p class="nota">No hay pulso en este periodo${an.faltanCalculos().length ? " (o todavía estoy calculando tus actividades antiguas)" : ""}.</p>`;
     return;
   }
   const pct = (a, b) => Math.round(((ult4.slice(a, b).reduce((s, x) => s + x, 0)) / total) * 100);
   const suave = pct(0, 2), medio = pct(2, 3), fuerte = 100 - suave - medio;
   reparto.innerHTML = `
-    <div class="barra-reparto" role="img" aria-label="Últimas 4 semanas: ${suave} % suave, ${medio} % moderado, ${fuerte} % fuerte">
+    <div class="barra-reparto" role="img" aria-label="${RANGOS[pref.rangoZonas]}: ${suave} % suave, ${medio} % moderado, ${fuerte} % fuerte">
       <span style="flex:${suave};background:var(--zona-2)"></span><span style="flex:${medio};background:var(--zona-3)"></span><span style="flex:${fuerte};background:var(--zona-5)"></span>
     </div>
     <div class="leyenda-reparto"><span><b>${suave} %</b> suave</span><span><b>${medio} %</b> moderado</span><span><b>${fuerte} %</b> fuerte</span><span class="${suave >= 75 ? "sube" : "baja"}">${suave >= 75 ? "✓ buen reparto" : "Te falta suave"}</span></div>
-    <p class="nota sin-margen">Últimas 4 semanas.</p>`;
+    <p class="nota sin-margen">${RANGOS[pref.rangoZonas]}.</p>`;
   barrasApiladas(hueco, {
-    periodos: semanas.map((s) => ({ etiqueta: fechaCorta(s.desde), titulo: `Semana del ${fechaCorta(s.desde)}`, valores: s.z.map((x) => x / 3600) })),
+    periodos: semanas.map((s) => ({ etiqueta: porDias ? (pref.rangoZonas <= 7 ? s.desde.toLocaleDateString("es-ES", { weekday: "short" }) : String(s.desde.getDate())) : fechaCorta(s.desde),
+      titulo: porDias ? s.desde.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "short" }) : `Semana del ${fechaCorta(s.desde)}`, valores: s.z.map((x) => x / 3600) })),
     nombres: an.ZONAS_FC.map((z) => `${z.nombre} ${z.texto.toLowerCase()}`), colores: an.ZONAS_FC.map((_, i) => COLOR_ZONA(i)),
-    fmt: horas, unidadEje: " h", resumen: `Media ${horas(semanas.reduce((s, x) => s + x.z.reduce((a, b) => a + b, 0), 0) / semanas.length / 3600)} con pulso por semana`,
+    fmt: horas, unidadEje: " h", resumen: `Media ${horas(semanas.reduce((s, x) => s + x.z.reduce((a, b) => a + b, 0), 0) / semanas.length / 3600)} con pulso por ${porDias ? "día" : "semana"}`,
   });
 }
 
@@ -738,7 +902,7 @@ function barrasApiladas(hueco, { periodos, nombres, colores, fmt, unidadEje = ""
     const salto = Math.ceil(periodos.length / Math.max(2, Math.floor(ancho / 52)));
     periodos.forEach((p, i) => {
       let base = M.arr + zona;
-      const x = M.izq + i * w + w * 0.16, bw = w * 0.68;
+      const bw = Math.min(w * 0.68, 28), x = M.izq + i * w + (w - bw) / 2;
       p.valores.forEach((v, k) => {
         if (!v) return;
         const hh = (v / yMax) * zona; base -= hh;
@@ -766,7 +930,7 @@ function barrasApiladas(hueco, { periodos, nombres, colores, fmt, unidadEje = ""
 // =====================================================================
 function dibujarMonotonia(hueco, dias) {
   if (!hueco || dias.length < 14) { if (hueco) hueco.innerHTML = `<p class="nota">Hacen falta un par de semanas de entrenos.</p>`; return; }
-  const { hoy, porSemana } = an.monotonia(dias, 16);
+  const { hoy, porSemana } = an.monotonia(dias, Math.round(pref.rangoMono / 7));
   hueco.replaceChildren(graficaSeries({
     id: "monotonia", xs: porSemana.map((s) => s.desde.getTime()), alto: 200, minIzq: 0,
     resumen: `Últimos 7 días: monotonía ${num(hoy.monotonia, 1)} · estrés ${num(hoy.estres)}`,
@@ -945,7 +1109,7 @@ function tarjetaTriatlon(lista) {
   const dist = (d, m) => (d === "nadar" ? `${num(m)} m` : `${num(m / 1000, 1)} km`);
   return tarjeta(`Preparación: ${plan.nombre}`, `
     <ul class="prep-tri">${deportes.map((x) => `<li data-deporte="${x.d}">
-      <span class="prep-icono" aria-hidden="true">${DEPORTES[x.d].icono}</span>
+      <span class="prep-icono" aria-hidden="true">${DEPORTES[x.d].svg}</span>
       <div>
         <div class="prep-fila"><span>Horas por semana</span>${barra(x.horas, x.objetivoHoras)}<b>${horas(x.horas)}</b><small>de ${horas(x.objetivoHoras)}</small></div>
         <div class="prep-fila"><span>Sesión más larga</span>${barra(x.largo, x.objetivoLargo)}<b>${x.largo ? dist(x.d, x.largo) : "—"}</b><small>de ${dist(x.d, x.objetivoLargo)}</small></div>

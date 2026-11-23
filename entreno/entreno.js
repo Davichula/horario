@@ -100,9 +100,9 @@ function pintarLista() {
   caja.innerHTML = `
     <header class="cabecera entreno-cabecera">
       <h1>Entreno${todas.length && apartado !== "resumen" ? `<small> · ${titulo}</small>` : ""}</h1>
-      <button class="boton-icono" data-accion="sincronizar-garmin" aria-label="Traer actividades de Garmin" title="Traer de Garmin">🔄</button>
-      <button class="boton-icono" data-accion="ajustes" aria-label="Ajustes de entreno" title="Ajustes">⚙️</button>
-      <label class="boton-principal boton-subir">⬆ Subir<input type="file" multiple data-accion="subir" hidden></label>
+      <button class="boton-icono" data-accion="sincronizar-garmin" aria-label="Traer actividades de Garmin" title="Traer de Garmin"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.5-4.5L4 8M4 4v4h4M4 13a8 8 0 0 0 14.5 4.5L20 16M20 20v-4h-4"/></svg></button>
+      <button class="boton-icono" data-accion="ajustes" aria-label="Ajustes de entreno" title="Ajustes"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+      <label class="boton-principal boton-subir"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>Subir<input type="file" multiple data-accion="subir" hidden></label>
     </header>
     ${todas.length ? `<nav class="apartados" aria-label="Apartados de Entreno">
       ${APARTADOS.map((a) => `<a href="#entreno${a.id === "resumen" ? "" : "/" + a.id}" ${a.id === apartado ? 'aria-current="page"' : ""}>${a.nombre}</a>`).join("")}
@@ -132,7 +132,7 @@ async function avisoSinSesion() {
   if (!window.nube || !navigator.onLine || (await garmin.haySesion())) return;
   if (!enApartado() || caja.querySelector(".aviso-sesion")) return;
   caja.querySelector(".entreno-cuerpo")?.insertAdjacentHTML("afterbegin", `
-    <section class="aviso-salud aviso-sesion"><b>🔑 Inicia sesión para que lleguen tus entrenos</b>
+    <section class="aviso-salud aviso-sesion"><b>Inicia sesión para que lleguen tus entrenos</b>
       <p>Tu Garmin sigue conectado y guardando todo en tu cuenta, pero este dispositivo no tiene la sesión abierta (pasa al borrar y volver a añadir la app).</p>
       <form class="form-entreno form-sesion" data-form="sesion">
         <input name="email" type="email" autocomplete="username" placeholder="tu@email.com" required>
@@ -587,21 +587,21 @@ function dibujarGraficas(a, caja, grupo) {
     if (a.deporte === "correr" || a.deporte === "andar") {
       // Ritmo en min/km. Lo muy lento (paradas) lo dejamos fuera para que no aplaste la gráfica
       const r = v.map((x) => (x && x > 1000 / 900 ? 1000 / x / 60 : null));
-      anadir(graficaLinea({ xs, ys: r, titulo: "Ritmo", resumen: ritmoKm(a.velMedia), invertir: true, area: false, grupo, formatoX,
+      anadir(graficaLinea({ xs, ys: r, titulo: "Ritmo", resumen: ritmoKm(a.velMedia), invertir: true, area: false, grupo, formatoX, color: "var(--c-ritmo)",
         formatoY: (m, eje) => (eje ? tiempo(m * 60) : `${tiempo(m * 60)} /km`) }));
     } else {
-      anadir(graficaLinea({ xs, ys: v.map((x) => (x == null ? null : x * 3.6)), titulo: "Velocidad", resumen: kmh(a.velMedia), grupo, formatoX, min: 0,
+      anadir(graficaLinea({ xs, ys: v.map((x) => (x == null ? null : x * 3.6)), titulo: "Velocidad", resumen: kmh(a.velMedia), grupo, formatoX, min: 0, color: "var(--c-ritmo)",
         formatoY: (k, eje) => (eje ? Math.round(k) : `${k.toFixed(1)} km/h`) }));
     }
   }
   if (p.fc) anadir(graficaLinea({ xs, ys: suavizar(p.fc, 2), titulo: "Pulso", resumen: a.fcMedia ? `media ${a.fcMedia} ppm` : "", grupo, formatoX,
-    color: "var(--serie-pulso)", formatoY: (f, eje) => (eje ? Math.round(f) : `${Math.round(f)} ppm`) }));
+    color: "var(--c-pulso)", formatoY: (f, eje) => (eje ? Math.round(f) : `${Math.round(f)} ppm`) }));
   if (p.alt && a.gps) anadir(graficaLinea({ xs, ys: suavizar(p.alt, 3), titulo: "Altitud", resumen: a.desnivel ? `+${a.desnivel} m` : "", grupo, formatoX,
-    color: "var(--serie-neutra)", formatoY: (m, eje) => (eje ? Math.round(m) : `${Math.round(m)} m`) }));
+    color: "var(--c-altitud)", formatoY: (m, eje) => (eje ? Math.round(m) : `${Math.round(m)} m`) }));
   if (p.cad && a.deporte !== "nadar") anadir(graficaLinea({ xs, ys: suavizar(p.cad, 3), titulo: "Cadencia", resumen: a.cadencia ? `media ${Math.round(a.cadencia)}` : "", grupo, formatoX, area: false,
-    color: "var(--serie-neutra)", formatoY: (c, eje) => (eje ? Math.round(c) : `${Math.round(c)} ${a.deporte === "correr" ? "ppm" : "rpm"}`) }));
+    color: "var(--c-cadencia)", formatoY: (c, eje) => (eje ? Math.round(c) : `${Math.round(c)} ${a.deporte === "correr" ? "ppm" : "rpm"}`) }));
   if (p.pot && a.deporte !== "correr") anadir(graficaLinea({ xs, ys: suavizar(p.pot, 5), titulo: "Potencia", resumen: a.potencia ? `media ${a.potencia} W` : "", grupo, formatoX,
-    color: "var(--serie-neutra)", formatoY: (w, eje) => (eje ? Math.round(w) : `${Math.round(w)} W`), min: 0 }));
+    color: "var(--c-potencia)", formatoY: (w, eje) => (eje ? Math.round(w) : `${Math.round(w)} W`), min: 0 }));
 }
 
 // ----- Zonas de pulso -----
