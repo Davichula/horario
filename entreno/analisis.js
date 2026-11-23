@@ -64,26 +64,61 @@ export function mejoresNado(act) {
   return mejores;
 }
 
-// Las actividades de natación antiguas no traían "mejores": las
-// completamos una vez leyendo su detalle (poco a poco, sin bloquear).
-let completando = null;
-export function completarNado(alTerminar = () => {}) {
-  completando ??= (async () => {
-    const faltan = almacen.listar().filter((a) => a.deporte === "nadar" && a.mejores === undefined);
+// ---------------------------------------------------------------------
+// Carrera: mejores tiempos dentro de una carrera (1 km, 5 km, 10 km...)
+// ---------------------------------------------------------------------
+export const DISTANCIAS_CARRERA = [1000, 5000, 10000, 21097.5, 42195];
+export const NOMBRE_DISTANCIA = { 1000: "1 km", 5000: "5 km", 10000: "10 km", 21097.5: "Media maratón", 42195: "Maratón" };
+
+// El trozo más rápido de cada distancia, mirando la distancia acumulada
+// punto a punto (puntos.d, en metros) y el tiempo (puntos.t, en segundos).
+export function mejoresCarrera(act) {
+  const { t, d } = act.puntos || {};
+  const mejores = {};
+  if (!t?.length || !d?.length) return mejores;
+  // Quitamos puntos sin distancia y los "saltos atrás" del GPS
+  const T = [], D = [];
+  for (let i = 0; i < t.length; i++) if (d[i] != null && (!D.length || d[i] >= D.at(-1))) { T.push(t[i]); D.push(d[i]); }
+  const total = D.at(-1) || 0;
+  for (const dist of DISTANCIAS_CARRERA) {
+    if (total < dist * 0.995) continue;
+    let mejor = Infinity, j = 0;
+    for (let i = 1; i < D.length; i++) {
+      // j = el último punto que deja al menos "dist" metros hasta i
+      while (j + 1 < i && D[i] - D[j + 1] >= dist) j++;
+      const tramo = D[i] - D[j];
+      if (tramo < dist * 0.995) continue;
+      const tiempo = (T[i] - T[j]) * (dist / tramo);
+      if (tiempo > 0 && tiempo < mejor) mejor = tiempo;
+    }
+    // Más rápido que 2:30 /km es un fallo del GPS, no un récord
+    if (isFinite(mejor) && dist / mejor < 6.7) mejores[dist] = Math.round(mejor);
+  }
+  return mejores;
+}
+
+// Las actividades antiguas no traían "mejores": las completamos una vez
+// leyendo su detalle (poco a poco, sin bloquear).
+const completando = {};
+function completarMejores(deporte, calcular, alTerminar = () => {}) {
+  completando[deporte] ??= (async () => {
+    const faltan = almacen.listar().filter((a) => a.deporte === deporte && a.mejores === undefined);
     let hechas = 0, lote = {};
     const guardarLote = () => { if (Object.keys(lote).length) almacen.actualizarResumenes(lote); lote = {}; };
     for (const r of faltan) {
       const det = await almacen.detalle(r.id).catch(() => null);
       if (!det) continue; // sin conexión: ya lo intentaremos otro día
-      lote[r.id] = { mejores: mejoresNado(det) };
+      lote[r.id] = { mejores: calcular(det) };
       if (++hechas % 15 === 0) guardarLote();
     }
     guardarLote();
-    completando = null;
+    completando[deporte] = null;
     if (hechas) alTerminar(hechas);
   })();
-  return completando;
+  return completando[deporte];
 }
+export const completarNado = (alTerminar) => completarMejores("nadar", mejoresNado, alTerminar);
+export const completarCarrera = (alTerminar) => completarMejores("correr", mejoresCarrera, alTerminar);
 
 // ---------------------------------------------------------------------
 // Umbrales (lo que se usa como "100 %")
@@ -238,12 +273,12 @@ export function totales(lista, periodo, n, u = umbrales(lista)) {
 // ---------------------------------------------------------------------
 // Natación: récords y evolución
 // ---------------------------------------------------------------------
-export function recordsNado(lista = almacen.listar()) {
-  const nados = lista.filter((a) => a.deporte === "nadar" && a.mejores);
+export function records(lista, deporte, distancias) {
+  const acts = lista.filter((a) => a.deporte === deporte && a.mejores);
   const haceAnio = Date.now() - 365 * DIA;
-  return DISTANCIAS_NADO.map((d) => {
+  return distancias.map((d) => {
     let mejor = null, mejorAnio = null;
-    for (const a of nados) {
+    for (const a of acts) {
       const t = a.mejores[d];
       if (!t) continue;
       if (!mejor || t < mejor.t) mejor = { t, id: a.id, fecha: a.inicio };
@@ -251,4 +286,87 @@ export function recordsNado(lista = almacen.listar()) {
     }
     return { distancia: d, mejor, mejorAnio };
   }).filter((r) => r.mejor);
+}
+export const recordsNado = (lista = almacen.listar()) => records(lista, "nadar", DISTANCIAS_NADO);
+export const recordsCarrera = (lista = almacen.listar()) => records(lista, "correr", DISTANCIAS_CARRERA);
+
+// ---------------------------------------------------------------------
+// Predicción de tiempos de carrera
+// ---------------------------------------------------------------------
+// 1) Con tus mejores tiempos recientes (fórmula de Riegel, la que usan
+//    Strava y Runalyze): T2 = T1 × (D2 / D1)^1,06. Usamos tus mejores 5 km,
+//    10 km y media del último año y nos quedamos con la mejor predicción.
+// 2) Con tu VO2max de Garmin (tablas de Jack Daniels): el ritmo que
+//    puedes aguantar depende del % de tu VO2max que sostienes según dure.
+export const DISTANCIAS_PREDICCION = [5000, 10000, 21097.5, 42195];
+
+export function prediccionRiegel(lista = almacen.listar(), dias = 365) {
+  const desde = Date.now() - dias * DIA;
+  const base = [];
+  for (const a of lista) {
+    if (a.deporte !== "correr" || !a.mejores || new Date(a.inicio) < desde) continue;
+    for (const d of [5000, 10000, 21097.5]) if (a.mejores[d]) base.push({ d, t: a.mejores[d], fecha: a.inicio, id: a.id });
+  }
+  if (!base.length) return null;
+  return DISTANCIAS_PREDICCION.map((D) => {
+    let mejor = null;
+    for (const b of base) {
+      const t = b.t * (D / b.d) ** 1.06;
+      if (!mejor || t < mejor.t) mejor = { t, desde: b };
+    }
+    return { distancia: D, ...mejor };
+  });
+}
+
+// Daniels: oxígeno que pide correr a v metros/min y % de VO2max que aguantas t minutos
+const coste = (v) => -4.6 + 0.182258 * v + 0.000104 * v * v;
+const aguante = (t) => 0.8 + 0.1894393 * Math.exp(-0.012778 * t) + 0.2989558 * Math.exp(-0.1932605 * t);
+export function tiempoPorVo2(vo2, distancia) {
+  let lo = 1, hi = 600; // minutos
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (coste(distancia / mid) / aguante(mid) > vo2) lo = mid; else hi = mid;
+  }
+  return Math.round(((lo + hi) / 2) * 60);
+}
+
+// ---------------------------------------------------------------------
+// Objetivo: cómo llegarás el día de la carrera
+// ---------------------------------------------------------------------
+export const TIPOS_OBJETIVO = {
+  "5k": { nombre: "5 km", distancia: 5000, icono: "🏃" },
+  "10k": { nombre: "10 km", distancia: 10000, icono: "🏃" },
+  media: { nombre: "Media maratón", distancia: 21097.5, icono: "🏃" },
+  maraton: { nombre: "Maratón", distancia: 42195, icono: "🏃" },
+  sprint: { nombre: "Triatlón sprint", icono: "🏊🚴🏃" },
+  olimpico: { nombre: "Triatlón olímpico", icono: "🏊🚴🏃" },
+  medio: { nombre: "Medio Ironman (70.3)", icono: "🏊🚴🏃" },
+  ironman: { nombre: "Ironman", icono: "🏊🚴🏃" },
+  otro: { nombre: "Otra prueba", icono: "🎯" },
+};
+
+// La etapa del plan según las semanas que faltan
+export function etapa(semanas) {
+  if (semanas < 0) return { nombre: "Ya pasó", texto: "La fecha ya ha pasado. Pon tu próximo objetivo en ⚙️ Ajustes." };
+  if (semanas <= 2) return { nombre: "Afinado", texto: "Baja el volumen un 30-50 % y mantén algo de intensidad: llegarás fresco." };
+  if (semanas <= 8) return { nombre: "Específico", texto: "Entrenos parecidos a la prueba: ritmos de carrera y tiradas largas." };
+  if (semanas <= 16) return { nombre: "Construcción", texto: "Sube la carga poco a poco (la forma física, unos 3-5 puntos por semana)." };
+  return { nombre: "Base", texto: "Mucho volumen suave y constancia. Es el momento de construir el motor sin lesionarte." };
+}
+
+// Si sigues entrenando como las últimas 4 semanas (y afinas las 2 últimas),
+// ¿con qué forma física y frescura llegarías?
+export function proyectar(dias, fecha) {
+  if (!dias.length) return null;
+  const hoy = dias.at(-1);
+  const n = Math.round((diaDe(fecha) - diaDe(hoy.fecha)) / DIA);
+  if (n <= 0) return null;
+  const media28 = media(dias.slice(-28).map((d) => d.carga));
+  let ctl = hoy.ctl, atl = hoy.atl, ctlSin = hoy.ctl, atlSin = hoy.atl;
+  for (let i = 1; i <= n; i++) {
+    const carga = n - i < 14 ? media28 * 0.6 : media28;
+    ctl += (carga - ctl) / 42; atl += (carga - atl) / 7;
+    ctlSin += (media28 - ctlSin) / 42; atlSin += (media28 - atlSin) / 7;
+  }
+  return { dias: n, cargaSemanal: media28 * 7, ctl, tsb: ctl - atl, ctlSinAfinar: ctlSin, tsbSinAfinar: ctlSin - atlSin };
 }

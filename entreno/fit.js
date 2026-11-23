@@ -23,35 +23,70 @@ const cargarSdk = () => (sdk ??= import(FIT_SDK).catch((e) => { sdk = null; thro
 const MAX_PUNTOS = 2000;
 
 // ----- Deportes -----
-// Garmin dice "running", "swimming"... Lo pasamos a nuestras 4 familias.
+// Garmin dice "running", "swimming", "tennis"... Lo agrupamos en familias
+// (cada una con su color) y cada actividad lleva su propio icono.
 const DEPORTES = {
-  correr: { nombre: "Correr", icono: "🏃" },
-  nadar: { nombre: "Nadar", icono: "🏊" },
+  correr: { nombre: "Carrera", icono: "🏃" },
+  nadar: { nombre: "Natación", icono: "🏊" },
   bici: { nombre: "Bici", icono: "🚴" },
   gimnasio: { nombre: "Gimnasio", icono: "🏋️" },
-  otro: { nombre: "Otros", icono: "⌚" },
+  andar: { nombre: "Senderismo", icono: "🥾" },
+  raqueta: { nombre: "Tenis", icono: "🎾" },
+  nieve: { nombre: "Esquí", icono: "⛷️" },
+  escalada: { nombre: "Escalada", icono: "🧗" },
+  agua: { nombre: "Remo y agua", icono: "🚣" },
+  otro: { nombre: "Otros", icono: "🏅" },
 };
 export { DEPORTES };
 
-function familia(sport, subSport) {
+const RAQUETA = ["tennis", "racket", "padel", "squash", "badminton", "tableTennis", "racquetball", "pickleball"];
+const NIEVE = ["alpineSkiing", "crossCountrySkiing", "snowboarding", "snowshoeing", "backcountrySkiing", "skiing"];
+const AGUA = ["rowing", "paddling", "standUpPaddleboarding", "kayaking", "surfing", "sailing", "windsurfing", "kitesurfing", "boating"];
+export function familia(sport, subSport) {
   if (sport === "running") return "correr";
   if (sport === "swimming") return "nadar";
   if (sport === "cycling" || sport === "eBiking") return "bici";
   if (sport === "training" || sport === "fitnessEquipment" || subSport === "strengthTraining") return "gimnasio";
+  if (sport === "walking" || sport === "hiking" || sport === "mountaineering") return "andar";
+  if (RAQUETA.includes(sport) || RAQUETA.includes(subSport)) return "raqueta";
+  if (NIEVE.includes(sport)) return "nieve";
+  if (sport === "rockClimbing" || sport === "climbing" || subSport === "indoorClimbing" || subSport === "bouldering") return "escalada";
+  if (AGUA.includes(sport)) return "agua";
   return "otro";
 }
+
+// El icono de cada actividad: el de su familia, afinado por tipo
+const ICONOS = {
+  tableTennis: "🏓", badminton: "🏸", squash: "🎾", padel: "🎾", walking: "🚶", mountaineering: "🏔️",
+  snowboarding: "🏂", crossCountrySkiing: "⛷️", yoga: "🧘", pilates: "🧘", breathing: "🧘", openWater: "🌊",
+  indoorRowing: "🚣", elliptical: "🏋️", surfing: "🏄", sailing: "⛵", windsurfing: "🏄", kitesurfing: "🏄",
+  soccer: "⚽", basketball: "🏀", volleyball: "🏐", golf: "⛳", boxing: "🥊", dance: "💃", horsebackRiding: "🏇",
+  inlineSkating: "🛼", iceSkating: "⛸️", multisport: "🏅", triathlon: "🏅", fishing: "🎣", hunting: "🏕️",
+};
+export const iconoDe = (a) => ICONOS[a.subSport] || ICONOS[a.sport] || DEPORTES[a.deporte]?.icono || "🏅";
 
 // Nombre bonito para el título de la actividad
 const NOMBRES = {
   running: { _: "Carrera", treadmill: "Carrera en cinta", trail: "Carrera por montaña", track: "Carrera en pista", indoorRunning: "Carrera en interior" },
   swimming: { _: "Natación", lapSwimming: "Natación en piscina", openWater: "Natación en aguas abiertas" },
   cycling: { _: "Bici", road: "Bici de carretera", mountain: "Bici de montaña", indoorCycling: "Bici en rodillo", gravelCycling: "Bici gravel", virtualActivity: "Bici virtual" },
-  training: { _: "Entrenamiento", strengthTraining: "Fuerza", cardioTraining: "Cardio", yoga: "Yoga", pilates: "Pilates", hiit: "HIIT" },
+  training: { _: "Entrenamiento", strengthTraining: "Fuerza", cardioTraining: "Cardio", yoga: "Yoga", pilates: "Pilates", hiit: "HIIT", breathing: "Respiración" },
   walking: { _: "Caminata" },
   hiking: { _: "Senderismo" },
+  mountaineering: { _: "Montañismo" },
+  tennis: { _: "Tenis", tableTennis: "Tenis de mesa", padel: "Pádel", squash: "Squash", badminton: "Bádminton" },
+  racket: { _: "Raqueta", tableTennis: "Tenis de mesa", padel: "Pádel", squash: "Squash", badminton: "Bádminton", pickleball: "Pickleball" },
+  alpineSkiing: { _: "Esquí alpino", backcountry: "Esquí de travesía" },
+  crossCountrySkiing: { _: "Esquí de fondo" },
+  snowboarding: { _: "Snowboard" },
+  rockClimbing: { _: "Escalada", indoorClimbing: "Escalada en rocódromo", bouldering: "Búlder" },
+  rowing: { _: "Remo" },
+  paddling: { _: "Pádel surf" },
+  soccer: { _: "Fútbol" },
+  basketball: { _: "Baloncesto" },
   fitnessEquipment: { _: "Gimnasio", elliptical: "Elíptica", stairClimbing: "Escaleras", indoorRowing: "Remo" },
 };
-function nombreDe(sport, subSport) {
+export function nombreDe(sport, subSport) {
   const n = NOMBRES[sport];
   if (n) return n[subSport] || n._;
   return sport ? sport.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()) : "Actividad";

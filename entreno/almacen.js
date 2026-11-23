@@ -16,7 +16,8 @@
 //          "entreno:<id>". Solo se descarga cuando abres esa actividad.
 // =====================================================================
 
-import { mejoresNado } from "./analisis.js";
+import { mejoresNado, mejoresCarrera } from "./analisis.js";
+import { familia, nombreDe } from "./fit.js";
 
 const CLAVE = "mi-horario:entreno";
 const CLAVE_AJUSTES = "mi-horario:entreno-ajustes";
@@ -28,7 +29,16 @@ const leer = (clave, porDefecto) => {
 const escribir = (clave, valor) => localStorage.setItem(clave, JSON.stringify(valor));
 
 // ----- Resúmenes -----
-export const listar = () => leer(CLAVE, []).sort((a, b) => b.inicio.localeCompare(a.inicio));
+// Las actividades antiguas se guardaron cuando solo había 5 familias de
+// deporte (el tenis o el esquí iban a "otros"): las ponemos al día al leer.
+const generico = (sport) => sport.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
+function alDia(a) {
+  if (!a.sport) return a;
+  const deporte = familia(a.sport, a.subSport);
+  const nombre = a.nombre === generico(a.sport) || a.nombre === "Tennis" ? nombreDe(a.sport, a.subSport) : a.nombre;
+  return deporte === a.deporte && nombre === a.nombre ? a : { ...a, deporte, nombre };
+}
+export const listar = () => leer(CLAVE, []).map(alDia).sort((a, b) => b.inicio.localeCompare(a.inicio));
 export const buscar = (id) => listar().find((a) => a.id === id);
 
 // Lo que va en el resumen: todo menos lo grande
@@ -37,6 +47,7 @@ export function resumenDe(act) {
   resumen.vueltasN = vueltas?.length || 0;
   if (series) resumen.seriesN = series.filter((s) => !s.descanso).length;
   if (act.deporte === "nadar" && largosDetalle) resumen.mejores = mejoresNado(act); // mejores 100, 200, 400 m...
+  if (act.deporte === "correr" && puntos?.d) resumen.mejores = mejoresCarrera(act); // mejores 1 km, 5 km, 10 km...
   return resumen;
 }
 

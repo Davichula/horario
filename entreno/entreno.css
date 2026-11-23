@@ -11,6 +11,7 @@
   --dep-bici: #1baf7a;
   --dep-gimnasio: #eda100;
   --dep-otro: #6b7590;
+  --dep-andar: #8b6a3e; --dep-raqueta: #8fa51a; --dep-nieve: #3aa6c9; --dep-escalada: #9a4fc7; --dep-agua: #1f8f9e;
   --serie-pulso: #e34948;
   --serie-neutra: #6250d6;
   --estilo-1: #2a78d6; --estilo-2: #eb6834; --estilo-3: #1baf7a; --estilo-4: #eda100; --estilo-5: #e87ba4;
@@ -20,6 +21,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-tema="claro"]) {
     --dep-nadar: #3987e5; --dep-correr: #d95926; --dep-bici: #199e70; --dep-gimnasio: #c98500; --dep-otro: #98a1b6;
+    --dep-andar: #b08a5a; --dep-raqueta: #a9c22a; --dep-nieve: #5cc0e0; --dep-escalada: #b47be0; --dep-agua: #34aebd;
     --serie-pulso: #e66767; --serie-neutra: #9085e9;
     --estilo-1: #3987e5; --estilo-2: #d95926; --estilo-3: #199e70; --estilo-4: #c98500; --estilo-5: #d55181;
     --zona-1: #184f95; --zona-2: #256abf; --zona-3: #3987e5; --zona-4: #6da7ec; --zona-5: #9ec5f4;
@@ -27,6 +29,7 @@
 }
 :root[data-tema="oscuro"] {
   --dep-nadar: #3987e5; --dep-correr: #d95926; --dep-bici: #199e70; --dep-gimnasio: #c98500; --dep-otro: #98a1b6;
+  --dep-andar: #b08a5a; --dep-raqueta: #a9c22a; --dep-nieve: #5cc0e0; --dep-escalada: #b47be0; --dep-agua: #34aebd;
   --serie-pulso: #e66767; --serie-neutra: #9085e9;
   --estilo-1: #3987e5; --estilo-2: #d95926; --estilo-3: #199e70; --estilo-4: #c98500; --estilo-5: #d55181;
   --zona-1: #184f95; --zona-2: #256abf; --zona-3: #3987e5; --zona-4: #6da7ec; --zona-5: #9ec5f4;
@@ -36,6 +39,11 @@
 [data-deporte="bici"] { --serie: var(--dep-bici); }
 [data-deporte="gimnasio"] { --serie: var(--dep-gimnasio); }
 [data-deporte="otro"] { --serie: var(--dep-otro); }
+[data-deporte="andar"] { --serie: var(--dep-andar); }
+[data-deporte="raqueta"] { --serie: var(--dep-raqueta); }
+[data-deporte="nieve"] { --serie: var(--dep-nieve); }
+[data-deporte="escalada"] { --serie: var(--dep-escalada); }
+[data-deporte="agua"] { --serie: var(--dep-agua); }
 
 #seccion-entreno { flex: 1; width: 100%; max-width: 920px; margin: 0 auto; }
 .entreno-cabecera .boton-subir { cursor: pointer; padding: 9px 14px; }
@@ -403,3 +411,50 @@ a.tarjeta-dato:active, button.tarjeta-dato:active { transform: scale(0.985); }
 .tarjetas-salud { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
 @media (max-width: 620px) { .tarjetas-salud { grid-template-columns: repeat(2, 1fr); } }
 .tarjeta-salud.elegida { box-shadow: 0 0 0 2px var(--texto), var(--sombra); }
+
+/* ----- Lote 3: Deportes, objetivo ----- */
+.sin-margen { margin: 0; }
+.por-deporte a { color: inherit; text-decoration: none; }
+.rejilla-deportes { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin-top: 12px; }
+@media (max-width: 440px) { .rejilla-deportes { grid-template-columns: 1fr 1fr; } }
+.tarjeta-deporte {
+  position: relative; display: grid; gap: 2px; padding: 14px 14px 12px; border-radius: 16px; background: var(--tarjeta);
+  box-shadow: var(--sombra); color: inherit; text-decoration: none; overflow: hidden; transition: transform 0.12s, box-shadow 0.12s;
+  border-top: 3px solid var(--serie);
+}
+.tarjeta-deporte:hover { box-shadow: 0 0 0 1.5px var(--linea), var(--sombra); }
+.tarjeta-deporte:active { transform: scale(0.985); }
+.tarjeta-deporte-icono {
+  width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 1.3rem; margin-bottom: 6px;
+  background: color-mix(in srgb, var(--serie) 16%, transparent);
+}
+.tarjeta-deporte-nombre { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--suave); font-weight: 700; }
+.tarjeta-deporte b { font-size: 1.45rem; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.tarjeta-deporte em { font-style: normal; font-size: 0.8rem; color: var(--suave); }
+.tarjeta-deporte small { font-size: 0.74rem; color: var(--suave); margin-top: 4px; }
+.tarjeta-deporte .sparkline { margin-top: 6px; }
+.cabecera-deporte { display: grid; gap: 4px; margin-bottom: 12px; }
+.cabecera-deporte h2 { margin: 0; display: flex; align-items: center; gap: 10px; font-size: 1.35rem; }
+.cabecera-deporte h2 span {
+  width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; font-size: 1.35rem;
+  background: color-mix(in srgb, var(--serie) 16%, transparent);
+}
+.volver-deportes { font-size: 0.88rem; font-weight: 600; color: var(--suave); text-decoration: none; justify-self: start; }
+.volver-deportes:hover { color: var(--texto); }
+.cuerpo-deporte > .tarjetas-panel:first-child { margin-top: 0; }
+.boton-texto { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; font-size: 0.85rem; font-weight: 600; }
+.tarjeta-objetivo .objetivo-cabecera { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; margin-bottom: 12px; }
+.objetivo-icono { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; font-size: 1.1rem; letter-spacing: -0.2em; background: color-mix(in srgb, var(--forma-ctl) 14%, transparent); }
+.objetivo-cabecera b { display: block; font-size: 1.02rem; }
+.objetivo-cabecera small { display: block; color: var(--suave); font-size: 0.82rem; }
+.cuenta-atras { font-size: clamp(1.15rem, 5vw, 1.5rem); letter-spacing: -0.03em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.objetivo-cifras { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.objetivo-cifras > div { display: grid; gap: 1px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--texto) 4%, transparent); }
+.objetivo-cifras span { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--suave); font-weight: 700; }
+.objetivo-cifras b { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.objetivo-cifras small { font-size: 0.76rem; color: var(--suave); font-weight: 600; }
+.objetivo-cifras small.sube { color: var(--tsb-pos); }
+.objetivo-cifras small.baja { color: var(--tsb-neg); }
+.tabla-prediccion td small { display: block; }
+.fila-objetivo td { background: color-mix(in srgb, var(--forma-ctl) 8%, transparent); }
+.fila-objetivo td small { color: var(--texto); }

@@ -4,13 +4,14 @@
 //   Resumen   → tarjetas con lo importante, la semana, totales y lo último
 //   Forma     → forma física, cansancio, frescura y riesgo de lesión
 //   Salud     → pulso en reposo, VFC, sueño, Body Battery, VO2max...
-//   Natación  → CSS, mejores tiempos, SWOLF y ritmo
+//   Deportes  → una tarjeta por cada deporte que haces y, dentro, su
+//               página: volumen, ritmo, récords (carrera, natación)...
 // Los cálculos están en analisis.js y salud.js; aquí solo se dibuja.
 // En las gráficas, tocando los nombres de la leyenda escondes o muestras
 // cada dato (series.js).
 // =====================================================================
 
-import { DEPORTES } from "./fit.js";
+import { DEPORTES, iconoDe } from "./fit.js";
 import * as almacen from "./almacen.js";
 import * as an from "./analisis.js";
 import * as salud from "./salud.js";
@@ -35,7 +36,7 @@ const CLAVE_PREF = "mi-horario:entreno-panel";
 const pref = (() => { try { return JSON.parse(localStorage.getItem(CLAVE_PREF)) || {}; } catch { return {}; } })();
 const guardarPref = () => { try { localStorage.setItem(CLAVE_PREF, JSON.stringify(pref)); } catch {} };
 pref.rango ??= 90; pref.periodo ??= "semana"; pref.medida ??= "horas"; pref.ocultosTot ??= [];
-pref.rangoSalud ??= 90; pref.metricaSalud ??= null; pref.rangoNado ??= 365;
+pref.rangoSalud ??= 90; pref.metricaSalud ??= null; pref.rangoNado ??= 365; pref.rangoDep ??= 365;
 
 function chips(nombre, opciones, extra = "") {
   return `<div class="chips chips-mini ${extra}" role="group">${opciones.map(([v, t]) =>
@@ -77,7 +78,7 @@ export function pintarResumen(cont, { alCambiar } = {}) {
   const dSalud = salud.enCache();
   const vo2 = [...dSalud].reverse().find((d) => d.vo2);
   const porDeporte = Object.entries(actual.deportes).map(([d, x]) => `
-    <li data-deporte="${d}"><span class="punto-deporte"></span>${DEPORTES[d].icono} ${DEPORTES[d].nombre}
+    <li data-deporte="${d}"><span class="punto-deporte"></span><a href="#entreno/deportes/${d}">${DEPORTES[d].icono} ${DEPORTES[d].nombre}</a>
       <b>${x.distancia ? (d === "nadar" ? `${num(x.distancia)} m` : `${num(x.distancia / 1000, 1)} km`) : `${x.sesiones} ${x.sesiones === 1 ? "sesión" : "sesiones"}`}</b>
       <span>${horas(x.horas)}</span></li>`).join("");
   const ultimas = lista.slice(0, 4);
@@ -93,6 +94,8 @@ export function pintarResumen(cont, { alCambiar } = {}) {
       <a class="tarjeta-dato forma-${zona.clase}" href="#entreno/forma"><span>Frescura</span><b>${conSigno(hoy.tsb)}</b>
         <em class="etiqueta-forma">${zona.nombre}</em>${sparkline(dias.slice(-42).map((d) => d.tsb), "var(--tsb-neg)")}</a>
     </section>
+
+    ${tarjetaObjetivo(lista, dias)}
 
     ${tarjeta("Cómo estás hoy", `
       <ul class="estado-hoy">
@@ -112,7 +115,7 @@ export function pintarResumen(cont, { alCambiar } = {}) {
 
     ${tarjeta("Últimas actividades", `<ul class="ultimas">${ultimas.map((a) => `
       <li><a href="#entreno/${encodeURIComponent(a.id)}" data-deporte="${a.deporte}">
-        <span class="actividad-icono" aria-hidden="true">${DEPORTES[a.deporte]?.icono || "⌚"}</span>
+        <span class="actividad-icono" aria-hidden="true">${iconoDe(a)}</span>
         <span><strong>${a.nombre}</strong><small>${new Date(a.inicio).toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" })}</small></span>
         <span class="ultimas-datos">${a.distancia ? (a.deporte === "nadar" ? `${num(a.distancia)} m` : `${num(a.distancia / 1000, 1)} km`) : horas((a.duracion || 0) / 3600)}<small>carga ${an.cargaDe(a, u).tss}</small></span>
       </a></li>`).join("")}</ul>`, { accion: enlace("actividades", "Ver todas"), icono: "🕑" })}`;
@@ -338,7 +341,7 @@ export function pintarSalud(cont) {
 }
 
 // =====================================================================
-// NATACIÓN
+// NATACIÓN (dentro de Deportes)
 // =====================================================================
 export function pintarNatacion(cont, { alCambiar } = {}) {
   const { lista, u } = datosBase();
@@ -393,4 +396,206 @@ export function pintarNatacion(cont, { alCambiar } = {}) {
     cont.insertAdjacentHTML("afterbegin", `<p class="nota calculando">Calculando tus mejores tiempos…</p>`);
     an.completarNado(() => alCambiar?.()).finally(() => cont.querySelector(".calculando")?.remove());
   }
+}
+
+// =====================================================================
+// OBJETIVO (en el Resumen): cuenta atrás y cómo llegarás
+// =====================================================================
+const fechaLarga = (d) => new Date(d).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" });
+function tarjetaObjetivo(lista, dias) {
+  const o = almacen.ajustes().objetivo;
+  const editar = `<button type="button" class="ver-mas boton-texto" data-accion="objetivo">${o ? "Cambiar" : "Añadir"}</button>`;
+  if (!o?.fecha) {
+    return tarjeta("Objetivo", `<p class="nota sin-margen">¿Tienes una carrera o un triatlón en mente? Ponle fecha y verás la cuenta atrás, en qué etapa del plan estás y con qué forma llegarías.</p>`,
+      { accion: editar, icono: "🎯", clase: "tarjeta-objetivo vacia" });
+  }
+  const tipo = an.TIPOS_OBJETIVO[o.tipo] || an.TIPOS_OBJETIVO.otro;
+  const dia = new Date(o.fecha + "T00:00:00");
+  const faltan = Math.round((dia - an.diaDe(new Date())) / DIA);
+  const semanas = faltan / 7;
+  const et = an.etapa(semanas);
+  const p = an.proyectar(dias, dia);
+  const zona = p && an.zonaForma(p.tsb);
+  let pred = "";
+  if (tipo.distancia && faltan >= 0) {
+    const r = an.prediccionRiegel(lista)?.find((x) => x.distancia === tipo.distancia);
+    const vo2 = [...salud.enCache()].reverse().find((d) => d.vo2)?.vo2;
+    const t = r?.t ?? (vo2 ? an.tiempoPorVo2(vo2, tipo.distancia) : null);
+    if (t) pred = `<div><span>Hoy harías</span><b>${reloj(t)}</b>${o.tiempo ? `<small class="${t <= o.tiempo ? "sube" : "baja"}">${t <= o.tiempo ? "✓ dentro" : `${reloj(t - o.tiempo)} más`} de tu objetivo</small>` : `<small>${r ? "por tus marcas" : "por tu VO2max"}</small>`}</div>`;
+  }
+  const cuenta = faltan < 0 ? "Ya pasó" : faltan === 0 ? "¡Es hoy!" : faltan < 21 ? `${faltan} días` : `${Math.floor(semanas)} semanas`;
+  return tarjeta("Objetivo", `
+    <div class="objetivo-cabecera">
+      <span class="objetivo-icono" aria-hidden="true">${tipo.icono}</span>
+      <div><b>${o.nombre ? escapar(o.nombre) : tipo.nombre}</b><small>${o.nombre ? `${tipo.nombre} · ` : ""}${fechaLarga(dia)}</small></div>
+      <strong class="cuenta-atras">${cuenta}</strong>
+    </div>
+    <div class="objetivo-cifras">
+      <div><span>Etapa</span><b>${et.nombre}</b></div>
+      ${o.tiempo ? `<div><span>Tu objetivo</span><b>${reloj(o.tiempo)}</b></div>` : ""}
+      ${pred}
+      ${p ? `<div class="forma-${zona.clase}"><span>Llegarías con</span><b>forma ${num(p.ctl)}</b><small>frescura ${conSigno(p.tsb)} · ${zona.nombre.toLowerCase()}</small></div>` : ""}
+    </div>
+    <p class="nota sin-margen">${et.texto}${p ? ` Cálculo: si sigues con tu carga de las últimas 4 semanas (${num(p.cargaSemanal)} por semana) y la bajas un 40 % las 2 últimas.` : ""}</p>`,
+    { accion: editar, icono: "🎯", clase: "tarjeta-objetivo" });
+}
+const escapar = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+// =====================================================================
+// DEPORTES: una tarjeta por deporte y la página de cada uno
+// =====================================================================
+const distTexto = (d, m) => (d === "nadar" ? `${num(m)} m` : `${num(m / 1000, m >= 100000 ? 0 : 1)} km`);
+// Meses (para las gráficas de volumen)
+function porMes(acts, meses, u) { return an.totales(acts, "mes", meses, u); }
+
+export function pintarDeportes(cont, { deporte, alCambiar } = {}) {
+  if (deporte) return pintarDeporte(cont, deporte, { alCambiar });
+  const { lista, u } = datosBase();
+  const haceAnio = Date.now() - 365 * DIA;
+  const deportes = Object.keys(DEPORTES).map((d) => {
+    const acts = lista.filter((a) => a.deporte === d);
+    const anio = acts.filter((a) => new Date(a.inicio) >= haceAnio);
+    return { d, acts, anio, horas: anio.reduce((s, a) => s + (a.duracion || 0), 0) / 3600, dist: anio.reduce((s, a) => s + (a.distancia || 0), 0) };
+  }).filter((x) => x.acts.length).sort((a, b) => b.horas - a.horas || b.acts.length - a.acts.length);
+  cont.innerHTML = `
+    <p class="nota sin-margen">Últimos 12 meses. Toca un deporte para ver su evolución${lista.some((a) => a.deporte === "correr") ? ", tus récords y predicciones" : ""}.</p>
+    <section class="rejilla-deportes">${deportes.map(({ d, acts, anio, horas: h, dist }) => {
+      const meses = porMes(acts, 12, u).map((p) => p.horas);
+      const ult = acts[0];
+      return `<a class="tarjeta-deporte" href="#entreno/deportes/${d}" data-deporte="${d}">
+        <span class="tarjeta-deporte-icono" aria-hidden="true">${DEPORTES[d].icono}</span>
+        <span class="tarjeta-deporte-nombre">${DEPORTES[d].nombre}</span>
+        <b>${anio.length ? horas(h) : "—"}</b>
+        <em>${anio.length} ${anio.length === 1 ? "sesión" : "sesiones"}${dist && d !== "gimnasio" && d !== "escalada" ? ` · ${distTexto(d, dist)}` : ""}</em>
+        ${sparkline(meses, `var(--dep-${d})`)}
+        <small>Última: ${fechaCorta(ult.inicio)}${anio.length !== acts.length ? ` · ${acts.length} en total` : ""}</small>
+      </a>`;
+    }).join("")}</section>`;
+}
+
+function pintarDeporte(cont, d, { alCambiar } = {}) {
+  const info = DEPORTES[d];
+  const volver = `<a class="volver-deportes" href="#entreno/deportes">‹ Todos los deportes</a>`;
+  if (!info) { cont.innerHTML = `${volver}<p class="nota">No conozco ese deporte.</p>`; return; }
+  const cabecera = `<header class="cabecera-deporte" data-deporte="${d}">${volver}<h2><span aria-hidden="true">${info.icono}</span>${info.nombre}</h2></header>`;
+  if (d === "nadar") {
+    cont.innerHTML = `${cabecera}<div class="cuerpo-deporte"></div>`;
+    pintarNatacion(cont.querySelector(".cuerpo-deporte"), { alCambiar });
+    return;
+  }
+  const { lista, u } = datosBase();
+  const todas = lista.filter((a) => a.deporte === d);
+  const desde = pref.rangoDep ? Date.now() - pref.rangoDep * DIA : 0;
+  const acts = todas.filter((a) => new Date(a.inicio).getTime() >= desde);
+  const cronol = [...acts].reverse();
+  const h = acts.reduce((s, a) => s + (a.duracion || 0), 0) / 3600;
+  const dist = acts.reduce((s, a) => s + (a.distancia || 0), 0);
+  const desn = acts.reduce((s, a) => s + (a.desnivel || 0), 0);
+  const carga = acts.reduce((s, a) => s + an.cargaDe(a, u).tss, 0);
+  const conVel = d === "correr" || d === "bici" || d === "andar";
+  const esRitmo = d === "correr" || d === "andar";
+  const conDist = dist > 0 && d !== "gimnasio" && d !== "escalada";
+  const kpi = [
+    ["Sesiones", acts.length, acts.length ? `${num(acts.length / Math.max(1, (pref.rangoDep || 365) / 7), 1)} por semana` : ""],
+    ["Tiempo", horas(h), acts.length ? `${horas(h / acts.length)} por sesión` : ""],
+    conDist ? ["Distancia", distTexto(d, dist), acts.length ? `${distTexto(d, dist / acts.length)} por sesión` : ""] : ["Carga", num(carga), acts.length ? `${num(carga / acts.length)} por sesión` : ""],
+    conVel && dist && h ? [esRitmo ? "Ritmo medio" : "Velocidad media", esRitmo ? `${reloj(h * 3600 / (dist / 1000))}` : `${num(dist / 1000 / h, 1)} km/h`, esRitmo ? "por km" : ""]
+      : desn > 0 ? ["Desnivel +", `${num(desn)} m`, ""] : ["Pulso medio", (() => { const f = acts.map((a) => a.fcMedia).filter(Boolean); return f.length ? `${num(f.reduce((s, x) => s + x, 0) / f.length)} ppm` : "—"; })(), ""],
+  ];
+  cont.innerHTML = `
+    ${cabecera}
+    <section class="tarjetas-panel" data-deporte="${d}">${kpi.map(([t, v, e]) => `<div class="tarjeta-dato"><span>${t}</span><b>${v}</b><em>${e}</em></div>`).join("")}</section>
+    <div class="fila-chips">${chips("rangoDep", [[182, "6 meses"], [365, "1 año"], [730, "2 años"], [0, "Todo"]])}</div>
+    ${d === "correr" ? tarjetasCarrera(lista) : ""}
+    ${tarjeta("Volumen por mes", `<div class="hueco-grafica" data-grafica="volumen"></div>`, { icono: "📊" })}
+    ${conVel && cronol.filter((a) => a.velMedia).length >= 2 ? tarjeta(esRitmo ? "Ritmo y pulso" : "Velocidad y pulso", `<div class="hueco-grafica" data-grafica="ritmo"></div>
+      <p class="nota">Cada punto es una sesión; la línea gruesa es la tendencia (media de 5). ${esRitmo ? "Más arriba = más rápido." : ""} Toca la leyenda para elegir qué ver.</p>`, { icono: "⏱️" }) : ""}
+    ${tarjeta(`Últimas de ${info.nombre.toLowerCase()}`, `<ul class="ultimas">${todas.slice(0, 6).map((a) => `
+      <li><a href="#entreno/${encodeURIComponent(a.id)}" data-deporte="${a.deporte}">
+        <span class="actividad-icono" aria-hidden="true">${iconoDe(a)}</span>
+        <span><strong>${escapar(a.nombre)}</strong><small>${new Date(a.inicio).toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</small></span>
+        <span class="ultimas-datos">${a.distancia && conDist ? distTexto(d, a.distancia) : horas((a.duracion || 0) / 3600)}<small>carga ${an.cargaDe(a, u).tss}</small></span>
+      </a></li>`).join("")}</ul>`, { accion: `<a class="ver-mas" href="#entreno/actividades" data-ir-filtro="${d}">Ver todas ›</a>`, icono: "🕑" })}`;
+
+  // Volumen por mes
+  const meses = Math.max(6, Math.min(36, pref.rangoDep ? Math.ceil(pref.rangoDep / 30.4) : Math.ceil((Date.now() - new Date(todas.at(-1).inicio)) / (30.4 * DIA)) + 1));
+  const periodos = porMes(todas, meses, u);
+  const huecoVol = cont.querySelector('[data-grafica="volumen"]');
+  huecoVol.replaceChildren(graficaSeries({
+    id: `vol-${d}`, xs: periodos.map((p) => p.desde.getTime()), alto: 200,
+    resumen: `Media ${horas(periodos.reduce((s, p) => s + p.horas, 0) / periodos.length)} al mes`,
+    series: [
+      { id: "horas", nombre: "Horas", tipo: "barras", color: `var(--dep-${d})`, valores: periodos.map((p) => p.horas || null), formato: horas, formatoEje: (v) => `${Math.round(v)} h` },
+      conDist ? { id: "dist", nombre: d === "nadar" ? "Metros" : "Km", tipo: "linea", eje: "der", color: "var(--texto)", valores: periodos.map((p) => (p.distancia ? p.distancia / 1000 : null)), formato: (v) => `${num(v, 1)} km`, formatoEje: (v) => Math.round(v), unir: true }
+        : { id: "ses", nombre: "Sesiones", tipo: "linea", eje: "der", color: "var(--texto)", valores: periodos.map((p) => p.sesiones || null), formato: (v) => `${v} ses.`, unir: true },
+      { id: "carga", nombre: "Carga", tipo: "linea", eje: "der", color: "var(--forma-atl)", discontinua: true, valores: periodos.map((p) => p.carga || null), formato: (v) => num(v), ocultaAlEmpezar: true, unir: true },
+    ],
+  }));
+
+  // Ritmo o velocidad de cada sesión
+  const huecoRit = cont.querySelector('[data-grafica="ritmo"]');
+  if (huecoRit) {
+    const ses = cronol.filter((a) => a.velMedia && (a.distancia || 0) >= (d === "bici" ? 5000 : 1000));
+    const tend = (ys) => ys.map((_, i) => { const v = ys.slice(Math.max(0, i - 4), i + 1).filter((x) => x != null); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; });
+    const vel = ses.map((a) => (esRitmo ? 1000 / a.velMedia : a.velMedia * 3.6));
+    const fmtV = esRitmo ? (v) => `${reloj(v)} /km` : (v) => `${num(v, 1)} km/h`;
+    const ejeV = esRitmo ? reloj : (v) => Math.round(v);
+    const fc = ses.map((a) => a.fcMedia || null);
+    huecoRit.replaceChildren(graficaSeries({
+      id: `ritmo-${d}`, xs: ses.map((a) => new Date(a.inicio).getTime()), alto: 220, invertirIzq: esRitmo,
+      resumen: ses.length ? `Última: ${fmtV(vel.at(-1))}` : "",
+      series: [
+        { id: "v", nombre: esRitmo ? "Ritmo" : "Velocidad", tipo: "puntos", color: `var(--dep-${d})`, valores: vel, formato: fmtV, formatoEje: ejeV },
+        { id: "vT", nombre: "Tendencia", tipo: "linea", grosor: 2.5, color: `var(--dep-${d})`, valores: tend(vel), formato: fmtV, formatoEje: ejeV, unir: true },
+        { id: "fc", nombre: "Pulso medio", tipo: "linea", eje: "der", color: "var(--serie-pulso)", valores: tend(fc), formato: (v) => `${Math.round(v)} ppm`, unir: true, ocultaAlEmpezar: true },
+      ],
+    }));
+  }
+  escucharChips(cont, () => pintarDeporte(cont, d, { alCambiar }));
+  if (d === "correr" && todas.some((a) => a.mejores === undefined)) {
+    cont.querySelector(".cabecera-deporte").insertAdjacentHTML("afterend", `<p class="nota calculando">Buscando tus mejores tiempos en ${todas.filter((a) => a.mejores === undefined).length} carreras… (solo la primera vez)</p>`);
+    an.completarCarrera(() => alCambiar?.()).finally(() => cont.querySelector(".calculando")?.remove());
+  }
+}
+
+// Récords y predicciones de carrera
+function tarjetasCarrera(lista) {
+  const recs = an.recordsCarrera(lista);
+  const ritmo = (t, d) => `${reloj(t / (d / 1000))} /km`;
+  const fecha = (f) => new Date(f).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "2-digit" });
+  let pred = an.prediccionRiegel(lista), antiguo = false;
+  if (!pred) { pred = an.prediccionRiegel(lista, 1e5); antiguo = !!pred; }
+  const vo2 = [...salud.enCache()].reverse().find((d) => d.vo2);
+  const o = almacen.ajustes().objetivo;
+  const tipoObj = o && an.TIPOS_OBJETIVO[o.tipo];
+  if (!recs.length && !pred && !vo2) return "";
+  const filasPred = an.DISTANCIAS_PREDICCION.map((D) => {
+    const r = pred?.find((x) => x.distancia === D);
+    const v = vo2 ? an.tiempoPorVo2(vo2.vo2, D) : null;
+    const esObj = tipoObj?.distancia === D;
+    return `<tr${esObj ? ' class="fila-objetivo"' : ""}>
+      <td><b>${an.NOMBRE_DISTANCIA[D]}</b>${esObj && o.tiempo ? `<small>🎯 ${reloj(o.tiempo)}</small>` : ""}</td>
+      <td>${r ? `${reloj(r.t)}<small>${ritmo(r.t, D)}</small>` : "—"}</td>
+      ${vo2 ? `<td>${reloj(v)}<small>${ritmo(v, D)}</small></td>` : ""}
+    </tr>`;
+  }).join("");
+  const base = pred?.find((x) => x.distancia === 10000)?.desde;
+  return `
+    ${recs.length ? tarjeta("Mejores tiempos", `
+      <div class="tabla-scroll"><table class="tabla-records" data-deporte="correr">
+        <thead><tr><th>Distancia</th><th>Mejor</th><th>Cuándo</th><th>Este año</th></tr></thead>
+        <tbody>${recs.map((r) => `<tr>
+          <td><b>${an.NOMBRE_DISTANCIA[r.distancia]}</b></td>
+          <td><a href="#entreno/${encodeURIComponent(r.mejor.id)}">${reloj(r.mejor.t)}</a><small>${ritmo(r.mejor.t, r.distancia)}</small></td>
+          <td>${fecha(r.mejor.fecha)}</td>
+          <td>${r.mejorAnio ? (r.mejorAnio.id === r.mejor.id ? "🏆" : reloj(r.mejorAnio.t)) : "—"}</td>
+        </tr>`).join("")}</tbody>
+      </table></div>
+      <p class="nota">El tramo más rápido de esa distancia dentro de cualquier carrera (como los "mejores esfuerzos" de Strava). "Este año" son los últimos 12 meses.</p>`, { icono: "🏆" }) : ""}
+    ${pred || vo2 ? tarjeta("Predicción de carrera", `
+      <div class="tabla-scroll"><table class="tabla-records tabla-prediccion" data-deporte="correr">
+        <thead><tr><th>Prueba</th><th>Por tus marcas</th>${vo2 ? `<th>Por VO2max</th>` : ""}</tr></thead>
+        <tbody>${filasPred}</tbody>
+      </table></div>
+      <p class="nota">${pred ? `"Por tus marcas" usa la fórmula de Riegel con tus mejores 5 km, 10 km y media ${antiguo ? "de siempre (no has corrido en el último año, así que será optimista)" : "del último año"}${base ? `; ahora sale de tu ${an.NOMBRE_DISTANCIA[base.d]} del ${fecha(base.fecha)}` : ""}. ` : ""}${vo2 ? `"Por VO2max" usa las tablas de Jack Daniels con tu VO2max de Garmin (${num(vo2.vo2, 1)}, ${fechaCorta(vo2.fecha)}), como el reloj.` : ""} Para media y maratón hace falta haber entrenado tiradas largas: si no, tardarás más.</p>`, { icono: "🔮" }) : ""}`;
 }
