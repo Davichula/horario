@@ -16,6 +16,8 @@
 import { leerArchivos } from "./fit.js";
 import * as almacen from "./almacen.js";
 
+export async function haySesion() { return !!(await sesion()); }
+
 async function sesion() {
   if (!window.nube || !navigator.onLine) return null;
   try {

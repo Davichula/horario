@@ -97,28 +97,158 @@ export function mejoresCarrera(act) {
   return mejores;
 }
 
-// Las actividades antiguas no traían "mejores": las completamos una vez
-// leyendo su detalle (poco a poco, sin bloquear).
-const completando = {};
-function completarMejores(deporte, calcular, alTerminar = () => {}) {
-  completando[deporte] ??= (async () => {
-    const faltan = almacen.listar().filter((a) => a.deporte === deporte && a.mejores === undefined);
+// ---------------------------------------------------------------------
+// Todo lo que se calcula de cada actividad a partir de su detalle
+// (los puntos segundo a segundo, los largos, las series de gimnasio).
+// Se guarda en el resumen para no tener que volver a leer el detalle.
+// Si añadimos cálculos nuevos, subimos VERSION_CALC y las actividades
+// antiguas se recalculan solas una vez.
+// ---------------------------------------------------------------------
+export const VERSION_CALC = 3;
+export const DURACIONES_CURVA = [60, 180, 300, 600, 1200, 1800, 3600, 5400, 7200];
+
+export function derivados(det) {
+  const r = { calc: VERSION_CALC };
+  const p = det.puntos || {};
+  if (det.deporte === "nadar" && det.largosDetalle) {
+    r.mejores = mejoresNado(det);
+    Object.assign(r, nado(det));
+  }
+  if (det.deporte === "correr" && p.d) r.mejores = mejoresCarrera(det);
+  if (p.fc && p.t) r.fcHist = histogramaPulso(p);
+  if (["correr", "bici", "andar"].includes(det.deporte)) Object.assign(r, eficiencia(det));
+  if ((det.deporte === "correr" || det.deporte === "bici") && p.t && p.d) r.curva = curvaVelocidad(p, det.deporte === "correr" ? 6.7 : 25);
+  if (det.deporte === "bici" && p.pot && p.t) r.curvaPot = curvaPotencia(p);
+  if (det.series?.length) r.gym = gimnasio(det.series);
+  return r;
+}
+
+// Segundos en cada tramo de 5 pulsaciones: {"120": 300, "125": 610...}
+// (con esto se sacan las zonas aunque cambies tus pulsaciones máximas)
+function histogramaPulso(p) {
+  const h = {};
+  for (let i = 1; i < p.t.length; i++) {
+    const f = p.fc[i], dt = Math.min(30, p.t[i] - p.t[i - 1]);
+    if (!f || dt <= 0) continue;
+    const k = Math.floor(f / 5) * 5;
+    h[k] = (h[k] || 0) + dt;
+  }
+  return h;
+}
+
+// Eficiencia aeróbica (EF): cuánto avanzas por cada latido.
+//   carrera: metros por minuto ÷ pulso; bici con potencia: vatios ÷ pulso.
+// Desacople: cuánto empeora la eficiencia de la 1ª mitad a la 2ª.
+// Por debajo del 5 % = buena base aeróbica.
+function eficiencia(det) {
+  const p = det.puntos || {};
+  if (!p.fc || !p.t || (!p.v && !p.pot)) return {};
+  const usaPot = det.deporte === "bici" && p.pot?.some((x) => x > 0);
+  const minimo = det.deporte === "bici" ? 2 : det.deporte === "correr" ? 1.4 : 0.5;
+  const tramos = [];
+  for (let i = 1; i < p.t.length; i++) {
+    const dt = Math.min(30, p.t[i] - p.t[i - 1]), f = p.fc[i], v = p.v?.[i];
+    if (dt <= 0 || !f || f < 60 || !(v >= minimo)) continue;
+    tramos.push({ dt, f, x: usaPot ? p.pot[i] || 0 : v * 60 });
+  }
+  const segundos = tramos.reduce((s, x) => s + x.dt, 0);
+  if (segundos < 15 * 60) return {};
+  const ef = (xs) => { const t = xs.reduce((s, x) => s + x.dt, 0); return xs.reduce((s, x) => s + x.x * x.dt, 0) / t / (xs.reduce((s, x) => s + x.f * x.dt, 0) / t); };
+  const r = { ef: Math.round(ef(tramos) * 1000) / 1000, efPot: usaPot || undefined };
+  if (segundos >= 40 * 60) {
+    let acum = 0, corte = 0;
+    while (acum < segundos / 2) acum += tramos[corte++].dt;
+    const a = ef(tramos.slice(0, corte)), b = ef(tramos.slice(corte));
+    r.desacople = Math.round(((a - b) / a) * 1000) / 10;
+  }
+  return r;
+}
+
+// Curva de velocidad: tu mejor velocidad media (m/s) para cada duración
+function curvaVelocidad(p, tope) {
+  const T = [], D = [];
+  for (let i = 0; i < p.t.length; i++) if (p.d[i] != null && (!D.length || p.d[i] >= D.at(-1))) { T.push(p.t[i]); D.push(p.d[i]); }
+  const c = {};
+  for (const dur of DURACIONES_CURVA) {
+    if (!T.length || T.at(-1) - T[0] < dur) break;
+    let mejor = 0, j = 0;
+    for (let i = 1; i < T.length; i++) {
+      while (j + 1 < i && T[i] - T[j + 1] >= dur) j++;
+      if (T[i] - T[j] < dur) continue;
+      const v = (D[i] - D[j]) / (T[i] - T[j]);
+      if (v > mejor && v < tope) mejor = v;
+    }
+    if (mejor) c[dur] = Math.round(mejor * 1000) / 1000;
+  }
+  return c;
+}
+// Curva de potencia: tus mejores vatios medios para cada duración
+function curvaPotencia(p) {
+  const E = [0];
+  for (let i = 1; i < p.t.length; i++) E.push(E[i - 1] + (p.pot[i] || 0) * Math.min(30, p.t[i] - p.t[i - 1]));
+  const c = {};
+  for (const dur of DURACIONES_CURVA) {
+    if (p.t.at(-1) - p.t[0] < dur) break;
+    let mejor = 0, j = 0;
+    for (let i = 1; i < p.t.length; i++) {
+      while (j + 1 < i && p.t[i] - p.t[j + 1] >= dur) j++;
+      if (p.t[i] - p.t[j] < dur) continue;
+      mejor = Math.max(mejor, (E[i] - E[j]) / (p.t[i] - p.t[j]));
+    }
+    if (mejor) c[dur] = Math.round(mejor);
+  }
+  return c;
+}
+
+// Natación: metros de cada estilo, tiempo a cada ritmo y series
+function nado(det) {
+  const piscina = det.piscina || 25;
+  const estilos = {}, ritmoHist = {};
+  for (const l of det.largosDetalle) {
+    if (!l.activo || !(l.dur > 0)) continue;
+    const e = l.estilo || "freestyle";
+    estilos[e] = (estilos[e] || 0) + piscina;
+    const r = Math.floor(((l.dur / piscina) * 100) / 2) * 2; // segundos por 100 m, de 2 en 2
+    ritmoHist[r] = (ritmoHist[r] || 0) + l.dur;
+  }
+  const series = (det.vueltas || []).filter((v) => v.dist > 0);
+  return { estilos, ritmoHist, seriesNado: series.length ? { n: series.length, metros: Math.round(series.reduce((s, v) => s + v.dist, 0) / series.length) } : undefined };
+}
+
+// Gimnasio: por cada ejercicio, series, repeticiones, peso máximo y volumen
+function gimnasio(series) {
+  const g = {};
+  for (const s of series) {
+    if (s.descanso) continue;
+    const e = (g[s.ejercicio || "Ejercicio"] ??= { series: 0, reps: 0, kgMax: 0, vol: 0 });
+    e.series++; e.reps += s.reps || 0;
+    if (s.peso) { e.kgMax = Math.max(e.kgMax, s.peso); e.vol += (s.reps || 0) * s.peso; }
+  }
+  for (const e of Object.values(g)) e.vol = Math.round(e.vol);
+  return g;
+}
+
+// Las actividades antiguas se guardaron sin estos cálculos: las
+// completamos una vez leyendo su detalle (poco a poco, sin bloquear).
+let completando = null;
+export const faltanCalculos = () => almacen.listar().filter((a) => a.calc !== VERSION_CALC);
+export function completarCalculos(alAvanzar = () => {}) {
+  completando ??= (async () => {
+    const faltan = faltanCalculos();
     let hechas = 0, lote = {};
     const guardarLote = () => { if (Object.keys(lote).length) almacen.actualizarResumenes(lote); lote = {}; };
     for (const r of faltan) {
       const det = await almacen.detalle(r.id).catch(() => null);
       if (!det) continue; // sin conexión: ya lo intentaremos otro día
-      lote[r.id] = { mejores: calcular(det) };
-      if (++hechas % 15 === 0) guardarLote();
+      lote[r.id] = derivados(det);
+      if (++hechas % 20 === 0) { guardarLote(); alAvanzar(hechas, faltan.length); }
     }
     guardarLote();
-    completando[deporte] = null;
-    if (hechas) alTerminar(hechas);
+    completando = null;
+    return hechas;
   })();
-  return completando[deporte];
+  return completando;
 }
-export const completarNado = (alTerminar) => completarMejores("nadar", mejoresNado, alTerminar);
-export const completarCarrera = (alTerminar) => completarMejores("correr", mejoresCarrera, alTerminar);
 
 // ---------------------------------------------------------------------
 // Umbrales (lo que se usa como "100 %")
@@ -369,4 +499,132 @@ export function proyectar(dias, fecha) {
     ctlSin += (media28 - ctlSin) / 42; atlSin += (media28 - atlSin) / 7;
   }
   return { dias: n, cargaSemanal: media28 * 7, ctl, tsb: ctl - atl, ctlSinAfinar: ctlSin, tsbSinAfinar: ctlSin - atlSin };
+}
+
+// ---------------------------------------------------------------------
+// Zonas de pulso (las de Garmin, por % de tus pulsaciones máximas)
+// ---------------------------------------------------------------------
+export const ZONAS_FC = [
+  { nombre: "Z1", texto: "Muy suave", desde: 0.5 },
+  { nombre: "Z2", texto: "Suave", desde: 0.6 },
+  { nombre: "Z3", texto: "Moderado", desde: 0.7 },
+  { nombre: "Z4", texto: "Fuerte", desde: 0.8 },
+  { nombre: "Z5", texto: "Máximo", desde: 0.9 },
+];
+// Segundos en cada zona a partir del histograma de una o varias actividades
+export function segundosEnZonas(hists, fcMax) {
+  const z = [0, 0, 0, 0, 0];
+  for (const h of hists) for (const [k, seg] of Object.entries(h || {})) {
+    const i = ZONAS_FC.findLastIndex((x) => Number(k) + 2.5 >= x.desde * fcMax);
+    z[Math.max(0, i)] += seg;
+  }
+  return z;
+}
+
+// Zonas por semana (para el 80/20): [{desde, z:[s1..s5]}]
+export function zonasPorSemana(lista, n, fcMax) {
+  return totales(lista, "semana", n).map((p) => ({
+    desde: p.desde,
+    z: segundosEnZonas(lista.filter((a) => { const f = new Date(a.inicio); return f >= p.desde && f < p.hasta; }).map((a) => a.fcHist), fcMax),
+  }));
+}
+
+// ---------------------------------------------------------------------
+// Monotonía y estrés semanal (Carl Foster)
+//   monotonía = carga media diaria ÷ su desviación (más de 2 = siempre igual)
+//   estrés = carga de la semana × monotonía
+// ---------------------------------------------------------------------
+function monoDe(cargas) {
+  const m = media(cargas);
+  const sd = Math.sqrt(media(cargas.map((c) => (c - m) ** 2)));
+  const mono = m === 0 ? 0 : Math.min(4, sd ? m / sd : 4);
+  return { monotonia: mono, carga: m * 7, estres: m * 7 * mono };
+}
+export function monotonia(dias, semanas = 12) {
+  const hoy = monoDe(dias.slice(-7).map((d) => d.carga));
+  const porSemana = [];
+  const lunes = lunesDe(new Date());
+  for (let k = semanas - 1; k >= 0; k--) {
+    const desde = new Date(lunes); desde.setDate(desde.getDate() - 7 * k);
+    const hasta = new Date(desde); hasta.setDate(hasta.getDate() + 7);
+    const cs = dias.filter((d) => d.fecha >= desde && d.fecha < hasta).map((d) => d.carga);
+    while (cs.length < 7 && k > 0) cs.push(0);
+    porSemana.push({ desde, ...monoDe(cs.length ? cs : [0]) });
+  }
+  return { hoy, porSemana };
+}
+
+// ---------------------------------------------------------------------
+// Constancia: rachas
+// ---------------------------------------------------------------------
+export function rachas(lista) {
+  const dias = new Set(lista.map((a) => claveDia(diaDe(a.inicio))));
+  const hoy = diaDe(new Date());
+  // Racha de días (si hoy aún no has entrenado, cuenta desde ayer)
+  let actual = 0;
+  const d = new Date(hoy);
+  if (!dias.has(claveDia(d))) d.setDate(d.getDate() - 1);
+  while (dias.has(claveDia(d))) { actual++; d.setDate(d.getDate() - 1); }
+  let larga = 0, n = 0;
+  [...dias].sort().forEach((k, i, xs) => {
+    const ant = i && new Date(xs[i - 1] + "T12:00");
+    n = ant && (new Date(k + "T12:00") - ant) / DIA < 1.5 ? n + 1 : 1;
+    larga = Math.max(larga, n);
+  });
+  // Semanas seguidas con al menos 3 entrenos
+  const sem = totales(lista, "semana", 104);
+  let semanas = 0;
+  for (let i = sem.length - 1; i >= 0; i--) {
+    if (sem[i].sesiones >= 3) semanas++;
+    else if (i !== sem.length - 1) break; // la semana actual aún puede completarse
+  }
+  const haceAnio = new Date(hoy); haceAnio.setFullYear(hoy.getFullYear() - 1);
+  return { actual, larga, semanas, diasAnio: [...dias].filter((k) => new Date(k + "T12:00") > haceAnio).length };
+}
+
+// ---------------------------------------------------------------------
+// Natación: zonas de ritmo con tu CSS (en segundos por 100 m)
+// ---------------------------------------------------------------------
+export function zonasCss(css) {
+  return [
+    { nombre: "Suave", texto: "Calentar, técnica, recuperar", desde: css + 15, hasta: Infinity },
+    { nombre: "Aeróbico", texto: "Fondo, series largas", desde: css + 8, hasta: css + 15 },
+    { nombre: "Tempo", texto: "Ritmo de triatlón largo", desde: css + 3, hasta: css + 8 },
+    { nombre: "Umbral", texto: "Series al ritmo CSS", desde: css - 2, hasta: css + 3 },
+    { nombre: "Rápido", texto: "Series cortas y sprints", desde: 0, hasta: css - 2 },
+  ];
+}
+
+// ---------------------------------------------------------------------
+// Gimnasio: a qué grupo muscular va cada ejercicio
+// ---------------------------------------------------------------------
+const GRUPOS = {
+  Pecho: ["Press de banca", "Aperturas", "Flexiones"],
+  Espalda: ["Remo", "Dominadas", "Encogimientos"],
+  Hombros: ["Press de hombro", "Elevaciones laterales"],
+  Brazos: ["Curl", "Tríceps"],
+  Piernas: ["Sentadilla", "Zancadas", "Curl femoral", "Gemelos", "Elevación de cadera", "Peso muerto", "Estabilidad de cadera", "Kettlebell swing"],
+  Core: ["Plancha", "Abdominales", "Elevación de piernas", "Core", "Leñador"],
+};
+export const grupoDe = (ej) => Object.keys(GRUPOS).find((g) => GRUPOS[g].includes(ej)) || (ej === "Ejercicio" ? "Sin nombre" : "Otros");
+
+// ---------------------------------------------------------------------
+// Triatlón: lo que suele pedir cada distancia (horas a la semana en la
+// fase de construcción y la sesión más larga que conviene haber hecho)
+// ---------------------------------------------------------------------
+export const PLAN_TRI = {
+  sprint: { nombre: "Triatlón sprint", horas: { nadar: 1.5, bici: 2.5, correr: 2 }, largo: { nadar: 750, bici: 20000, correr: 5000 } },
+  olimpico: { nombre: "Triatlón olímpico", horas: { nadar: 2, bici: 3.5, correr: 2.5 }, largo: { nadar: 1500, bici: 40000, correr: 10000 } },
+  medio: { nombre: "Medio Ironman (70.3)", horas: { nadar: 2.5, bici: 5, correr: 3 }, largo: { nadar: 1900, bici: 90000, correr: 21100 } },
+  ironman: { nombre: "Ironman", horas: { nadar: 3.5, bici: 8, correr: 4.5 }, largo: { nadar: 3800, bici: 180000, correr: 42200 } },
+};
+export function preparacionTri(lista, tipo) {
+  const plan = PLAN_TRI[tipo] || PLAN_TRI.medio;
+  const hace4 = Date.now() - 28 * DIA, hace6 = Date.now() - 42 * DIA;
+  return { plan, deportes: ["nadar", "bici", "correr"].map((d) => {
+    const acts = lista.filter((a) => a.deporte === d);
+    const horas = acts.filter((a) => new Date(a.inicio) >= hace4).reduce((s, a) => s + (a.duracion || 0), 0) / 3600 / 4;
+    const largo = Math.max(0, ...acts.filter((a) => new Date(a.inicio) >= hace6).map((a) => a.distancia || 0));
+    return { d, horas, objetivoHoras: plan.horas[d], largo, objetivoLargo: plan.largo[d] };
+  }) };
 }

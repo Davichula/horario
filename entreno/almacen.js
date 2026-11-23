@@ -16,7 +16,7 @@
 //          "entreno:<id>". Solo se descarga cuando abres esa actividad.
 // =====================================================================
 
-import { mejoresNado, mejoresCarrera } from "./analisis.js";
+import { derivados } from "./analisis.js";
 import { familia, nombreDe } from "./fit.js";
 
 const CLAVE = "mi-horario:entreno";
@@ -46,8 +46,7 @@ export function resumenDe(act) {
   const { puntos, vueltas, largosDetalle, series, ...resumen } = act;
   resumen.vueltasN = vueltas?.length || 0;
   if (series) resumen.seriesN = series.filter((s) => !s.descanso).length;
-  if (act.deporte === "nadar" && largosDetalle) resumen.mejores = mejoresNado(act); // mejores 100, 200, 400 m...
-  if (act.deporte === "correr" && puntos?.d) resumen.mejores = mejoresCarrera(act); // mejores 1 km, 5 km, 10 km...
+  Object.assign(resumen, derivados(act)); // mejores tiempos, zonas, eficiencia... (ver analisis.js)
   return resumen;
 }
 

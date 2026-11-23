@@ -458,3 +458,76 @@ a.tarjeta-dato:active, button.tarjeta-dato:active { transform: scale(0.985); }
 .tabla-prediccion td small { display: block; }
 .fila-objetivo td { background: color-mix(in srgb, var(--forma-ctl) 8%, transparent); }
 .fila-objetivo td small { color: var(--texto); }
+
+/* ----- Lote 4: constancia, intensidad, curvas, gimnasio, triatlón, diario ----- */
+.cifras-constancia, .cifras-mini { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+.cifras-mini { grid-template-columns: repeat(2, 1fr); margin: 12px 0 4px; }
+@media (max-width: 560px) { .cifras-constancia { grid-template-columns: repeat(2, 1fr); } }
+.cifras-constancia > div, .cifras-mini > div { display: grid; padding: 9px 11px; border-radius: 12px; background: color-mix(in srgb, var(--texto) 4%, transparent); }
+.cifras-constancia span, .cifras-mini span { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--suave); font-weight: 700; }
+.cifras-constancia b, .cifras-mini b { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.cifras-constancia small { font-size: 0.74rem; color: var(--suave); }
+.calendario-valor { margin: 4px 0 6px; font-size: 0.85rem; font-weight: 600; color: var(--suave); min-height: 1.2em; }
+.calendario-scroll { overflow-x: auto; scrollbar-width: thin; }
+.calendario .eje { font-size: 10px; fill: var(--suave); }
+.dia-cal { cursor: pointer; }
+.nivel-0 { fill: color-mix(in srgb, var(--texto) 7%, transparent); background: color-mix(in srgb, var(--texto) 7%, transparent); }
+.nivel-1 { fill: color-mix(in srgb, var(--forma-ctl) 30%, transparent); background: color-mix(in srgb, var(--forma-ctl) 30%, transparent); }
+.nivel-2 { fill: color-mix(in srgb, var(--forma-ctl) 55%, transparent); background: color-mix(in srgb, var(--forma-ctl) 55%, transparent); }
+.nivel-3 { fill: color-mix(in srgb, var(--forma-ctl) 80%, transparent); background: color-mix(in srgb, var(--forma-ctl) 80%, transparent); }
+.nivel-4 { fill: var(--forma-ctl); background: var(--forma-ctl); }
+.dia-cal.hoy { stroke: var(--texto); stroke-width: 1.5; }
+.dia-cal.elegido { stroke: var(--forma-atl); stroke-width: 2; }
+.leyenda-calendario { display: flex; align-items: center; gap: 4px; justify-content: flex-end; font-size: 0.74rem; color: var(--suave); margin-top: 6px; }
+.leyenda-calendario i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+.leyenda-calendario span:first-child { margin-right: 4px; } .leyenda-calendario span:last-child { margin-left: 4px; }
+.barra-reparto { display: flex; height: 14px; border-radius: 7px; overflow: hidden; gap: 2px; margin: 4px 0 8px; }
+.barra-reparto span { min-width: 3px; }
+.leyenda-reparto { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.85rem; color: var(--suave); margin-bottom: 4px; }
+.leyenda-reparto b { color: var(--texto); }
+.leyenda-reparto .sube { color: var(--tsb-pos); font-weight: 700; } .leyenda-reparto .baja { color: var(--tsb-neg); font-weight: 700; }
+.leyenda-series.estatica { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 0.8rem; color: var(--suave); }
+.leyenda-series.estatica span { display: inline-flex; align-items: center; gap: 6px; }
+.grafica .banda-riesgo { fill: color-mix(in srgb, var(--tsb-riesgo) 10%, transparent); }
+.zonas-css, .lista-grupos, .lista-estilos, .prep-tri, .ultimas-diario { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.zonas-css li { display: grid; grid-template-columns: 118px 92px 1fr 40px; align-items: center; gap: 10px; font-size: 0.88rem; }
+.zonas-css li:nth-child(1) .zona-barra span { background: var(--zona-1); } .zonas-css li:nth-child(2) .zona-barra span { background: var(--zona-2); }
+.zonas-css li:nth-child(3) .zona-barra span { background: var(--zona-3); } .zonas-css li:nth-child(4) .zona-barra span { background: var(--zona-4); }
+.zonas-css li:nth-child(5) .zona-barra span { background: var(--zona-5); }
+.zona-ritmo { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 0.84rem; }
+@media (max-width: 520px) { .zonas-css li { grid-template-columns: 1fr auto; } .zonas-css .zona-barra { grid-column: 1; } .zonas-css .zona-tiempo { grid-column: 2; } }
+.lista-estilos li { display: grid; grid-template-columns: auto 1fr auto 44px; gap: 10px; align-items: center; font-size: 0.9rem; }
+.lista-estilos i { width: 10px; height: 10px; border-radius: 3px; }
+.lista-estilos b { font-variant-numeric: tabular-nums; } .lista-estilos span { text-align: right; color: var(--suave); }
+.lista-grupos li { display: grid; grid-template-columns: 90px 1fr 34px; gap: 10px; align-items: center; font-size: 0.9rem; }
+.lista-grupos .zona-barra span { background: var(--dep-gimnasio); }
+.lista-grupos b { text-align: right; font-variant-numeric: tabular-nums; }
+.celda-spark { width: 80px; } .celda-spark .sparkline { width: 80px; height: 24px; }
+.tabla-records td small.sube, .tabla-records td small.baja { display: inline; margin-left: 6px; }
+.tabla-records small.sube { color: var(--tsb-pos); } .tabla-records small.baja { color: var(--tsb-neg); }
+.prep-tri li { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; }
+.prep-icono { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-size: 1.15rem; background: color-mix(in srgb, var(--serie) 16%, transparent); }
+.prep-fila { display: grid; grid-template-columns: 112px 1fr 64px 62px; gap: 8px; align-items: center; font-size: 0.84rem; }
+.prep-fila + .prep-fila { margin-top: 4px; }
+.prep-fila > span:first-child { color: var(--suave); }
+.prep-fila .zona-barra span { background: var(--serie); }
+.prep-fila b { text-align: right; font-variant-numeric: tabular-nums; } .prep-fila small { color: var(--suave); }
+@media (max-width: 520px) { .prep-fila { grid-template-columns: 1fr auto auto; } .prep-fila .zona-barra { grid-column: 1 / -1; grid-row: 2; height: 8px; } }
+.tarjeta-tri .tarjeta-cabecera h2 span { letter-spacing: -0.25em; }
+.form-diario { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.form-diario input[type="text"] { min-width: 0; padding: 9px 11px; border: 1px solid var(--linea); border-radius: 10px; background: var(--fondo); color: var(--texto); font: inherit; font-size: 0.9rem; }
+.campo-dolor { grid-column: 1 / -1; display: grid; grid-template-columns: auto 1fr 34px; gap: 12px; align-items: center; font-weight: 600; font-size: 0.9rem; }
+.campo-dolor input { width: 100%; accent-color: var(--tsb-riesgo); }
+.campo-dolor output { font-size: 1.3rem; font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; }
+.form-diario button { grid-column: 1 / -1; justify-self: start; }
+@media (max-width: 520px) { .form-diario { grid-template-columns: 1fr; } }
+.ultimas-diario { margin: 10px 0; gap: 0; }
+.ultimas-diario li { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--linea); font-size: 0.88rem; }
+.ultimas-diario li b { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; color: #fff; }
+.ultimas-diario small { display: block; color: var(--suave); }
+.dolor-bajo { background: var(--tsb-pos); } .dolor-medio { background: var(--tsb-neg); } .dolor-alto { background: var(--tsb-riesgo); }
+.boton-texto.confirmar { color: var(--tsb-riesgo); }
+.form-sesion { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-top: 8px; }
+.form-sesion input { min-width: 0; padding: 9px 11px; border: 1px solid var(--linea); border-radius: 10px; background: var(--fondo); color: var(--texto); font: inherit; font-size: 0.9rem; }
+@media (max-width: 560px) { .form-sesion { grid-template-columns: 1fr; } .form-sesion button { justify-self: start; } }
+.aviso-sesion { margin-bottom: 12px; }

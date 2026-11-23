@@ -36,7 +36,7 @@ const CLAVE_PREF = "mi-horario:entreno-panel";
 const pref = (() => { try { return JSON.parse(localStorage.getItem(CLAVE_PREF)) || {}; } catch { return {}; } })();
 const guardarPref = () => { try { localStorage.setItem(CLAVE_PREF, JSON.stringify(pref)); } catch {} };
 pref.rango ??= 90; pref.periodo ??= "semana"; pref.medida ??= "horas"; pref.ocultosTot ??= [];
-pref.rangoSalud ??= 90; pref.metricaSalud ??= null; pref.rangoNado ??= 365; pref.rangoDep ??= 365;
+pref.rangoSalud ??= 90; pref.metricaSalud ??= null; pref.rangoNado ??= 365; pref.rangoDep ??= 365; pref.deporteZonas ??= "todo";
 
 function chips(nombre, opciones, extra = "") {
   return `<div class="chips chips-mini ${extra}" role="group">${opciones.map(([v, t]) =>
@@ -113,6 +113,8 @@ export function pintarResumen(cont, { alCambiar } = {}) {
         `<button type="button" data-deporte="${d}" data-toggle-dep="${d}" aria-pressed="${!pref.ocultosTot.includes(d)}"><i class="muestra barras" style="--c:var(--dep-${d})"></i>${DEPORTES[d].nombre}</button>`).join("")}</div>`,
       { accion: chips("periodo", [["semana", "Semanas"], ["mes", "Meses"]]), icono: "📊" })}
 
+    ${tarjetaConstancia(lista)}
+
     ${tarjeta("Últimas actividades", `<ul class="ultimas">${ultimas.map((a) => `
       <li><a href="#entreno/${encodeURIComponent(a.id)}" data-deporte="${a.deporte}">
         <span class="actividad-icono" aria-hidden="true">${iconoDe(a)}</span>
@@ -121,6 +123,7 @@ export function pintarResumen(cont, { alCambiar } = {}) {
       </a></li>`).join("")}</ul>`, { accion: enlace("actividades", "Ver todas"), icono: "🕑" })}`;
 
   dibujarTotales(cont.querySelector('[data-grafica="totales"]'), lista, u);
+  dibujarCalendario(cont.querySelector('[data-grafica="calendario"]'), lista, u);
   cont.querySelectorAll("[data-toggle-dep]").forEach((b) => b.addEventListener("click", () => {
     const d = b.dataset.toggleDep;
     pref.ocultosTot = pref.ocultosTot.includes(d) ? pref.ocultosTot.filter((x) => x !== d) : [...pref.ocultosTot, d];
@@ -223,6 +226,13 @@ export function pintarForma(cont) {
       <p class="nota">Toca los nombres de debajo de la gráfica para enseñar u ocultar cada dato. La franja verde es la zona en la que mejoras.</p>`,
       { icono: "📈" })}
     ${tarjetaRiesgo(r)}
+    ${tarjeta("Intensidad: suave y fuerte", `
+      <div class="fila-chips">${chips("deporteZonas", [["todo", "Todo"], ["correr", "Carrera"], ["bici", "Bici"], ["nadar", "Natación"]])}</div>
+      <div class="reparto-intensidad" data-reparto></div>
+      <div class="hueco-grafica" data-grafica="zonas"></div>
+      <p class="nota">Tiempo en cada zona de pulso por semana. Los que más mejoran hacen un <b>80 %</b> suave (Z1–Z2) y un 20 % fuerte. Zonas con pulsaciones máximas de ${u.fcMax} (las mismas que tu Garmin).</p>`, { icono: "🫀" })}
+    ${tarjeta("Monotonía y estrés", `<div class="hueco-grafica" data-grafica="monotonia"></div>
+      <p class="nota">Monotonía = si cada día cargas lo mismo. Por encima de 2, entrenas siempre igual y sube el riesgo de sobrecarga o de enfermar: alterna días duros, suaves y de descanso. Estrés = carga de la semana × monotonía.</p>`, { icono: "🔁" })}
     ${tarjeta("Cómo se calcula", `
       <div class="explica-texto">
         <p>Cada entreno suma <b>carga</b> (100 = una hora a tope sostenible). La <b>forma física</b> es la media de tu carga de las últimas 6 semanas: sube despacio si entrenas con constancia. El <b>cansancio</b> es la media de la última semana: sube y baja rápido. La <b>frescura</b> es la diferencia.</p>
@@ -250,6 +260,8 @@ export function pintarForma(cont) {
   } else {
     cont.querySelector('[data-grafica="forma"]').innerHTML = `<p class="nota">Hacen falta al menos un par de días de entrenos.</p>`;
   }
+  dibujarZonas(cont, u);
+  dibujarMonotonia(cont.querySelector('[data-grafica="monotonia"]'), todos);
   escucharChips(cont, () => pintarForma(cont));
   if (!dSalud.length) salud.cargar().then((d) => { if (d.length && cont.isConnected) pintarForma(cont); });
 }
@@ -294,7 +306,8 @@ export function pintarSalud(cont) {
     const poco = recientes.length && recientes.filter((d) => !salud.fiable(d)).length > recientes.length / 2;
 
     if (!dias.length) {
-      cont.innerHTML = tarjeta("Salud", `<p class="nota">Aún no han llegado datos de salud de Garmin. Llegan solos cada media hora (el historial del último año tarda un rato en completarse).</p>`, { icono: "❤️" });
+      cont.innerHTML = tarjetaDiario() + tarjeta("Salud", `<p class="nota">Aún no han llegado datos de salud de Garmin. Llegan solos cada media hora (el historial del último año tarda un rato en completarse).</p>`, { icono: "❤️" });
+      activarDiario(cont, () => pintar(dias));
       return;
     }
     if (!conDatos.some((x) => x.m.id === pref.metricaSalud)) pref.metricaSalud = conDatos[0]?.m.id ?? null;
@@ -302,6 +315,7 @@ export function pintarSalud(cont) {
     const fmt = (m, v) => (v == null ? "—" : `${num(v, m.decimales || 0)}${m.unidad ? ` ${m.unidad}` : ""}`);
 
     cont.innerHTML = `
+      ${tarjetaDiario()}
       ${sinNoche || poco ? `<div class="aviso-salud"><b>⌚ Lleva el reloj también por la noche</b>
         <p>Ahora casi solo lo llevas para entrenar, así que Garmin no puede medir tu sueño, tu VFC ni tu Body Battery, y el pulso "en reposo" sale demasiado alto (por eso lo escondo en los días con pocas horas de reloj). Si duermes con él, aquí aparecerán solos.</p></div>` : ""}
       <div class="fila-chips">${chips("rangoSalud", [[30, "30 días"], [90, "3 meses"], [182, "6 meses"], [365, "1 año"]])}</div>
@@ -332,6 +346,7 @@ export function pintarSalud(cont) {
       cont.querySelector('[data-grafica="salud"]').replaceChildren(g);
     }
     cont.querySelectorAll("[data-metrica]").forEach((b) => b.addEventListener("click", () => { pref.metricaSalud = b.dataset.metrica; guardarPref(); pintar(dias); }));
+    activarDiario(cont, () => pintar(dias));
     escucharChips(cont, () => pintar(dias));
   };
   const cache = salud.enCache();
@@ -364,6 +379,7 @@ export function pintarNatacion(cont, { alCambiar } = {}) {
     <div class="fila-chips">${chips("rangoNado", [[90, "3 meses"], [182, "6 meses"], [365, "1 año"], [0, "Todo"]])}</div>
     ${tarjeta("Técnica y ritmo", `<div class="hueco-grafica" data-grafica="nado"></div>
       <p class="nota">Cada punto es una sesión; la línea gruesa es la tendencia (media de 5 sesiones). Arriba es mejor en las dos. Toca la leyenda para elegir qué ver.</p>`, { icono: "🏊", clase: "", })}
+    ${tarjetasNado(enRango, u)}
     ${records.length ? tarjeta("Mejores tiempos", `
       <div class="tabla-scroll"><table class="tabla-records" data-deporte="nadar">
         <thead><tr><th>Distancia</th><th>Mejor</th><th>Cuándo</th><th>Este año</th></tr></thead>
@@ -392,10 +408,6 @@ export function pintarNatacion(cont, { alCambiar } = {}) {
     cont.querySelector('[data-grafica="nado"]').replaceChildren(g);
   }
   escucharChips(cont, () => pintarNatacion(cont, { alCambiar }));
-  if (nados.some((a) => a.mejores === undefined)) {
-    cont.insertAdjacentHTML("afterbegin", `<p class="nota calculando">Calculando tus mejores tiempos…</p>`);
-    an.completarNado(() => alCambiar?.()).finally(() => cont.querySelector(".calculando")?.remove());
-  }
 }
 
 // =====================================================================
@@ -458,6 +470,7 @@ export function pintarDeportes(cont, { deporte, alCambiar } = {}) {
     return { d, acts, anio, horas: anio.reduce((s, a) => s + (a.duracion || 0), 0) / 3600, dist: anio.reduce((s, a) => s + (a.distancia || 0), 0) };
   }).filter((x) => x.acts.length).sort((a, b) => b.horas - a.horas || b.acts.length - a.acts.length);
   cont.innerHTML = `
+    ${tarjetaTriatlon(lista)}
     <p class="nota sin-margen">Últimos 12 meses. Toca un deporte para ver su evolución${lista.some((a) => a.deporte === "correr") ? ", tus récords y predicciones" : ""}.</p>
     <section class="rejilla-deportes">${deportes.map(({ d, acts, anio, horas: h, dist }) => {
       const meses = porMes(acts, 12, u).map((p) => p.horas);
@@ -510,6 +523,11 @@ function pintarDeporte(cont, d, { alCambiar } = {}) {
     ${tarjeta("Volumen por mes", `<div class="hueco-grafica" data-grafica="volumen"></div>`, { icono: "📊" })}
     ${conVel && cronol.filter((a) => a.velMedia).length >= 2 ? tarjeta(esRitmo ? "Ritmo y pulso" : "Velocidad y pulso", `<div class="hueco-grafica" data-grafica="ritmo"></div>
       <p class="nota">Cada punto es una sesión; la línea gruesa es la tendencia (media de 5). ${esRitmo ? "Más arriba = más rápido." : ""} Toca la leyenda para elegir qué ver.</p>`, { icono: "⏱️" }) : ""}
+    ${d === "correr" || d === "bici" ? tarjeta(d === "bici" && acts.some((a) => a.curvaPot) ? "Curva de potencia" : "Curva de ritmo", `<div class="hueco-grafica" data-grafica="curva"></div>
+      <p class="nota">Tu mejor ${d === "bici" && acts.some((a) => a.curvaPot) ? "potencia media" : d === "correr" ? "ritmo" : "velocidad media"} para cada duración, dentro de cualquier entreno: el periodo elegido contra todo lo anterior.</p>`, { icono: "📉" }) : ""}
+    ${conVel && cronol.filter((a) => a.ef).length >= 3 ? tarjeta("Eficiencia aeróbica", `<div class="hueco-grafica" data-grafica="ef"></div>
+      <p class="nota">Eficiencia = ${cronol.some((a) => a.efPot) ? "vatios" : "metros por minuto"} por cada latido: si sube, a igual pulso vas más ${d === "bici" ? "fuerte" : "rápido"} (mejora tu base). Desacople = cuánto se cae la eficiencia de la 1ª mitad a la 2ª en entrenos de más de 40 min: por debajo del 5 % tu base aguanta esa duración.</p>`, { icono: "🫁" }) : ""}
+    ${d === "gimnasio" ? tarjetasGimnasio(acts) : ""}
     ${tarjeta(`Últimas de ${info.nombre.toLowerCase()}`, `<ul class="ultimas">${todas.slice(0, 6).map((a) => `
       <li><a href="#entreno/${encodeURIComponent(a.id)}" data-deporte="${a.deporte}">
         <span class="actividad-icono" aria-hidden="true">${iconoDe(a)}</span>
@@ -551,11 +569,9 @@ function pintarDeporte(cont, d, { alCambiar } = {}) {
       ],
     }));
   }
+  dibujarCurva(cont.querySelector('[data-grafica="curva"]'), todas, desde, d);
+  dibujarEficiencia(cont.querySelector('[data-grafica="ef"]'), cronol, d);
   escucharChips(cont, () => pintarDeporte(cont, d, { alCambiar }));
-  if (d === "correr" && todas.some((a) => a.mejores === undefined)) {
-    cont.querySelector(".cabecera-deporte").insertAdjacentHTML("afterend", `<p class="nota calculando">Buscando tus mejores tiempos en ${todas.filter((a) => a.mejores === undefined).length} carreras… (solo la primera vez)</p>`);
-    an.completarCarrera(() => alCambiar?.()).finally(() => cont.querySelector(".calculando")?.remove());
-  }
 }
 
 // Récords y predicciones de carrera
@@ -598,4 +614,407 @@ function tarjetasCarrera(lista) {
         <tbody>${filasPred}</tbody>
       </table></div>
       <p class="nota">${pred ? `"Por tus marcas" usa la fórmula de Riegel con tus mejores 5 km, 10 km y media ${antiguo ? "de siempre (no has corrido en el último año, así que será optimista)" : "del último año"}${base ? `; ahora sale de tu ${an.NOMBRE_DISTANCIA[base.d]} del ${fecha(base.fecha)}` : ""}. ` : ""}${vo2 ? `"Por VO2max" usa las tablas de Jack Daniels con tu VO2max de Garmin (${num(vo2.vo2, 1)}, ${fechaCorta(vo2.fecha)}), como el reloj.` : ""} Para media y maratón hace falta haber entrenado tiradas largas: si no, tardarás más.</p>`, { icono: "🔮" }) : ""}`;
+}
+
+// =====================================================================
+// CONSTANCIA (Resumen): calendario de 12 meses tipo GitHub y rachas
+// =====================================================================
+function tarjetaConstancia(lista) {
+  const r = an.rachas(lista);
+  return tarjeta("Constancia", `
+    <div class="cifras-constancia">
+      <div><span>Racha actual</span><b>${r.actual} ${r.actual === 1 ? "día" : "días"}</b></div>
+      <div><span>Racha más larga</span><b>${r.larga} días</b></div>
+      <div><span>Semanas con 3+</span><b>${r.semanas} seguidas</b></div>
+      <div><span>Días entrenados</span><b>${r.diasAnio}</b><small>en 12 meses</small></div>
+    </div>
+    <p class="calendario-valor" aria-live="polite">Toca un día para verlo</p>
+    <div class="tabla-scroll calendario-scroll" data-grafica="calendario"></div>
+    <div class="leyenda-calendario"><span>Menos carga</span>${[0, 1, 2, 3, 4].map((n) => `<i class="nivel-${n}"></i>`).join("")}<span>Más</span></div>`,
+    { icono: "🗓️" });
+}
+
+function dibujarCalendario(hueco, lista, u) {
+  if (!hueco) return;
+  const porDia = new Map();
+  for (const a of lista) {
+    const k = an.claveDia(an.diaDe(a.inicio));
+    const x = porDia.get(k) || { carga: 0, n: 0, deportes: new Set() };
+    x.carga += an.cargaDe(a, u).tss; x.n++; x.deportes.add(a.deporte);
+    porDia.set(k, x);
+  }
+  const C = 13, G = 3, IZQ = 22, ARR = 16, SEM = 53;
+  const lunes = an.lunesDe(new Date());
+  const inicio = new Date(lunes); inicio.setDate(inicio.getDate() - 7 * (SEM - 1));
+  const hoy = an.diaDe(new Date());
+  const nivel = (c) => (!c ? 0 : c < 40 ? 1 : c < 80 ? 2 : c < 130 ? 3 : 4);
+  let h = "", mesAnt = -1;
+  for (let s = 0; s < SEM; s++) {
+    for (let d = 0; d < 7; d++) {
+      const f = new Date(inicio); f.setDate(f.getDate() + s * 7 + d);
+      if (f > hoy) continue;
+      const k = an.claveDia(f), x = porDia.get(k);
+      if (d === 0 && f.getMonth() !== mesAnt) {
+        mesAnt = f.getMonth();
+        if (s < SEM - 2) h += `<text class="eje" x="${IZQ + s * (C + G)}" y="10">${f.toLocaleDateString("es-ES", { month: "short" })}</text>`;
+      }
+      h += `<rect class="dia-cal nivel-${nivel(x?.carga)}${k === an.claveDia(hoy) ? " hoy" : ""}" data-dia="${k}" x="${IZQ + s * (C + G)}" y="${ARR + d * (C + G)}" width="${C}" height="${C}" rx="3"/>`;
+    }
+  }
+  ["L", "", "X", "", "V", "", "D"].forEach((t, d) => { if (t) h += `<text class="eje" x="0" y="${ARR + d * (C + G) + 10}">${t}</text>`; });
+  const ancho = IZQ + SEM * (C + G), alto = ARR + 7 * (C + G);
+  hueco.innerHTML = `<svg class="calendario" width="${ancho}" height="${alto}" viewBox="0 0 ${ancho} ${alto}" role="img" aria-label="Calendario de entrenos de los últimos 12 meses">${h}</svg>`;
+  hueco.scrollLeft = hueco.scrollWidth;
+  const valor = hueco.parentElement.querySelector(".calendario-valor");
+  const mostrar = (e) => {
+    const r = e.target.closest?.("[data-dia]");
+    if (!r) return;
+    hueco.querySelectorAll(".elegido").forEach((x) => x.classList.remove("elegido"));
+    r.classList.add("elegido");
+    const x = porDia.get(r.dataset.dia);
+    const f = new Date(r.dataset.dia + "T12:00").toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
+    valor.textContent = x ? `${f}: ${[...x.deportes].map((d) => DEPORTES[d]?.icono).join(" ")} ${x.n} ${x.n === 1 ? "entreno" : "entrenos"} · carga ${Math.round(x.carga)}` : `${f}: descanso`;
+  };
+  hueco.addEventListener("pointerover", mostrar);
+  hueco.addEventListener("click", mostrar);
+}
+
+// =====================================================================
+// INTENSIDAD (Forma): tiempo en zonas por semana y reparto 80/20
+// =====================================================================
+const COLOR_ZONA = (i) => `var(--zona-${i + 1})`;
+function dibujarZonas(cont, u) {
+  const hueco = cont.querySelector('[data-grafica="zonas"]');
+  if (!hueco) return;
+  const lista = almacen.listar().filter((a) => pref.deporteZonas === "todo" || a.deporte === pref.deporteZonas);
+  const semanas = an.zonasPorSemana(lista, 12, u.fcMax);
+  const ult4 = semanas.slice(-4).reduce((t, s) => t.map((x, i) => x + s.z[i]), [0, 0, 0, 0, 0]);
+  const total = ult4.reduce((s, x) => s + x, 0);
+  const reparto = cont.querySelector("[data-reparto]");
+  if (!total) {
+    reparto.innerHTML = "";
+    hueco.innerHTML = `<p class="nota">No hay pulso en estas semanas${an.faltanCalculos().length ? " (o todavía estoy calculando tus actividades antiguas)" : ""}.</p>`;
+    return;
+  }
+  const pct = (a, b) => Math.round(((ult4.slice(a, b).reduce((s, x) => s + x, 0)) / total) * 100);
+  const suave = pct(0, 2), medio = pct(2, 3), fuerte = 100 - suave - medio;
+  reparto.innerHTML = `
+    <div class="barra-reparto" role="img" aria-label="Últimas 4 semanas: ${suave} % suave, ${medio} % moderado, ${fuerte} % fuerte">
+      <span style="flex:${suave};background:var(--zona-2)"></span><span style="flex:${medio};background:var(--zona-3)"></span><span style="flex:${fuerte};background:var(--zona-5)"></span>
+    </div>
+    <div class="leyenda-reparto"><span><b>${suave} %</b> suave</span><span><b>${medio} %</b> moderado</span><span><b>${fuerte} %</b> fuerte</span><span class="${suave >= 75 ? "sube" : "baja"}">${suave >= 75 ? "✓ buen reparto" : "Te falta suave"}</span></div>
+    <p class="nota sin-margen">Últimas 4 semanas.</p>`;
+  barrasApiladas(hueco, {
+    periodos: semanas.map((s) => ({ etiqueta: fechaCorta(s.desde), titulo: `Semana del ${fechaCorta(s.desde)}`, valores: s.z.map((x) => x / 3600) })),
+    nombres: an.ZONAS_FC.map((z) => `${z.nombre} ${z.texto.toLowerCase()}`), colores: an.ZONAS_FC.map((_, i) => COLOR_ZONA(i)),
+    fmt: horas, unidadEje: " h", resumen: `Media ${horas(semanas.reduce((s, x) => s + x.z.reduce((a, b) => a + b, 0), 0) / semanas.length / 3600)} con pulso por semana`,
+  });
+}
+
+// Barras apiladas sencillas (zonas por semana)
+function barrasApiladas(hueco, { periodos, nombres, colores, fmt, unidadEje = "", resumen }) {
+  const M = { izq: 40, der: 8, arr: 12, aba: 26 }, alto = 180;
+  const figura = document.createElement("figure");
+  figura.className = "grafica grafica-series";
+  figura.innerHTML = `<figcaption><b class="grafica-valor">${resumen}</b></figcaption>`;
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("role", "img"); svg.setAttribute("aria-label", resumen);
+  figura.append(svg);
+  figura.insertAdjacentHTML("beforeend", `<div class="leyenda-series estatica">${nombres.map((n, i) => `<span><i class="muestra barras" style="--c:${colores[i]}"></i>${n}</span>`).join("")}</div>`);
+  hueco.replaceChildren(figura);
+  const valor = figura.querySelector(".grafica-valor");
+  const suma = (p) => p.valores.reduce((s, x) => s + x, 0);
+  const yMax = Math.max(0.1, ...periodos.map(suma)) * 1.1;
+  let ancho = 0;
+  const dibujar = () => {
+    ancho = figura.clientWidth || 600;
+    svg.setAttribute("viewBox", `0 0 ${ancho} ${alto}`); svg.setAttribute("width", ancho); svg.setAttribute("height", alto);
+    const zona = alto - M.arr - M.aba, w = (ancho - M.izq - M.der) / periodos.length;
+    let h = "";
+    for (const v of marcas(0, yMax, 4)) {
+      const y = M.arr + (1 - v / yMax) * zona;
+      h += `<line class="rejilla" x1="${M.izq}" x2="${ancho - M.der}" y1="${y}" y2="${y}"/><text class="eje" x="${M.izq - 6}" y="${y + 4}" text-anchor="end">${v}${unidadEje}</text>`;
+    }
+    const salto = Math.ceil(periodos.length / Math.max(2, Math.floor(ancho / 52)));
+    periodos.forEach((p, i) => {
+      let base = M.arr + zona;
+      const x = M.izq + i * w + w * 0.16, bw = w * 0.68;
+      p.valores.forEach((v, k) => {
+        if (!v) return;
+        const hh = (v / yMax) * zona; base -= hh;
+        h += `<rect class="barra" data-i="${i}" x="${x}" y="${base}" width="${bw}" height="${Math.max(0, hh - 1)}" rx="2" style="fill:${colores[k]}"/>`;
+      });
+      if ((periodos.length - 1 - i) % salto === 0) h += `<text class="eje" x="${x + bw / 2}" y="${alto - 7}" text-anchor="middle">${p.etiqueta}</text>`;
+    });
+    svg.innerHTML = h;
+  };
+  const mostrar = (e) => {
+    const r = svg.getBoundingClientRect();
+    const i = Math.floor(((((e.clientX - r.left) / r.width) * ancho - M.izq) / (ancho - M.izq - M.der)) * periodos.length);
+    if (i < 0 || i >= periodos.length) return;
+    svg.querySelectorAll(".barra").forEach((b) => b.classList.toggle("tenue", +b.dataset.i !== i));
+    const p = periodos[i], t = suma(p);
+    valor.textContent = `${p.titulo}: ${fmt(t)}${t ? ` (${p.valores.map((v, k) => (v ? `${nombres[k].split(" ")[0]} ${Math.round((v / t) * 100)} %` : null)).filter(Boolean).join(" · ")})` : ""}`;
+  };
+  svg.addEventListener("pointermove", mostrar); svg.addEventListener("pointerdown", mostrar);
+  svg.addEventListener("pointerleave", () => { svg.querySelectorAll(".barra").forEach((b) => b.classList.remove("tenue")); valor.textContent = resumen; });
+  new ResizeObserver(() => { if (figura.clientWidth && figura.clientWidth !== ancho) dibujar(); }).observe(figura);
+}
+
+// =====================================================================
+// MONOTONÍA (Forma)
+// =====================================================================
+function dibujarMonotonia(hueco, dias) {
+  if (!hueco || dias.length < 14) { if (hueco) hueco.innerHTML = `<p class="nota">Hacen falta un par de semanas de entrenos.</p>`; return; }
+  const { hoy, porSemana } = an.monotonia(dias, 16);
+  hueco.replaceChildren(graficaSeries({
+    id: "monotonia", xs: porSemana.map((s) => s.desde.getTime()), alto: 200, minIzq: 0,
+    resumen: `Últimos 7 días: monotonía ${num(hoy.monotonia, 1)} · estrés ${num(hoy.estres)}`,
+    bandas: [{ desde: 2, hasta: 4, clase: "banda-riesgo" }],
+    series: [
+      { id: "mono", nombre: "Monotonía", tipo: "linea", grosor: 2.5, color: "var(--forma-atl)", valores: porSemana.map((s) => s.monotonia), formato: (v) => num(v, 1), formatoEje: (v) => num(v, 1) },
+      { id: "estres", nombre: "Estrés", tipo: "barras", eje: "der", color: "var(--carga-dia)", valores: porSemana.map((s) => s.estres || null), formato: (v) => num(v) },
+      { id: "carga", nombre: "Carga semanal", tipo: "linea", eje: "der", discontinua: true, color: "var(--forma-ctl)", valores: porSemana.map((s) => s.carga || null), formato: (v) => num(v), ocultaAlEmpezar: true },
+    ],
+  }));
+}
+
+// =====================================================================
+// NATACIÓN: zonas de ritmo con tu CSS, estilos y series
+// =====================================================================
+const NOMBRE_ESTILO = { freestyle: "Libre", backstroke: "Espalda", breaststroke: "Braza", butterfly: "Mariposa", drill: "Técnica", mixed: "Mixto", im: "Estilos" };
+const COLOR_ESTILO = { freestyle: "var(--estilo-1)", breaststroke: "var(--estilo-2)", backstroke: "var(--estilo-3)", butterfly: "var(--estilo-4)", drill: "var(--estilo-5)" };
+function tarjetasNado(acts, u) {
+  let html = "";
+  if (u.css) {
+    const zonas = an.zonasCss(u.css);
+    const seg = zonas.map(() => 0);
+    for (const a of acts) for (const [r, s] of Object.entries(a.ritmoHist || {})) {
+      const i = zonas.findIndex((z) => Number(r) + 1 >= z.desde && Number(r) + 1 < z.hasta);
+      if (i >= 0) seg[i] += s;
+    }
+    const total = seg.reduce((s, x) => s + x, 0);
+    html += tarjeta("Tus zonas de ritmo", `
+      <ul class="zonas-css">${zonas.map((z, i) => `<li>
+        <span class="zona-nombre"><b>${z.nombre}</b><small>${z.texto}</small></span>
+        <span class="zona-ritmo">${z.hasta === Infinity ? `más de ${reloj(z.desde)}` : z.desde === 0 ? `menos de ${reloj(z.hasta)}` : `${reloj(z.desde)}–${reloj(z.hasta)}`}</span>
+        ${total ? `<span class="zona-barra"><span style="width:${(seg[i] / Math.max(...seg)) * 100}%" data-zona="${i + 1}"></span></span><span class="zona-tiempo">${Math.round((seg[i] / total) * 100)} %</span>` : ""}
+      </li>`).join("")}</ul>
+      <p class="nota">Ritmos por 100 m calculados con tu CSS (${reloj(u.css)}${u.cssEstimada ? ", estimada" : ""}).${total ? " El % es el tiempo que has nadado en cada zona en el periodo, largo a largo." : ""}</p>`, { icono: "🎯" });
+  }
+  const estilos = {};
+  for (const a of acts) for (const [e, m] of Object.entries(a.estilos || {})) estilos[e] = (estilos[e] || 0) + m;
+  const tot = Object.values(estilos).reduce((s, x) => s + x, 0);
+  const series = acts.filter((a) => a.seriesNado);
+  if (tot) {
+    const orden = Object.entries(estilos).sort((a, b) => b[1] - a[1]);
+    html += tarjeta("Estilos y series", `
+      <div class="barra-reparto">${orden.map(([e, m]) => `<span style="flex:${m};background:${COLOR_ESTILO[e] || "var(--dep-otro)"}"></span>`).join("")}</div>
+      <ul class="lista-estilos">${orden.map(([e, m]) => `<li><i style="background:${COLOR_ESTILO[e] || "var(--dep-otro)"}"></i>${NOMBRE_ESTILO[e] || e}<b>${num(m / 1000, 1)} km</b><span>${Math.round((m / tot) * 100)} %</span></li>`).join("")}</ul>
+      ${series.length ? `<div class="cifras-mini">
+        <div><span>Series por sesión</span><b>${num(series.reduce((s, a) => s + a.seriesNado.n, 0) / series.length, 1)}</b></div>
+        <div><span>Metros por serie</span><b>${num(series.reduce((s, a) => s + a.seriesNado.metros, 0) / series.length)} m</b></div>
+      </div>` : ""}
+      <p class="nota">Metros de cada estilo en el periodo. Las series son los bloques entre descansos.</p>`, { icono: "🏊" });
+  }
+  return html;
+}
+
+// =====================================================================
+// CURVA DE RITMO / POTENCIA y EFICIENCIA (Carrera, Bici)
+// =====================================================================
+const ETIQ_DUR = { 60: "1 min", 180: "3 min", 300: "5 min", 600: "10 min", 1200: "20 min", 1800: "30 min", 3600: "1 h", 5400: "1 h 30", 7200: "2 h" };
+function dibujarCurva(hueco, todas, desde, d) {
+  if (!hueco) return;
+  const pot = d === "bici" && todas.some((a) => a.curvaPot);
+  const campo = pot ? "curvaPot" : "curva";
+  const corte = desde || Date.now() - 365 * DIA;
+  const recientes = todas.filter((a) => new Date(a.inicio).getTime() >= corte), antes = todas.filter((a) => new Date(a.inicio).getTime() < corte);
+  const mejor = (acts) => an.DURACIONES_CURVA.map((t) => { const v = acts.map((a) => a[campo]?.[t]).filter(Boolean); return v.length ? Math.max(...v) : null; });
+  const conv = (v) => (v == null ? null : pot ? v : d === "correr" ? 1000 / v : v * 3.6);
+  const a = mejor(recientes).map(conv), b = mejor(antes).map(conv);
+  const usadas = an.DURACIONES_CURVA.map((t, i) => (a[i] != null || b[i] != null ? i : -1)).filter((i) => i >= 0);
+  if (usadas.length < 2) { hueco.innerHTML = `<p class="nota">Aún no hay bastantes datos${an.faltanCalculos().length ? " (estoy calculando tus actividades antiguas)" : ""}.</p>`; return; }
+  const fmt = (v) => (v == null ? "—" : pot ? `${Math.round(v)} W` : d === "correr" ? `${reloj(v)} /km` : `${num(v, 1)} km/h`);
+  const nombreA = desde ? "Periodo elegido" : "Últimos 12 meses", nombreB = desde ? "Antes" : "Antes de eso";
+  const series = [{ nombre: nombreA, color: `var(--dep-${d})`, v: a }, { nombre: nombreB, color: "var(--suave)", v: b, discontinua: true }].filter((s) => s.v.some((x) => x != null));
+  const vals = series.flatMap((s) => usadas.map((i) => s.v[i])).filter((x) => x != null);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = (hi - lo) * 0.1 || 1; lo -= pad; hi += pad;
+  const inv = d === "correr"; // en carrera, ritmo más bajo = mejor: arriba
+  const M = { izq: 46, der: 12, arr: 12, aba: 26 }, alto = 200;
+  const figura = document.createElement("figure");
+  figura.className = "grafica grafica-series";
+  const resumen = `${ETIQ_DUR[an.DURACIONES_CURVA[usadas.at(-1)]]}: ${fmt(a[usadas.at(-1)])}`;
+  figura.innerHTML = `<figcaption><b class="grafica-valor">${resumen}</b></figcaption>`;
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("role", "img"); svg.setAttribute("aria-label", `Curva: ${resumen}`);
+  figura.append(svg);
+  figura.insertAdjacentHTML("beforeend", `<div class="leyenda-series estatica">${series.map((s) => `<span><i class="muestra linea${s.discontinua ? " discontinua" : ""}" style="--c:${s.color}"></i>${s.nombre}</span>`).join("")}</div>`);
+  hueco.replaceChildren(figura);
+  const valor = figura.querySelector(".grafica-valor");
+  let ancho = 0;
+  const xDe = (k) => M.izq + (k / (usadas.length - 1)) * (ancho - M.izq - M.der);
+  const yDe = (v) => M.arr + (inv ? (v - lo) / (hi - lo) : 1 - (v - lo) / (hi - lo)) * (alto - M.arr - M.aba);
+  const dibujar = () => {
+    ancho = figura.clientWidth || 600;
+    svg.setAttribute("viewBox", `0 0 ${ancho} ${alto}`); svg.setAttribute("width", ancho); svg.setAttribute("height", alto);
+    let h = "";
+    for (const v of marcas(lo, hi, 4)) h += `<line class="rejilla" x1="${M.izq}" x2="${ancho - M.der}" y1="${yDe(v)}" y2="${yDe(v)}"/><text class="eje" x="${M.izq - 6}" y="${yDe(v) + 4}" text-anchor="end">${pot ? Math.round(v) : d === "correr" ? reloj(v) : Math.round(v)}</text>`;
+    const salto = Math.ceil(usadas.length / Math.max(2, Math.floor(ancho / 56)));
+    usadas.forEach((i, k) => { if (k % salto === 0 || k === usadas.length - 1) h += `<text class="eje" x="${xDe(k)}" y="${alto - 7}" text-anchor="${k === 0 ? "start" : k === usadas.length - 1 ? "end" : "middle"}">${ETIQ_DUR[an.DURACIONES_CURVA[i]]}</text>`; });
+    for (const s of [...series].reverse()) {
+      let p = "", dentro = false;
+      usadas.forEach((i, k) => { const v = s.v[i]; if (v == null) { dentro = false; return; } p += `${dentro ? "L" : "M"}${xDe(k).toFixed(1)},${yDe(v).toFixed(1)}`; dentro = true; });
+      h += `<path class="grafica-linea${s.discontinua ? " discontinua" : ""}" style="stroke:${s.color};stroke-width:2.5" d="${p}"/>`;
+      usadas.forEach((i, k) => { if (s.v[i] != null) h += `<circle class="punto-serie" cx="${xDe(k)}" cy="${yDe(s.v[i])}" r="3" style="fill:${s.color}"/>`; });
+    }
+    h += `<g class="cursor" display="none"><line y1="${M.arr}" y2="${alto - M.aba}"/></g>`;
+    svg.innerHTML = h;
+  };
+  const mover = (e) => {
+    const r = svg.getBoundingClientRect();
+    const k = Math.max(0, Math.min(usadas.length - 1, Math.round(((((e.clientX - r.left) / r.width) * ancho - M.izq) / (ancho - M.izq - M.der)) * (usadas.length - 1))));
+    const c = svg.querySelector(".cursor"); c.removeAttribute("display");
+    c.querySelector("line").setAttribute("x1", xDe(k)); c.querySelector("line").setAttribute("x2", xDe(k));
+    const i = usadas[k];
+    valor.textContent = `${ETIQ_DUR[an.DURACIONES_CURVA[i]]}: ${series.map((s) => `${s.nombre.toLowerCase()} ${fmt(s.v[i])}`).join(" · ")}`;
+  };
+  svg.addEventListener("pointermove", mover); svg.addEventListener("pointerdown", mover);
+  svg.addEventListener("pointerleave", () => { svg.querySelector(".cursor")?.setAttribute("display", "none"); valor.textContent = resumen; });
+  new ResizeObserver(() => { if (figura.clientWidth && figura.clientWidth !== ancho) dibujar(); }).observe(figura);
+}
+
+function dibujarEficiencia(hueco, cronol, d) {
+  if (!hueco) return;
+  const ses = cronol.filter((a) => a.ef);
+  const tend = (ys) => ys.map((_, i) => { const v = ys.slice(Math.max(0, i - 4), i + 1).filter((x) => x != null); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; });
+  const ef = ses.map((a) => a.ef), des = ses.map((a) => a.desacople ?? null);
+  const conDes = des.filter((x) => x != null);
+  hueco.replaceChildren(graficaSeries({
+    id: `ef-${d}`, xs: ses.map((a) => new Date(a.inicio).getTime()), alto: 210,
+    resumen: `Última ${num(ef.at(-1), 2)}${conDes.length ? ` · desacople medio ${num(conDes.reduce((s, x) => s + x, 0) / conDes.length, 1)} %` : ""}`,
+    series: [
+      { id: "ef", nombre: "Eficiencia", tipo: "puntos", color: `var(--dep-${d})`, valores: ef, formato: (v) => num(v, 2), formatoEje: (v) => num(v, 2) },
+      { id: "efT", nombre: "Tendencia", tipo: "linea", grosor: 2.5, color: `var(--dep-${d})`, valores: tend(ef), formato: (v) => num(v, 2), formatoEje: (v) => num(v, 2), unir: true },
+      { id: "des", nombre: "Desacople %", tipo: "puntos", eje: "der", color: "var(--forma-atl)", valores: des, formato: (v) => `${num(v, 1)} %`, formatoEje: (v) => `${Math.round(v)}%`, ocultaAlEmpezar: true },
+    ],
+  }));
+}
+
+// =====================================================================
+// GIMNASIO: grupos musculares y progresión de pesos
+// =====================================================================
+function tarjetasGimnasio(acts) {
+  const grupos = {}, porEj = {};
+  let sinNombre = 0, total = 0;
+  for (const a of [...acts].reverse()) for (const [ej, x] of Object.entries(a.gym || {})) {
+    total += x.series;
+    if (ej === "Ejercicio") { sinNombre += x.series; continue; }
+    const g = an.grupoDe(ej);
+    grupos[g] = (grupos[g] || 0) + x.series;
+    if (x.kgMax) (porEj[ej] ??= []).push({ fecha: a.inicio, kg: x.kgMax, id: a.id, series: x.series, reps: x.reps });
+  }
+  if (!total) return tarjeta("Ejercicios", `<p class="nota">${an.faltanCalculos().length ? "Estoy calculando tus sesiones antiguas…" : "Tus sesiones no tienen series apuntadas. En el reloj, usa la actividad Fuerza y marca cada serie: así verás aquí tus grupos musculares y cómo suben tus pesos."}</p>`, { icono: "💪" });
+  const maxG = Math.max(1, ...Object.values(grupos));
+  const ejs = Object.entries(porEj).sort((a, b) => b[1].length - a[1].length);
+  return `
+    ${tarjeta("Grupos musculares", Object.keys(grupos).length ? `<ul class="lista-grupos">${Object.entries(grupos).sort((a, b) => b[1] - a[1]).map(([g, n]) => `
+      <li><span>${g}</span><span class="zona-barra"><span style="width:${(n / maxG) * 100}%"></span></span><b>${n}</b></li>`).join("")}</ul>
+      <p class="nota">Series de cada grupo en el periodo.${sinNombre ? ` Otras ${sinNombre} series no tienen el ejercicio apuntado (${Math.round((sinNombre / total) * 100)} %): si lo eliges en el reloj al acabar cada serie, saldrán aquí.` : ""}</p>`
+      : `<p class="nota">Ninguna serie del periodo tiene el ejercicio apuntado. En el reloj, al acabar cada serie puedes elegir qué ejercicio era.</p>`, { icono: "💪" })}
+    ${ejs.length ? tarjeta("Progresión de pesos", `<div class="tabla-scroll"><table class="tabla-records" data-deporte="gimnasio">
+      <thead><tr><th>Ejercicio</th><th>Primera</th><th>Última</th><th>Mejor</th><th></th></tr></thead>
+      <tbody>${ejs.map(([ej, xs]) => { const best = Math.max(...xs.map((x) => x.kg)); return `<tr>
+        <td><b>${escapar(ej)}</b><small>${xs.length} ${xs.length === 1 ? "sesión" : "sesiones"}</small></td>
+        <td>${num(xs[0].kg, 1)} kg</td>
+        <td><a href="#entreno/${encodeURIComponent(xs.at(-1).id)}">${num(xs.at(-1).kg, 1)} kg</a>${xs.length > 1 ? flecha(xs.at(-1).kg - xs[0].kg, " kg", 1) : ""}</td>
+        <td>${num(best, 1)} kg</td>
+        <td class="celda-spark">${sparkline(xs.map((x) => x.kg), "var(--dep-gimnasio)")}</td></tr>`; }).join("")}</tbody>
+    </table></div><p class="nota">El peso más alto de cada sesión, de la primera a la última del periodo.</p>`, { icono: "📈" }) : ""}`;
+}
+
+// =====================================================================
+// TRIATLÓN (Deportes): ¿cuánto te falta para tu distancia?
+// =====================================================================
+function tarjetaTriatlon(lista) {
+  const o = almacen.ajustes().objetivo;
+  const tipo = o && an.PLAN_TRI[o.tipo] ? o.tipo : "medio";
+  const { plan, deportes } = an.preparacionTri(lista, tipo);
+  const barra = (v, obj) => `<span class="zona-barra"><span style="width:${Math.min(100, (v / obj) * 100)}%"></span></span>`;
+  const dist = (d, m) => (d === "nadar" ? `${num(m)} m` : `${num(m / 1000, 1)} km`);
+  return tarjeta(`Preparación: ${plan.nombre}`, `
+    <ul class="prep-tri">${deportes.map((x) => `<li data-deporte="${x.d}">
+      <span class="prep-icono" aria-hidden="true">${DEPORTES[x.d].icono}</span>
+      <div>
+        <div class="prep-fila"><span>Horas por semana</span>${barra(x.horas, x.objetivoHoras)}<b>${horas(x.horas)}</b><small>de ${horas(x.objetivoHoras)}</small></div>
+        <div class="prep-fila"><span>Sesión más larga</span>${barra(x.largo, x.objetivoLargo)}<b>${x.largo ? dist(x.d, x.largo) : "—"}</b><small>de ${dist(x.d, x.objetivoLargo)}</small></div>
+      </div></li>`).join("")}</ul>
+    <p class="nota sin-margen">Horas: media de las últimas 4 semanas frente a lo típico en la fase de construcción. Sesión más larga: de las últimas 6 semanas frente a la distancia de la prueba (en las semanas finales conviene acercarse). ${o && an.PLAN_TRI[o.tipo] ? "Según tu objetivo." : "Pon un triatlón como objetivo en el Resumen para cambiar la distancia."}</p>`,
+    { icono: "🏊🚴🏃", clase: "tarjeta-tri" });
+}
+
+// =====================================================================
+// DIARIO DE LESIÓN (Salud)
+// =====================================================================
+function tarjetaDiario() {
+  const diario = (almacen.ajustes().diario || []).slice().sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const hoy = an.claveDia(new Date());
+  const deHoy = diario.find((x) => x.fecha === hoy);
+  const zonas = [...new Set(diario.map((x) => x.zona).filter(Boolean))];
+  return tarjeta("Diario de lesión", `
+    <form class="form-diario" data-form="diario">
+      <label class="campo-dolor"><span>Dolor hoy</span>
+        <input name="dolor" type="range" min="0" max="10" step="1" value="${deHoy?.dolor ?? 0}" aria-describedby="dolor-valor">
+        <output id="dolor-valor">${deHoy?.dolor ?? 0}</output>
+      </label>
+      <input name="zona" type="text" maxlength="40" list="zonas-dolor" placeholder="Dónde (p. ej. rodilla dcha.)" value="${escapar(deHoy?.zona || zonas.at(-1) || "")}">
+      <datalist id="zonas-dolor">${zonas.map((z) => `<option value="${escapar(z)}">`).join("")}</datalist>
+      <input name="nota" type="text" maxlength="140" placeholder="Nota (opcional)" value="${escapar(deHoy?.nota || "")}">
+      <button class="boton-principal">${deHoy ? "Actualizar" : "Apuntar"}</button>
+    </form>
+    ${diario.length ? `<div class="hueco-grafica" data-grafica="diario"></div>
+    <ul class="ultimas-diario">${diario.slice(-4).reverse().map((x) => `<li><b class="dolor-${x.dolor >= 6 ? "alto" : x.dolor >= 3 ? "medio" : "bajo"}">${x.dolor}</b><span>${new Date(x.fecha + "T12:00").toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" })}${x.zona ? ` · ${escapar(x.zona)}` : ""}${x.nota ? `<small>${escapar(x.nota)}</small>` : ""}</span><button type="button" class="boton-texto" data-borrar-diario="${x.fecha}">Borrar</button></li>`).join("")}</ul>` : ""}
+    <p class="nota sin-margen">0 = nada, 10 = no puedes ni andar. Apúntalo cada día que tengas molestias (mejor al día siguiente de correr) y verás si el dolor sube cuando subes los kilómetros. Si pasa de 3 o va a más, para y consúltalo.</p>`,
+    { icono: "🩹", clase: "tarjeta-diario" });
+}
+
+function activarDiario(cont, repintar) {
+  const form = cont.querySelector('[data-form="diario"]');
+  if (!form) return;
+  const rango = form.querySelector('[name="dolor"]');
+  rango.addEventListener("input", () => (form.querySelector("output").textContent = rango.value));
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const d = new FormData(form), hoy = an.claveDia(new Date());
+    const diario = (almacen.ajustes().diario || []).filter((x) => x.fecha !== hoy);
+    diario.push({ fecha: hoy, dolor: Number(d.get("dolor")), zona: String(d.get("zona") || "").trim(), nota: String(d.get("nota") || "").trim() });
+    almacen.guardarAjustes({ diario });
+    repintar();
+  });
+  cont.querySelectorAll("[data-borrar-diario]").forEach((b) => b.addEventListener("click", () => {
+    if (!b.classList.contains("confirmar")) { b.classList.add("confirmar"); b.textContent = "¿Seguro?"; return; }
+    almacen.guardarAjustes({ diario: (almacen.ajustes().diario || []).filter((x) => x.fecha !== b.dataset.borrarDiario) });
+    repintar();
+  }));
+  const hueco = cont.querySelector('[data-grafica="diario"]');
+  if (!hueco) return;
+  const diario = almacen.ajustes().diario || [];
+  const primero = diario.reduce((m, x) => (x.fecha < m ? x.fecha : m), an.claveDia(new Date()));
+  const hasta = an.diaDe(new Date());
+  const desde = new Date(Math.max(new Date(primero + "T00:00").getTime() - 7 * DIA, hasta.getTime() - 120 * DIA));
+  const porFecha = new Map(diario.map((x) => [x.fecha, x.dolor]));
+  const km = new Map();
+  for (const a of almacen.listar()) if (a.deporte === "correr") { const k = an.claveDia(an.diaDe(a.inicio)); km.set(k, (km.get(k) || 0) + (a.distancia || 0) / 1000); }
+  const xs = [], dol = [], kms = [];
+  for (let t = new Date(desde); t <= hasta; t.setDate(t.getDate() + 1)) { const k = an.claveDia(t); xs.push(t.getTime()); dol.push(porFecha.get(k) ?? null); kms.push(km.get(k) || null); }
+  hueco.replaceChildren(graficaSeries({
+    id: "diario", xs, alto: 180, minIzq: 0,
+    resumen: `Último dolor ${diario.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)).at(-1).dolor} de 10`,
+    series: [
+      { id: "dolor", nombre: "Dolor", tipo: "linea", grosor: 2.5, color: "var(--tsb-riesgo)", valores: dol, unir: true, formato: (v) => `${v}/10` },
+      { id: "dolorP", nombre: "Cada día", tipo: "puntos", color: "var(--tsb-riesgo)", valores: dol, formato: (v) => `${v}/10` },
+      { id: "km", nombre: "Km corriendo", tipo: "barras", eje: "der", color: "var(--dep-correr)", valores: kms, formato: (v) => `${num(v, 1)} km` },
+    ],
+  }));
 }

@@ -116,6 +116,8 @@ function pintarLista() {
     </div>`;
   // Que el apartado elegido se vea en la barra (en el móvil puede quedar fuera)
   caja.querySelector('.apartados [aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "center" });
+  calcularAntiguas();
+  avisoSinSesion();
   const panel = caja.querySelector(".panel-entreno");
   if (!panel) return;
   const repintar = () => { if (enApartado()) pintarLista(); };
@@ -123,6 +125,40 @@ function pintarLista() {
   else if (apartado === "salud") pintarSalud(panel);
   else if (apartado === "deportes") pintarDeportes(panel, { deporte: deporteSel, alCambiar: repintar });
   else pintarResumen(panel, { alCambiar: repintar });
+}
+
+// Si no has iniciado sesión (p. ej. tras reinstalar la app), lo decimos claro
+async function avisoSinSesion() {
+  if (!window.nube || !navigator.onLine || (await garmin.haySesion())) return;
+  if (!enApartado() || caja.querySelector(".aviso-sesion")) return;
+  caja.querySelector(".entreno-cuerpo")?.insertAdjacentHTML("afterbegin", `
+    <section class="aviso-salud aviso-sesion"><b>🔑 Inicia sesión para que lleguen tus entrenos</b>
+      <p>Tu Garmin sigue conectado y guardando todo en tu cuenta, pero este dispositivo no tiene la sesión abierta (pasa al borrar y volver a añadir la app).</p>
+      <form class="form-entreno form-sesion" data-form="sesion">
+        <input name="email" type="email" autocomplete="username" placeholder="tu@email.com" required>
+        <input name="clave" type="password" autocomplete="current-password" placeholder="Tu contraseña" required>
+        <button class="boton-principal">Iniciar sesión</button>
+      </form></section>`);
+}
+
+// Las actividades guardadas antes de añadir cálculos nuevos (zonas,
+// eficiencia, curvas...) se recalculan una vez leyendo su detalle.
+let calculando = false;
+function calcularAntiguas() {
+  const n = analisis.faltanCalculos().length;
+  const nota = () => caja.querySelector(".nota-calculando");
+  const ponerNota = (texto) => {
+    if (!enApartado()) return;
+    if (!nota()) caja.querySelector(".entreno-cuerpo")?.insertAdjacentHTML("afterbegin", `<p class="nota nota-calculando" role="status"></p>`);
+    if (nota()) nota().textContent = texto;
+  };
+  if (!n) return;
+  ponerNota(`Analizando tus ${n} actividades para las estadísticas nuevas… (solo esta vez)`);
+  if (calculando) return;
+  calculando = true;
+  analisis.completarCalculos((hechas, total) => ponerNota(`Analizando tus actividades… ${hechas} de ${total}`))
+    .then((hechas) => { calculando = false; nota()?.remove(); if (hechas && enApartado()) pintarLista(); })
+    .catch(() => { calculando = false; nota()?.remove(); });
 }
 
 function listaPorMes(lista) {
@@ -359,7 +395,22 @@ const haceCuanto = (iso) => {
   return new Date(iso).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
 };
 
+// Sin sesión de tu cuenta, la app no puede hablar con tu Garmin (aunque la
+// conexión sigue guardada en el servidor y sigue trayendo tus actividades).
+// Pasa, por ejemplo, al borrar y volver a añadir la app en el iPhone.
+const formSesion = (error = "") => `
+  <h3>⌚ Garmin</h3>
+  <p class="nota"><b>Tu Garmin sigue conectado</b>, pero en este dispositivo tienes que iniciar sesión en tu cuenta para ver lo que trae. Pasa al borrar y volver a añadir la app.</p>
+  <form class="form-entreno form-sesion" data-form="sesion">
+    <input name="email" type="email" autocomplete="username" placeholder="tu@email.com" required>
+    <input name="clave" type="password" autocomplete="current-password" placeholder="Tu contraseña" required>
+    <button class="boton-principal">Iniciar sesión</button>
+  </form>
+  ${error ? `<p class="form-error">${escapar(error)}</p>` : ""}
+  <p class="nota">El iPhone te ofrece rellenarla con la contraseña guardada (llavero).</p>`;
+
 async function pintarGarmin(zona, estado = null, error = "") {
+  if (!estado && window.nube && navigator.onLine && !(await garmin.haySesion())) { zona.innerHTML = formSesion(error); return; }
   if (!estado) {
     try { estado = await garmin.funcion("estado"); }
     catch (e) { estado = { conectada: false }; error = e.message; }
@@ -400,6 +451,27 @@ async function pintarGarmin(zona, estado = null, error = "") {
 }
 
 document.addEventListener("submit", async (e) => {
+  const sesionForm = e.target.closest?.('[data-form="sesion"]');
+  if (sesionForm) {
+    e.preventDefault();
+    const zona = sesionForm.closest(".garmin-ajustes") || sesionForm.closest(".aviso-sesion");
+    sesionForm.querySelector("button").disabled = true;
+    try {
+      const sb = await window.nube.supabase();
+      const { error } = await sb.auth.signInWithPassword({ email: sesionForm.email.value.trim(), password: sesionForm.clave.value });
+      if (error) throw new Error(/invalid login/i.test(error.message) ? "Email o contraseña incorrectos." : error.message);
+      window.nube.sincronizar?.();
+      if (zona?.classList.contains("garmin-ajustes")) await pintarGarmin(zona);
+      else zona?.remove();
+      traerDeGarmin();
+      avisar("Sesión iniciada");
+    } catch (err) {
+      sesionForm.querySelector("button").disabled = false;
+      if (zona?.classList.contains("garmin-ajustes")) zona.innerHTML = formSesion(err.message);
+      else avisar(err.message);
+    }
+    return;
+  }
   const form = e.target.closest?.('[data-form="garmin"]');
   if (!form) return;
   e.preventDefault();
@@ -493,6 +565,9 @@ function cifras(a) {
   const carga = analisis.cargaDe(a, analisis.umbrales());
   pon("Carga (TSS)", carga.tss || null, analisis.NOMBRE_METODO[carga.metodo]);
   pon("Carga Garmin", a.carga);
+  const x = a.puntos ? analisis.derivados(a) : a;
+  pon("Eficiencia", x.ef && x.ef.toLocaleString("es-ES", { maximumFractionDigits: 2 }), x.efPot ? "vatios por latido" : "metros/min por latido");
+  pon("Desacople", x.desacople != null && `${x.desacople.toLocaleString("es-ES")} %`, x.desacople != null ? (x.desacople < 5 ? "buena base aeróbica" : "se cae en la 2ª mitad") : "");
   return c.join("");
 }
 
