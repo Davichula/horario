@@ -74,3 +74,20 @@ $$);
 -- Si ya lo tenías instalado de antes (cada 10 min), basta con esto:
 --   alter table public.garmin_conexion add column if not exists pausa_hasta timestamptz;
 --   select cron.alter_job((select jobid from cron.job where jobname = 'traer-garmin'), schedule := '* * * * *');
+
+-- ---------------------------------------------------------------------
+-- Salud diaria (añadido después): un registro por día con pulso en reposo,
+-- sueño, VFC, Body Battery, estrés, pasos y VO2max. Lo rellena la función.
+create table if not exists public.garmin_salud (
+  user_id uuid not null references auth.users on delete cascade,
+  fecha date not null,
+  datos jsonb not null default '{}'::jsonb,
+  actualizado timestamptz not null default now(),
+  primary key (user_id, fecha)
+);
+alter table public.garmin_salud enable row level security;
+create policy "cada uno lo suyo" on public.garmin_salud for select to authenticated using (auth.uid() = user_id);
+grant select on table public.garmin_salud to authenticated;
+grant select, insert, update, delete on table public.garmin_salud to service_role;
+alter table public.garmin_conexion add column if not exists salud_desde date;   -- hasta dónde llega el historial de salud
+alter table public.garmin_conexion add column if not exists salud_ultima timestamptz; -- última vez que se refrescó

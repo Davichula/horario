@@ -17,6 +17,9 @@
 //   3. Descarga el archivo original de las que faltan, varias a la vez,
 //      durante unos 40 segundos como mucho por vuelta.
 //   4. Las deja en la tabla garmin_archivos. La app las recoge y las lee.
+//   5. Trae tus datos de SALUD de cada día (pulso en reposo, sueño, VFC,
+//      Body Battery, estrés, pasos, VO2max) a la tabla garmin_salud: lo
+//      de los últimos días cada media hora y, poco a poco, el último año.
 //
 // Tu clave solo se guarda en garmin_conexion, que la web no puede leer.
 // Nunca se escribe en los registros (logs).
@@ -36,6 +39,9 @@ const HISTORIAL_POR_PAGINA = 100; // actividades antiguas por cada consulta de l
 const CADA_CUANTO_SI_NADA = 3 * 60e3; // sin nada pendiente, preguntar a Garmin cada 3 min
 const PAUSA_SI_429 = 15 * 60e3;  // si Garmin dice "demasiadas peticiones", esperar 15 min
 const MAX_INTENTOS = 3;
+const SALUD_CADA = 30 * 60e3;    // refrescar la salud de los últimos días cada 30 min
+const SALUD_DIAS_ATRAS = 365;    // cuánto historial de salud traer
+const SALUD_TROZO = 28;          // días por consulta al traer historial
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
@@ -91,6 +97,7 @@ type Conexion = {
   user_id: string; clave: string; token: string | null; token_caduca: string | null;
   historial_desde: number; historial_completo: boolean;
   ultima_sync?: string | null; pausa_hasta?: string | null;
+  salud_desde?: string | null; salud_ultima?: string | null;
 };
 
 async function tokenValido(c: Conexion, forzar = false): Promise<string> {
@@ -153,6 +160,97 @@ async function descargar(c: Conexion, p: { activity_id: number; intentos: number
 const contarPendientes = async (userId: string) => (await supabase.from("garmin_actividades")
   .select("activity_id", { count: "exact", head: true }).eq("user_id", userId).eq("estado", "pendiente")).count ?? 0;
 
+// ----- Salud diaria -----
+const fechaISO = (d: Date) => d.toISOString().slice(0, 10);
+const sumarDias = (iso: string, n: number) => { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return fechaISO(d); };
+const numero = (x: unknown) => (typeof x === "number" && isFinite(x) && x >= 0 ? x : null);
+
+async function json(c: Conexion, ruta: string): Promise<any> {
+  try {
+    const r = await pedir(c, ruta);
+    if (r.status === 204) return null;
+    const t = await r.text();
+    return t ? JSON.parse(t) : null;
+  } catch (e) {
+    if (e instanceof ErrorGarmin && e.status === 429) throw e;
+    return null; // una parte que falla no estropea las demás
+  }
+}
+
+// Pide a Garmin todo lo de salud entre dos fechas y lo guarda, un registro por día
+async function traerSalud(c: Conexion, desde: string, hasta: string) {
+  const dias: Record<string, any> = {};
+  const dia = (f: string | undefined) => (f ? (dias[f.slice(0, 10)] ??= {}) : {});
+
+  const resumen = await json(c, `/usersummary-service/v2/dailysummaries?startDate=${desde}&endDate=${hasta}`);
+  for (const r of resumen?.data ?? (Array.isArray(resumen) ? resumen : [])) {
+    const d = dia(r.calendarDate);
+    d.pasos = numero(r.movement?.steps?.value);
+    d.fcReposo = numero(r.heartRate?.restingValue);
+    d.fcMin = numero(r.heartRate?.minValue);
+    d.estres = numero(r.stress?.avgLevel);
+    // Proporción del día con datos de estrés: dice si llevabas el reloj puesto
+    d.llevado = r.stress?.uncategorizedProportion != null ? Math.round((1 - r.stress.uncategorizedProportion) * 100) / 100 : null;
+    d.bbMax = numero(r.bodyBattery?.maxValue);
+    d.bbMin = numero(r.bodyBattery?.minValue);
+    d.bbCarga = numero(r.bodyBattery?.chargedValue);
+    d.bbGasto = numero(r.bodyBattery?.drainedValue);
+    d.minIntensos = (numero(r.intensityMinutes?.moderate) ?? 0) + 2 * (numero(r.intensityMinutes?.vigorous) ?? 0) || null;
+    d.kcal = numero(r.calories?.burnedTotal);
+  }
+
+  const sueno = await json(c, `/sleep-service/sleep/dailySleepSummariesByDate?startDate=${desde}&endDate=${hasta}`);
+  for (const s of Array.isArray(sueno) ? sueno : sueno?.dailySleepDTOs ?? []) {
+    const x = s?.dailySleepDTO ?? s;
+    if (!x?.calendarDate || !x.sleepTimeSeconds) continue;
+    dia(x.calendarDate).sueno = {
+      total: numero(x.sleepTimeSeconds), profundo: numero(x.deepSleepSeconds), ligero: numero(x.lightSleepSeconds),
+      rem: numero(x.remSleepSeconds), despierto: numero(x.awakeSleepSeconds),
+      puntuacion: numero(x.sleepScores?.overall?.value ?? x.sleepScore),
+    };
+  }
+
+  const vfc = await json(c, `/hrv-service/hrv/daily/${desde}/${hasta}`);
+  for (const h of Array.isArray(vfc) ? vfc : vfc?.hrvSummaries ?? []) {
+    const x = h?.hrvSummary ?? h;
+    if (!x?.calendarDate) continue;
+    dia(x.calendarDate).vfc = {
+      noche: numero(x.lastNightAvg), semana: numero(x.weeklyAvg), estado: x.status ?? null,
+      bajo: numero(x.baseline?.balancedLow), alto: numero(x.baseline?.balancedUpper),
+    };
+  }
+
+  const vo2 = await json(c, `/metrics-service/metrics/maxmet/daily/${desde}/${hasta}`);
+  for (const v of Array.isArray(vo2) ? vo2 : []) {
+    if (v?.generic?.calendarDate) dia(v.generic.calendarDate).vo2 = numero(v.generic.vo2MaxPreciseValue ?? v.generic.vo2MaxValue);
+    if (v?.cycling?.calendarDate) dia(v.cycling.calendarDate).vo2Bici = numero(v.cycling.vo2MaxPreciseValue ?? v.cycling.vo2MaxValue);
+  }
+
+  const filas = Object.entries(dias)
+    .map(([fecha, datos]) => ({ user_id: c.user_id, fecha, datos: Object.fromEntries(Object.entries(datos).filter(([, v]) => v != null)), actualizado: new Date().toISOString() }))
+    .filter((f) => Object.keys(f.datos).length);
+  if (filas.length) await supabase.from("garmin_salud").upsert(filas, { onConflict: "user_id,fecha" });
+  return filas.length;
+}
+
+async function sincronizarSalud(c: Conexion, queda: () => number) {
+  const hoy = fechaISO(new Date());
+  // Lo reciente, cada media hora
+  if (!c.salud_ultima || Date.now() - new Date(c.salud_ultima).getTime() > SALUD_CADA) {
+    await traerSalud(c, sumarDias(hoy, -3), hoy);
+    c.salud_ultima = new Date().toISOString();
+    c.salud_desde ??= sumarDias(hoy, -3);
+  }
+  // Un trozo del historial por vuelta, hasta tener un año
+  const limite = sumarDias(hoy, -SALUD_DIAS_ATRAS);
+  if (c.salud_desde && c.salud_desde > limite && queda() > 10e3) {
+    const hasta = sumarDias(c.salud_desde, -1);
+    const desde = sumarDias(c.salud_desde, -SALUD_TROZO);
+    await traerSalud(c, desde, hasta);
+    c.salud_desde = desde;
+  }
+}
+
 // porReloj = la llama pg_cron (puede saltarse la vuelta si no hay nada que hacer)
 async function sincronizar(c: Conexion, porReloj = false) {
   // Si la pide la app, respondemos antes (no te dejamos esperando 40 s); el reloj sigue después
@@ -162,7 +260,8 @@ async function sincronizar(c: Conexion, porReloj = false) {
   const queda = () => tiempo - (Date.now() - inicio);
 
   if (c.pausa_hasta && new Date(c.pausa_hasta).getTime() > Date.now()) return { ...resultado, saltada: true };
-  if (porReloj && c.historial_completo && c.ultima_sync &&
+  const saludAlDia = c.salud_desde && c.salud_desde <= fechaISO(new Date(Date.now() - SALUD_DIAS_ATRAS * 864e5));
+  if (porReloj && c.historial_completo && c.ultima_sync && saludAlDia &&
       Date.now() - new Date(c.ultima_sync).getTime() < CADA_CUANTO_SI_NADA &&
       (await contarPendientes(c.user_id)) === 0) {
     return { ...resultado, saltada: true };
@@ -192,6 +291,9 @@ async function sincronizar(c: Conexion, porReloj = false) {
         resultado.descargadas += hechas.filter(Boolean).length;
       }
     }
+
+    // 4. Salud (después de las actividades, si queda tiempo)
+    if (queda() > 6e3) await sincronizarSalud(c, queda);
   } catch (e) {
     resultado.error = e instanceof Error ? e.message : String(e);
     if (e instanceof ErrorGarmin && e.status === 429) {
@@ -205,6 +307,8 @@ async function sincronizar(c: Conexion, porReloj = false) {
     ultima_sync: new Date().toISOString(),
     ultimo_error: resultado.error,
     pausa_hasta: pausa,
+    salud_desde: c.salud_desde ?? null,
+    salud_ultima: c.salud_ultima ?? null,
   }).eq("user_id", c.user_id);
   return resultado;
 }
@@ -226,7 +330,7 @@ async function estado(userId: string) {
   };
 }
 
-const COLUMNAS = "user_id, clave, token, token_caduca, historial_desde, historial_completo, ultima_sync, pausa_hasta";
+const COLUMNAS = "user_id, clave, token, token_caduca, historial_desde, historial_completo, ultima_sync, pausa_hasta, salud_desde, salud_ultima";
 
 Deno.serve(async (peticion) => {
   if (peticion.method === "OPTIONS") return new Response("ok", { headers: CORS });
