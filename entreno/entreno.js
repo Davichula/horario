@@ -11,11 +11,11 @@
 // mostrar() cada vez que cambia la dirección.
 // =====================================================================
 
-import { leerArchivos, DEPORTES, ESTILOS } from "./fit.js";
+import { leerArchivos, DEPORTES, ESTILOS, iconoDe } from "./fit.js";
 import * as almacen from "./almacen.js";
 import * as garmin from "./garmin.js";
 import { graficaLinea, graficaBarras, crearGrupo, suavizar, mapa } from "./graficas.js";
-import { pintarResumen, pintarForma, pintarSalud, pintarNatacion } from "./panel.js";
+import { pintarResumen, pintarForma, pintarSalud, pintarDeportes } from "./panel.js";
 import * as analisis from "./analisis.js";
 
 let caja = null;
@@ -25,10 +25,11 @@ const APARTADOS = [
   { id: "resumen", nombre: "Resumen", icono: "◉" },
   { id: "forma", nombre: "Forma", icono: "📈" },
   { id: "salud", nombre: "Salud", icono: "❤️" },
-  { id: "natacion", nombre: "Natación", icono: "🏊" },
+  { id: "deportes", nombre: "Deportes", icono: "🏅" },
   { id: "actividades", nombre: "Actividades", icono: "☰" },
 ];
 let apartado = "resumen";
+let deporteSel = null; // dentro de Deportes: el deporte abierto (#entreno/deportes/correr)
 
 export function iniciar(elemento) {
   caja = elemento;
@@ -47,10 +48,15 @@ export function iniciar(elemento) {
 
 function mostrar(ruta) {
   const r = decodeURIComponent(ruta || "");
-  if (!r || APARTADOS.some((a) => a.id === r)) { apartado = r || "resumen"; pintarLista(); }
-  else pintarFicha(r);
+  if (r === "natacion") { location.replace("#entreno/deportes/nadar"); return; } // dirección antigua
+  const [primero, sub] = r.split("/");
+  if (!r || APARTADOS.some((a) => a.id === r) || (primero === "deportes" && sub)) {
+    apartado = primero || "resumen";
+    deporteSel = primero === "deportes" ? sub || null : null;
+    pintarLista();
+  } else pintarFicha(r);
 }
-const enApartado = () => !location.hash.includes("/") || APARTADOS.some((a) => location.hash === `#entreno/${a.id}`);
+const enApartado = () => !location.hash.includes("/") || /^#entreno\/deportes\//.test(location.hash) || APARTADOS.some((a) => location.hash === `#entreno/${a.id}`);
 
 // =====================================================================
 // Formatos: cómo escribir tiempos, distancias y ritmos
@@ -77,7 +83,7 @@ const distanciaDe = (a) => (a.distancia ? (a.deporte === "nadar" ? metros(a.dist
 // El "ritmo" que interesa en cada deporte
 function velocidadDe(a, v = a.velMedia) {
   if (!v) return null;
-  if (a.deporte === "correr" || a.sport === "walking" || a.sport === "hiking") return ritmoKm(v);
+  if (a.deporte === "correr" || a.deporte === "andar") return ritmoKm(v);
   if (a.deporte === "nadar") return ritmo100(v);
   return kmh(v);
 }
@@ -89,7 +95,7 @@ function pintarLista() {
   const todas = almacen.listar();
   const lista = filtro === "todo" ? todas : todas.filter((a) => a.deporte === filtro);
   const presentes = Object.keys(DEPORTES).filter((d) => todas.some((a) => a.deporte === d));
-  const titulo = APARTADOS.find((a) => a.id === apartado)?.nombre;
+  const titulo = deporteSel && DEPORTES[deporteSel] ? DEPORTES[deporteSel].nombre : APARTADOS.find((a) => a.id === apartado)?.nombre;
 
   caja.innerHTML = `
     <header class="cabecera entreno-cabecera">
@@ -115,7 +121,7 @@ function pintarLista() {
   const repintar = () => { if (enApartado()) pintarLista(); };
   if (apartado === "forma") pintarForma(panel);
   else if (apartado === "salud") pintarSalud(panel);
-  else if (apartado === "natacion") pintarNatacion(panel, { alCambiar: repintar });
+  else if (apartado === "deportes") pintarDeportes(panel, { deporte: deporteSel, alCambiar: repintar });
   else pintarResumen(panel, { alCambiar: repintar });
 }
 
@@ -144,7 +150,7 @@ function tarjeta(a) {
     a.fcMedia ? `♥ ${a.fcMedia}` : null,
   ].filter(Boolean);
   return `<li><a href="#entreno/${encodeURIComponent(a.id)}" class="actividad" data-deporte="${a.deporte}">
-    <span class="actividad-icono" aria-hidden="true">${DEPORTES[a.deporte]?.icono || "⌚"}</span>
+    <span class="actividad-icono" aria-hidden="true">${iconoDe(a)}</span>
     <span class="actividad-texto">
       <strong>${escapar(a.nombre)}</strong>
       <small>${d.toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" })} · ${horaDe(d)}</small>
@@ -279,7 +285,7 @@ function abrirAjustes() {
       </label>
       <p class="nota">El que tienes al despertar. Garmin lo enseña en Frecuencia cardiaca → En reposo. Si no lo pones, uso 50.</p>
       <label class="campo"><span>CSS de natación (min:seg por 100 m)</span>
-        <input name="css" type="text" inputmode="numeric" pattern="\d{1,2}:\d{2}" value="${aj.css ? tiempo(aj.css) : ""}" placeholder="${u.css && u.cssEstimada ? tiempo(u.css) : "1:50"}">
+        <input name="css" type="text" inputmode="numeric" pattern="\\d{1,2}:\\d{2}" value="${aj.css ? tiempo(aj.css) : ""}" placeholder="${u.css && u.cssEstimada ? tiempo(u.css) : "1:50"}">
       </label>
       <p class="nota">Tu ritmo umbral en piscina. Si lo dejas vacío lo calculo con tus mejores 200 y 400 m.</p>
       <label class="campo"><span>FTP de bici (vatios)</span>
@@ -302,6 +308,46 @@ function abrirAjustes() {
     });
     hoja.close();
     mostrar(location.hash.split("/").slice(1).join("/"));
+  });
+}
+
+// ----- Objetivo: una carrera con fecha -----
+function abrirObjetivo() {
+  const hoja = document.getElementById("hoja");
+  const o = almacen.ajustes().objetivo || {};
+  hoja.dataset.tipo = "entreno";
+  hoja.querySelector(".hoja-contenido").innerHTML = `
+    <header class="form-cabecera"><h2>🎯 Tu objetivo</h2></header>
+    <div class="form-cuerpo">
+    <form class="form-entreno" id="form-objetivo">
+      <label class="campo"><span>Tipo de prueba</span>
+        <select name="tipo">${Object.entries(analisis.TIPOS_OBJETIVO).map(([k, t]) => `<option value="${k}" ${o.tipo === k ? "selected" : ""}>${t.nombre}</option>`).join("")}</select>
+      </label>
+      <label class="campo"><span>Nombre (opcional)</span>
+        <input name="nombre" type="text" maxlength="60" value="${escapar(o.nombre || "")}" placeholder="Por ejemplo: Medio Ironman de Valencia">
+      </label>
+      <label class="campo"><span>Fecha</span>
+        <input name="fecha" type="date" required value="${o.fecha || ""}">
+      </label>
+      <label class="campo"><span>Tiempo que quieres hacer (opcional)</span>
+        <input name="tiempo" type="text" inputmode="numeric" pattern="(\\d{1,2}:)?\\d{1,2}:\\d{2}" value="${o.tiempo ? tiempo(o.tiempo) : ""}" placeholder="h:mm:ss, p. ej. 1:45:00">
+      </label>
+      <p class="nota">Verás la cuenta atrás en el Resumen, en qué etapa del plan estás y con qué forma llegarías. En carreras a pie, también si tu predicción llega a tu tiempo.</p>
+      <div class="fila-botones">
+        ${o.fecha ? `<button type="button" class="boton-peligro" data-accion="quitar-objetivo">Quitar</button>` : ""}
+        <button class="boton-principal">Guardar</button>
+      </div>
+    </form>
+    </div>`;
+  hoja.showModal();
+  hoja.querySelector("#form-objetivo").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const d = new FormData(e.target);
+    const partes = String(d.get("tiempo") || "").split(":").map(Number);
+    const seg = partes.length >= 2 && partes.every((x) => x >= 0) ? partes.reduce((s, x) => s * 60 + x, 0) : null;
+    almacen.guardarAjustes({ objetivo: { tipo: d.get("tipo"), nombre: String(d.get("nombre") || "").trim(), fecha: d.get("fecha"), tiempo: seg || null } });
+    hoja.close();
+    pintarLista();
   });
 }
 
@@ -390,7 +436,7 @@ async function pintarFicha(id) {
 
   cuerpo.innerHTML = `
     <section class="ficha-entreno-cabecera" data-deporte="${a.deporte}">
-      <span class="actividad-icono grande" aria-hidden="true">${DEPORTES[a.deporte]?.icono || "⌚"}</span>
+      <span class="actividad-icono grande" aria-hidden="true">${iconoDe(a)}</span>
       <div>
         <h1>${escapar(a.nombre)}</h1>
         <p>${fechaLarga(inicio)} · ${horaDe(inicio)}${a.dispositivo ? ` · ${escapar(a.dispositivo)}` : ""}</p>
@@ -425,7 +471,7 @@ function cifras(a) {
   if (a.deporte === "correr") pon("Ritmo medio", ritmoKm(a.velMedia));
   if (a.deporte === "nadar") pon("Ritmo medio", ritmo100(a.velMedia));
   if (a.deporte === "bici") pon("Velocidad media", kmh(a.velMedia), a.velMax ? `máx. ${kmh(a.velMax)}` : "");
-  if (a.deporte === "otro" && a.velMedia) pon("Ritmo medio", velocidadDe(a));
+  if (!["correr", "nadar", "bici", "gimnasio"].includes(a.deporte) && a.velMedia && a.distancia) pon(a.deporte === "andar" ? "Ritmo medio" : "Velocidad media", velocidadDe(a));
   pon("Pulso medio", a.fcMedia && `${a.fcMedia} ppm`, a.fcMax ? `máx. ${a.fcMax}` : "");
   if (a.deporte === "nadar") {
     pon("SWOLF", a.swolf);
@@ -463,7 +509,7 @@ function dibujarGraficas(a, caja, grupo) {
 
   if (p.v && a.deporte !== "nadar") {
     const v = suavizar(p.v, 6);
-    if (a.deporte === "correr" || a.sport === "walking" || a.sport === "hiking") {
+    if (a.deporte === "correr" || a.deporte === "andar") {
       // Ritmo en min/km. Lo muy lento (paradas) lo dejamos fuera para que no aplaste la gráfica
       const r = v.map((x) => (x && x > 1000 / 900 ? 1000 / x / 60 : null));
       anadir(graficaLinea({ xs, ys: r, titulo: "Ritmo", resumen: ritmoKm(a.velMedia), invertir: true, area: false, grupo, formatoX,
@@ -612,8 +658,12 @@ document.addEventListener("click", async (e) => {
   if (!caja?.contains(e.target) && !e.target.closest("#hoja")) return;
   const filtroBtn = e.target.closest("[data-filtro]");
   if (filtroBtn) { filtro = filtroBtn.dataset.filtro; pintarLista(); return; }
+  const irFiltro = e.target.closest("[data-ir-filtro]");
+  if (irFiltro) filtro = irFiltro.dataset.irFiltro; // "Ver todas" de un deporte: la lista ya filtrada
   const accion = e.target.closest("[data-accion]")?.dataset.accion;
   if (accion === "ajustes") abrirAjustes();
+  if (accion === "objetivo") abrirObjetivo();
+  if (accion === "quitar-objetivo") { almacen.guardarAjustes({ objetivo: null }); document.getElementById("hoja").close(); pintarLista(); }
   if (accion === "sincronizar-garmin") sincronizarGarmin(e.target.closest("button"));
   if (accion === "garmin-ya" || accion === "garmin-desconectar") {
     const zona = e.target.closest(".garmin-ajustes");
