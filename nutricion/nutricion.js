@@ -11,6 +11,7 @@ import { ALIMENTOS } from "./alimentos.js";
 import * as D from "./datos.js";
 import * as almacen from "../entreno/almacen.js";
 import { anillo } from "../entreno/graficas.js";
+import * as off from "./openfoodfacts.js";
 
 const COMIDAS = ["Desayuno", "Comida", "Merienda", "Cena"];
 const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -19,7 +20,7 @@ const n1 = (x) => (Math.round(x * 10) / 10).toLocaleString("es-ES", { maximumFra
 const quitarTildes = (t) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 let caja = null;
-const est = { sub: "hoy", fecha: D.hoy(), anadiendo: null, busca: "", elegido: null, creando: false };
+const est = { sub: "hoy", fecha: D.hoy(), anadiendo: null, busca: "", elegido: null, creando: false, escaner: false, escMsg: "", offRes: null, offMsg: "", codigoManual: "" };
 
 export function iniciar(elemento) {
   caja = elemento;
@@ -148,7 +149,8 @@ function pintarAnadir() {
   if (est.elegido) {
     const a = est.elegido, g = est.gramos ?? a.racion ?? 100, t = D.porciones(a, g);
     caja.innerHTML = `<header class="cabecera"><h1>${esc(c)}</h1></header><div class="entreno-cuerpo">
-      <section class="tarjeta-entreno nutri-form"><h2>${esc(a.nombre)}</h2>
+      <section class="tarjeta-entreno nutri-form"><h2>${esc(a.nombre)}${a.origen === "off" ? ' <em class="etq etq-off">Open Food Facts</em>' : ""}</h2>
+        ${a.origen === "off" ? '<p class="nota">Datos aportados por usuarios: si no cuadran con la etiqueta, usa «Crear alimento nuevo» con los de tu envase.</p>' : ""}
         <label>Cantidad (gramos o ml)<input data-campo="gramos" type="number" inputmode="decimal" min="1" step="any" value="${g}"></label>
         <div class="chips chips-mini">${[[0.5, "½"], [1, "1"], [1.5, "1½"], [2, "2"]].map(([m, tx]) => a.racion ? `<button type="button" data-acc="racion" data-v="${m}">× ${tx}</button>` : "").join("")}</div>
         ${a.racion ? `<p class="nota">1 ${esc(a.unidad || "ración")} ≈ ${a.racion} g</p>` : ""}
@@ -160,17 +162,29 @@ function pintarAnadir() {
   const q = quitarTildes(est.busca.trim());
   const lista = q ? todosAlimentos().filter((a) => quitarTildes(a.nombre).includes(q)).slice(0, 30)
     : [...recientes(), ...D.propios()].slice(0, 12);
+  const fila = (a) => `<button type="button" class="nutri-res" data-acc="elegir" data-v="${esc(a.id || "")}" data-n="${esc(a.nombre)}">
+        <span>${esc(a.nombre)}${a.origen === "propio" ? ' <em class="etq">tuyo</em>' : ""}${a.origen === "off" ? ' <em class="etq etq-off">Open Food Facts</em>' : ""}<small>por 100 g · P ${n1(a.p)} · C ${n1(a.c)} · G ${n1(a.g)}</small></span><b>${n0(a.kcal)}</b></button>`;
+  const icoCamara = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M8 8v8M11 8v8M14 8v8M17 8v8"/></svg>`;
   caja.innerHTML = `<header class="cabecera"><h1>${esc(c)}</h1></header><div class="entreno-cuerpo">
-    <input class="nutri-buscar" data-campo="busca" type="search" placeholder="Buscar alimento…" value="${esc(est.busca)}" autocomplete="off" enterkeyhint="search">
+    <div class="nutri-buscar-fila"><input class="nutri-buscar" data-campo="busca" type="search" placeholder="Buscar alimento…" value="${esc(est.busca)}" autocomplete="off" enterkeyhint="search">
+      <button type="button" class="nutri-camara" data-acc="${est.escaner ? "escaner-cerrar" : "escaner"}" aria-label="Escanear código de barras">${icoCamara}</button></div>
+    ${est.escaner ? `<section class="tarjeta-entreno nutri-escaner"><h2>Escanear código de barras</h2>
+        <div class="nutri-visor"><video id="nutri-video" playsinline muted></video><div class="nutri-marco"></div></div>
+        <p class="nota" id="nutri-esc-msg">${esc(est.escMsg)}</p>
+        <div class="nutri-buscar-fila"><input class="nutri-buscar" data-campo="codigo" type="text" inputmode="numeric" placeholder="O escribe el código" value="${esc(est.codigoManual)}" autocomplete="off">
+          <button type="button" class="boton-principal nutri-ir" data-acc="codigo-buscar">Buscar</button></div></section>` : ""}
     <section class="tarjeta-entreno nutri-lista">
       <h2>${q ? "Resultados" : "Recientes y tuyos"}</h2>
-      ${lista.map((a) => `<button type="button" class="nutri-res" data-acc="elegir" data-v="${esc(a.id || "")}" data-n="${esc(a.nombre)}">
-        <span>${esc(a.nombre)}${a.origen === "propio" ? ' <em class="etq">tuyo</em>' : ""}<small>por 100 g · P ${n0(a.p)} · C ${n0(a.c)} · G ${n0(a.g)}</small></span><b>${n0(a.kcal)}</b></button>`).join("") || `<p class="nota">${q ? "No lo encuentro." : "Aún no has anotado nada. Busca un alimento arriba."}</p>`}
+      ${lista.map(fila).join("") || `<p class="nota">${q ? "No lo encuentro en tu lista." : "Aún no has anotado nada. Busca un alimento arriba o escanea un código."}</p>`}
     </section>
+    ${est.busca.trim().length >= 3 ? `<button type="button" class="boton-secundario" data-acc="off-buscar">Buscar «${esc(est.busca.trim())}» en productos de supermercado</button>` : ""}
+    ${est.offMsg ? `<p class="nota">${esc(est.offMsg)}</p>` : ""}
+    ${est.offRes?.length ? `<section class="tarjeta-entreno nutri-lista"><h2>Productos (Open Food Facts)</h2>${est.offRes.map(fila).join("")}</section>` : ""}
     <button type="button" class="boton-secundario" data-acc="crear">+ Crear alimento nuevo</button>
     <button type="button" class="boton-secundario" data-acc="cerrar">Cerrar</button></div>`;
-  const inp = caja.querySelector(".nutri-buscar");
-  if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+  const inp = caja.querySelector('.nutri-buscar[data-campo="busca"]');
+  if (inp && !est.escaner && document.activeElement !== inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+  if (est.escaner && !est.sinCamara) arrancarCamara();
 }
 const previa = (t) => `<div><span>kcal</span><b>${n0(t.kcal)}</b></div><div><span>Prot.</span><b>${n1(t.p)} <small>g</small></b></div><div><span>Carbos</span><b>${n1(t.c)} <small>g</small></b></div><div><span>Grasa</span><b>${n1(t.g)} <small>g</small></b></div>`;
 
@@ -275,14 +289,18 @@ function alTocar(e) {
   if (!b) return;
   const v = b.dataset.v;
   switch (b.dataset.acc) {
-    case "sub": est.sub = v; est.anadiendo = null; pintar(); scrollTo(0, 0); break;
+    case "sub": detenerCamara(); est.escaner = false; est.sub = v; est.anadiendo = null; pintar(); scrollTo(0, 0); break;
     case "dia": est.fecha = D.sumarDias(est.fecha, Number(v)); pintar(); break;
-    case "anadir": est.anadiendo = v; est.busca = ""; est.elegido = null; est.creando = false; pintar(); scrollTo(0, 0); break;
-    case "cerrar": est.anadiendo = null; pintar(); break;
+    case "anadir": est.anadiendo = v; est.busca = ""; est.elegido = null; est.creando = false; est.escaner = false; est.offRes = null; est.offMsg = ""; pintar(); scrollTo(0, 0); break;
+    case "cerrar": detenerCamara(); est.anadiendo = null; est.escaner = false; est.offRes = null; est.offMsg = ""; pintar(); break;
+    case "escaner": est.sinCamara = false; est.escaner = true; est.escMsg = "Abriendo la cámara…"; pintar(); break;
+    case "escaner-cerrar": detenerCamara(); est.escaner = false; pintar(); break;
+    case "codigo-buscar": detenerCamara(); buscarCodigo(est.codigoManual); break;
+    case "off-buscar": buscarEnOff(); break;
     case "quitar": D.quitar(est.fecha, v); pintar(); break;
     case "copiar": D.copiarDia(D.sumarDias(est.fecha, -1), est.fecha); pintar(); break;
     case "elegir": {
-      est.elegido = todosAlimentos().find((a) => (v && a.id === v) || a.nombre === b.dataset.n) || null;
+      est.elegido = (est.offRes || []).find((a) => a.id === v) || todosAlimentos().find((a) => (v && a.id === v) || a.nombre === b.dataset.n) || null;
       est.gramos = null; pintar(); break;
     }
     case "volver-lista": est.elegido = null; pintar(); break;
@@ -292,8 +310,8 @@ function alTocar(e) {
     case "confirmar": {
       const a = est.elegido, g = Number(est.gramos ?? a.racion ?? 100);
       if (!(g > 0)) return;
-      D.anadir(est.fecha, { comida: est.anadiendo, nombre: a.nombre, cant: g, ...D.porciones(a, g), base: { id: a.id, nombre: a.nombre, kcal: a.kcal, p: a.p, c: a.c, g: a.g, az: a.az, fi: a.fi, racion: a.racion, unidad: a.unidad, origen: a.origen } });
-      est.anadiendo = null; est.elegido = null; pintar(); scrollTo(0, 0); break;
+      D.anadir(est.fecha, { comida: est.anadiendo, nombre: a.nombre, cant: g, ...D.porciones(a, g), base: { id: a.id, nombre: a.nombre, kcal: a.kcal, p: a.p, c: a.c, g: a.g, az: a.az, fi: a.fi, racion: a.racion, unidad: a.unidad, origen: a.origen, codigo: a.codigo } });
+      detenerCamara(); est.anadiendo = null; est.elegido = null; est.escaner = false; est.offRes = null; pintar(); scrollTo(0, 0); break;
     }
     case "atajo-preparar": atajoPreparar(); break;
     case "atajo-copiar": navigator.clipboard?.writeText(est.atajoUrl).then(() => { b.textContent = "¡Copiado!"; }, () => { b.textContent = "No se pudo copiar: mantén pulsado el enlace"; }); break;
@@ -302,7 +320,8 @@ function alTocar(e) {
 }
 function alEscribir(e) {
   const c = e.target.dataset.campo;
-  if (c === "busca") { est.busca = e.target.value; pintarAnadir(); }
+  if (c === "busca") { est.busca = e.target.value; est.offMsg = ""; if (est.escaner) { detenerCamara(); est.escaner = false; } pintarAnadir(); }
+  else if (c === "codigo") est.codigoManual = e.target.value;
   else if (c === "gramos") {
     est.gramos = Number(e.target.value) || 0;
     const prev = caja.querySelector("#nutri-prev");
@@ -342,4 +361,62 @@ async function atajoPreparar() {
     est.atajoUrl = `${sb.supabaseUrl}/functions/v1/peso?token=${data.token}`;
   } catch (e) { est.atajoError = e.message; }
   pintar();
+}
+
+// =====================================================================
+// Escáner de código de barras (librería ZXing, solo se descarga al usarlo)
+// =====================================================================
+let lector = null;
+function cargarZXing() {
+  if (window.ZXing) return Promise.resolve();
+  return new Promise((ok, mal) => {
+    const sc = document.createElement("script");
+    sc.src = "vendor/zxing.js";
+    sc.onload = ok; sc.onerror = () => mal(new Error("No se pudo cargar el lector"));
+    document.head.append(sc);
+  });
+}
+function mensajeEscaner(t) { est.escMsg = t; const el = caja.querySelector("#nutri-esc-msg"); if (el) el.textContent = t; }
+function detenerCamara() { try { lector?.reset(); } catch {} lector = null; }
+async function arrancarCamara() {
+  const video = caja.querySelector("#nutri-video");
+  if (!video || lector) return;
+  try {
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error("Este navegador no deja usar la cámara");
+    await cargarZXing();
+    const Z = window.ZXing;
+    const pistas = new Map([[Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E]]]);
+    lector = new Z.BrowserMultiFormatReader(pistas, 250);
+    mensajeEscaner("Apunta al código de barras");
+    await lector.decodeFromConstraints({ video: { facingMode: { ideal: "environment" } } }, video, (res) => {
+      if (res) { detenerCamara(); buscarCodigo(res.getText()); }
+    });
+  } catch (e) {
+    detenerCamara();
+    mensajeEscaner(/Permission|NotAllowed/i.test(e.name + e.message) ? "Sin permiso para la cámara: actívalo en Ajustes del iPhone o escribe el código." : `No pude abrir la cámara (${e.message}). Escribe el código.`);
+  }
+}
+// Pregunta a Open Food Facts por un código
+async function buscarCodigo(codigo) {
+  est.escaner = true; est.sinCamara = true;
+  est.codigoManual = codigo;
+  pintarAnadir();
+  mensajeEscaner(`Buscando ${codigo}…`);
+  try {
+    const p = await off.porCodigo(codigo);
+    if (p) { est.escaner = false; est.elegido = p; est.gramos = null; pintar(); scrollTo(0, 0); return; }
+    detenerCamara();
+    mensajeEscaner(`No encuentro el código ${codigo} en Open Food Facts. Puedes crearlo tú con «Crear alimento nuevo» (queda guardado).`);
+  } catch (e) {
+    mensajeEscaner(navigator.onLine ? `No pude consultar Open Food Facts (${e.message}).` : "Sin conexión: no puedo buscar productos nuevos. Los que ya usaste siguen en Recientes.");
+  }
+}
+// Búsqueda de productos por nombre
+async function buscarEnOff() {
+  est.offMsg = "Buscando…"; est.offRes = null; pintarAnadir();
+  try {
+    est.offRes = await off.buscar(est.busca);
+    est.offMsg = est.offRes.length ? "" : "No encuentro productos con ese nombre.";
+  } catch (e) { est.offMsg = navigator.onLine ? `No pude consultar Open Food Facts (${e.message}).` : "Sin conexión."; }
+  pintarAnadir();
 }

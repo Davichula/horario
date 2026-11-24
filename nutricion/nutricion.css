@@ -62,3 +62,14 @@
 .nutri-atajo { display: grid; gap: 4px; }
 .nutri-como ol { padding-left: 20px; font-size: .9rem; }
 .nutri-como li { margin-bottom: 8px; }
+
+.nutri-buscar-fila { display: flex; gap: 8px; align-items: stretch; }
+.nutri-buscar-fila .nutri-buscar { flex: 1; min-width: 0; }
+.nutri-camara { flex: none; width: 50px; border: 0; border-radius: 12px; background: var(--acento); color: var(--sobre-acento); display: grid; place-items: center; }
+.nutri-ir { flex: none; padding: 0 16px; }
+.nutri-escaner { display: grid; gap: 10px; }
+.nutri-visor { position: relative; border-radius: 14px; overflow: hidden; background: #000; aspect-ratio: 4 / 3; }
+.nutri-visor video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.nutri-marco { position: absolute; inset: 22% 10%; border: 2px solid var(--acento); border-radius: 12px; box-shadow: 0 0 0 999px rgb(0 0 0 / .35); }
+.nutri-marco::after { content: ""; position: absolute; left: 6%; right: 6%; top: 50%; height: 2px; background: var(--c-pulso); }
+.etq-off { background: color-mix(in srgb, var(--nutri-carb) 18%, transparent); color: var(--nutri-carb); }
