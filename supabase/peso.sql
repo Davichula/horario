@@ -12,3 +12,8 @@ create table if not exists public.peso_atajo (
 );
 alter table public.peso_atajo enable row level security;
 grant select, insert, update, delete on table public.peso_atajo to service_role;
+
+-- La función guarda el peso dentro de "datos" (donde la app sincroniza tus cosas),
+-- así que necesita poder escribir ahí. (service_role se salta las políticas, pero
+-- los proyectos nuevos de Supabase no le dan permiso de escritura por defecto.)
+grant insert, update on table public.datos to service_role;
