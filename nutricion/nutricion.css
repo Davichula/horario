@@ -6,7 +6,8 @@
 }
 .nutri-sub { padding: 0 16px; margin: 4px 0 8px; }
 .nutri-fecha { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.nutri-fecha b { text-transform: capitalize; font-size: 1.05rem; }
+.nutri-fecha b { font-size: 1.05rem; }
+.nutri-fecha b::first-letter { text-transform: uppercase; }
 .nutri-fecha button { width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--elevado); color: var(--texto); font-size: 1.3rem; }
 .nutri-fecha button:disabled { opacity: .3; }
 .nutri-resumen { display: flex; align-items: center; gap: 12px; }
@@ -80,3 +81,28 @@
 .nutri-rev-veredicto b { color: var(--acento); }
 .nutri-rev .boton-principal, .nutri-rev .boton-secundario { margin-bottom: 8px; }
 .nutri-faltan { margin: 0 0 8px; padding-left: 20px; font-size: .9rem; }
+
+/* Franja de la semana */
+.nutri-franja { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.nutri-dia { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 7px 0; border: 0; border-radius: 14px; background: none; color: var(--suave); font: inherit; font-size: .72rem; font-weight: 600; }
+.nutri-dia.activo { background: var(--elevado); color: var(--texto); }
+.nutri-dia.futuro { opacity: .45; }
+/* Comidas con icono */
+.nutri-comida-tit { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.nutri-ico { flex: none; width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); }
+.nutri-comida-sub { color: var(--suave); font-size: .82rem; margin-top: 1px; }
+.nutri-ok { font-style: normal; font-size: .68rem; font-weight: 700; padding: 2px 7px; border-radius: 99px; margin-left: 6px; color: var(--nutri-prot); background: color-mix(in srgb, var(--nutri-prot) 18%, transparent); white-space: nowrap; }
+.nutri-comida-cab .nutri-ico { color: var(--c); font-size: inherit; }
+.nutri-item { margin-left: 48px; }
+.nutri-emo { font-size: 1rem; margin-right: 7px; }
+/* Semana */
+.nutri-barras { position: relative; display: flex; align-items: flex-end; gap: 10px; height: 160px; margin-top: 4px; }
+.nutri-barra-dia { flex: 1; height: 100%; display: flex; align-items: flex-end; border: 0; background: none; padding: 0; }
+.nutri-barra-dia i { display: block; width: 100%; border-radius: 8px 8px 4px 4px; }
+.nutri-meta { position: absolute; left: 0; right: 0; border-top: 1.5px dashed var(--suave); pointer-events: none; }
+.nutri-meta span { position: absolute; right: 0; top: -16px; font-size: .68rem; color: var(--suave); }
+.nutri-barras-eje { display: flex; gap: 10px; margin-top: 6px; font-size: .74rem; color: var(--suave); }
+.nutri-barras-eje span { flex: 1; text-align: center; }
+.nutri-barras-eje .hoy { color: var(--texto); font-weight: 700; }
+.nutri-reparto { display: flex; height: 12px; border-radius: 9px; overflow: hidden; margin-top: 4px; }
+.nutri-reparto-leyenda { display: flex; justify-content: space-between; gap: 6px; font-size: .78rem; margin: 8px 0; flex-wrap: wrap; }
