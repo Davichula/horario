@@ -35,6 +35,8 @@ function numero(v: unknown): number | null {
   return m ? parseFloat(m[0]) : null;
 }
 const hoyEnMadrid = () => new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Madrid" }); // 2026-11-25
+// Los errores de la base de datos no son "Error" normales: sacamos su mensaje para que se entienda
+const mensaje = (e: unknown) => e instanceof Error ? e.message : (e && typeof e === "object" && "message" in e) ? String((e as { message: unknown }).message) : String(e);
 
 Deno.serve(async (peticion) => {
   if (peticion.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -76,7 +78,8 @@ Deno.serve(async (peticion) => {
     const fecha = /^\d{4}-\d{2}-\d{2}$/.test(fechaTexto) ? fechaTexto : hoyEnMadrid();
 
     // Juntamos con lo que ya hay (no pisamos otros días)
-    const { data: actual } = await supabase.from("datos").select("valor").eq("user_id", dueno.user_id).eq("clave", CLAVE_PESOS).maybeSingle();
+    const { data: actual, error: e1 } = await supabase.from("datos").select("valor").eq("user_id", dueno.user_id).eq("clave", CLAVE_PESOS).maybeSingle();
+    if (e1) throw e1;
     const pesos = { ...(actual?.valor ?? {}) };
     pesos[fecha] = { ...(pesos[fecha] ?? {}), ...medida };
     const { error } = await supabase.from("datos").upsert(
@@ -86,6 +89,6 @@ Deno.serve(async (peticion) => {
     if (error) throw error;
     return responder({ ok: true, fecha, ...medida });
   } catch (e) {
-    return responder({ error: e instanceof Error ? e.message : String(e) }, 400);
+    return responder({ error: mensaje(e) }, 400);
   }
 });
