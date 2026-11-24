@@ -65,12 +65,12 @@ function recientes() {
 // =====================================================================
 function pintar() {
   if (est.anadiendo) return pintarAnadir();
-  const subs = [["hoy", "Hoy"], ["progreso", "Progreso"], ["objetivo", "Objetivo"]];
+  const subs = [["hoy", "Hoy"], ["semana", "Semana"], ["progreso", "Progreso"], ["objetivo", "Objetivo"]];
   caja.innerHTML = `
     <header class="cabecera"><h1>Nutrición</h1></header>
     <nav class="subpestanas nutri-sub" aria-label="Subapartados">${subs.map(([v, t]) =>
       `<button type="button" data-acc="sub" data-v="${v}" class="${est.sub === v ? "activo" : ""}" aria-pressed="${est.sub === v}">${t}</button>`).join("")}</nav>
-    <div class="entreno-cuerpo">${est.sub === "hoy" ? htmlHoy() : est.sub === "progreso" ? htmlProgreso() : htmlObjetivo()}</div>`;
+    <div class="entreno-cuerpo">${est.sub === "hoy" ? htmlHoy() : est.sub === "semana" ? htmlSemana() : est.sub === "progreso" ? htmlProgreso() : htmlObjetivo()}</div>`;
 }
 
 // ----- HOY -----
@@ -81,10 +81,7 @@ function htmlHoy() {
   const en = kcalEntreno(est.fecha);
   const obj = D.objetivoDia(p, en.total);
   const esHoy = est.fecha === D.hoy();
-  const etiqueta = esHoy ? "Hoy" : new Date(est.fecha + "T12:00:00").toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
-  const nav = `<div class="nutri-fecha">
-    <button type="button" data-acc="dia" data-v="-1" aria-label="Día anterior">‹</button><b>${etiqueta}</b>
-    <button type="button" data-acc="dia" data-v="1" aria-label="Día siguiente" ${esHoy ? "disabled" : ""}>›</button></div>`;
+  const nav = franjaSemana();
 
   let resumen;
   if (!obj) {
@@ -111,15 +108,112 @@ function htmlHoy() {
 
   const comidas = COMIDAS.map((c) => {
     const l = entradas.filter((e) => e.comida === c);
-    const k = l.reduce((s, e) => s + e.kcal, 0);
-    return `<div class="nutri-comida"><div class="nutri-comida-cab"><div><b>${c}</b>${l.length ? `<span> · ${n0(k)} kcal</span>` : ""}</div>
+    const k = l.reduce((x, e) => x + e.kcal, 0);
+    const pr = l.reduce((x, e) => x + (e.p || 0), 0);
+    const buena = c !== "Merienda" && pr >= 30;
+    return `<div class="nutri-comida"><div class="nutri-comida-cab"><div class="nutri-comida-tit">${ICONO_COMIDA[c]}<div><b>${c}</b>
+      <div class="nutri-comida-sub">${l.length ? `${n0(k)} kcal · ${n0(pr)} g prot.${buena ? ' <em class="nutri-ok">✓ 30+ g</em>' : ""}` : "—"}</div></div></div>
       <button type="button" class="nutri-mas" data-acc="anadir" data-v="${c}" aria-label="Añadir a ${c}">+</button></div>
-      ${l.map((e) => `<div class="nutri-item"><span>${esc(e.nombre)} <small>${n0(e.cant ?? 0)} g</small></span><span>${n0(e.kcal)}<button type="button" class="nutri-quitar" data-acc="quitar" data-v="${e.id}" aria-label="Quitar ${esc(e.nombre)}">✕</button></span></div>`).join("")}</div>`;
+      ${l.map((e) => `<div class="nutri-item"><span><span class="nutri-emo" aria-hidden="true">${emojiDe(e.nombre)}</span>${esc(e.nombre)} <small>${n0(e.cant ?? 0)} g</small></span><span>${n0(e.kcal)}<button type="button" class="nutri-quitar" data-acc="quitar" data-v="${e.id}" aria-label="Quitar ${esc(e.nombre)}">✕</button></span></div>`).join("")}</div>`;
   }).join("");
   const ayer = D.dia(D.sumarDias(est.fecha, -1)).length;
   return `${nav}${resumen}<section class="tarjeta-entreno nutri-comidas">${comidas}
     ${ayer && !entradas.length ? `<button type="button" class="boton-secundario" data-acc="copiar">Copiar las comidas de ayer</button>` : ""}</section>`;
 }
+// ----- Iconos de cada comida (dibujos de línea con un tono suave) -----
+const icono = (color, trazos) => `<span class="nutri-ico" style="--c:${color}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${trazos}</svg></span>`;
+const ICONO_COMIDA = {
+  Desayuno: icono("#f5b942", '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
+  Comida: icono("#2fd27a", '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/>'),
+  Merienda: icono("#ff7a90", '<path d="M12 7c-3-2-7-1-7 4 0 5 3 9 5 9 1 0 1.5-.5 2-.5s1 .5 2 .5c2 0 5-4 5-9 0-5-4-6-7-4z"/><path d="M12 7c0-2 1-4 3-4"/>'),
+  Cena: icono("#8f9bff", '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>'),
+};
+// Un emoji pequeño según el alimento (por palabras del nombre)
+const EMOJIS = [
+  [/arroz|cuscus|quinoa|paella/, "🍚"], [/pasta|macarron|espagueti/, "🍝"], [/avena|cereal/, "🥣"], [/pan |pan$|tostada|molde|bocadillo|bocata/, "🍞"],
+  [/pollo|pavo|muslo/, "🍗"], [/ternera|cerdo|lomo|hamburguesa|carne/, "🥩"], [/jamon|chorizo|salchicha/, "🥓"],
+  [/gamba/, "🍤"], [/salmon|merluza|atun|bacalao|dorada|lubina|sardina|calamar|pescado/, "🐟"],
+  [/huevo|tortilla|clara/, "🥚"], [/queso|requeson|cottage/, "🧀"], [/leche|yogur|skyr|bebida de|kefir/, "🥛"],
+  [/lenteja|garbanzo|alubia|hummus|judia seca/, "🫘"], [/almendra|nuez|nueces|cacahuete|pistacho|crema de cacahuete/, "🥜"],
+  [/platano/, "🍌"], [/manzana/, "🍎"], [/naranja|mandarina|zumo/, "🍊"], [/pera/, "🍐"], [/fresa/, "🍓"], [/arandano/, "🫐"], [/uva/, "🍇"],
+  [/sandia/, "🍉"], [/melon/, "🍈"], [/kiwi/, "🥝"], [/pina/, "🍍"], [/melocoton/, "🍑"], [/aguacate/, "🥑"], [/datil/, "🌴"],
+  [/tomate|gazpacho/, "🍅"], [/ensalada|lechuga|espinaca/, "🥗"], [/brocoli/, "🥦"], [/zanahoria/, "🥕"], [/pepino|calabacin/, "🥒"],
+  [/pimiento/, "🫑"], [/cebolla/, "🧅"], [/champi/, "🍄"], [/patata|boniato/, "🥔"], [/verdura|menestra|judias verdes/, "🥬"],
+  [/aceite|oliva/, "🫒"], [/mantequilla/, "🧈"], [/miel|mermelada|azucar/, "🍯"], [/chocolate|cacao|nutella/, "🍫"], [/helado/, "🍦"],
+  [/croissant|magdalena|galleta|dulce/, "🥐"], [/pizza/, "🍕"], [/sushi|maki/, "🍣"], [/cafe/, "☕"], [/cerveza/, "🍺"], [/vino/, "🍷"],
+  [/refresco|cola/, "🥤"], [/proteina|whey|barrita/, "💪"], [/patatas fritas|bolsa/, "🍟"],
+];
+function emojiDe(nombre) {
+  const n = quitarTildes(nombre) + " ";
+  for (const [re, e] of EMOJIS) if (re.test(n)) return e;
+  return "🍽️";
+}
+
+// ----- Franja de la semana: un anillo por día (lunes a domingo) -----
+function lunesDe(f) {
+  const d = new Date(f + "T12:00:00");
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return D.aTexto(d);
+}
+// Resumen de un día: lo comido, su objetivo (con el entreno de ese día) y cuánto del objetivo llevas
+function resumenDia(f, p = D.perfil()) {
+  const t = D.totales(D.dia(f));
+  const obj = D.objetivoDia(p, kcalEntreno(f).total);
+  return { t, obj, anotado: t.kcal >= 1, pct: obj ? t.kcal / obj.kcal : 0 };
+}
+const diaCorto = (f) => new Date(f + "T12:00:00").toLocaleDateString("es-ES", { weekday: "narrow" }).toUpperCase();
+function anilloMini(pct, color) {
+  const r = 11, c = 2 * Math.PI * r, v = Math.max(0, Math.min(1, pct));
+  return `<svg viewBox="0 0 30 30" width="30" height="30" aria-hidden="true"><circle cx="15" cy="15" r="${r}" fill="none" stroke="var(--elevado)" stroke-width="4"/>
+    ${v > 0 ? `<circle cx="15" cy="15" r="${r}" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - v)).toFixed(1)}" transform="rotate(-90 15 15)"/>` : ""}</svg>`;
+}
+function franjaSemana() {
+  const lun = lunesDe(est.fecha), p = D.perfil(), hoy = D.hoy();
+  const dias = Array.from({ length: 7 }, (_, i) => D.sumarDias(lun, i));
+  const rango = `${new Date(dias[0] + "T12:00:00").toLocaleDateString("es-ES", { day: "numeric", month: "short" })} – ${new Date(dias[6] + "T12:00:00").toLocaleDateString("es-ES", { day: "numeric", month: "short" })}`;
+  const titulo = est.fecha === hoy ? "Hoy" : new Date(est.fecha + "T12:00:00").toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
+  return `<div class="nutri-fecha"><button type="button" data-acc="semana" data-v="-7" aria-label="Semana anterior">‹</button><b>${titulo}</b>
+      <button type="button" data-acc="semana" data-v="7" aria-label="Semana siguiente" ${lunesDe(hoy) === lun ? "disabled" : ""}>›</button></div>
+    <div class="nutri-franja" role="group" aria-label="Días de la semana ${rango}">${dias.map((f) => {
+      const r = resumenDia(f, p);
+      const color = r.pct > 1.05 ? "var(--nutri-carb)" : "var(--acento)";
+      return `<button type="button" class="nutri-dia${f === est.fecha ? " activo" : ""}${f > hoy ? " futuro" : ""}" data-acc="ir-dia" data-v="${f}" aria-label="${f}" aria-pressed="${f === est.fecha}">
+        <span>${diaCorto(f)}</span>${anilloMini(r.pct, color)}<span>${Number(f.slice(8))}</span></button>`;
+    }).join("")}</div>`;
+}
+
+// ----- SEMANA: barras de calorías de cada día y medias -----
+function htmlSemana() {
+  const lun = lunesDe(est.fecha), p = D.perfil(), hoy = D.hoy();
+  const dias = Array.from({ length: 7 }, (_, i) => D.sumarDias(lun, i));
+  const res = dias.map((f) => ({ f, ...resumenDia(f, p) }));
+  const con = res.filter((r) => r.anotado);
+  const media = (k) => (con.length ? con.reduce((x, r) => x + r.t[k], 0) / con.length : 0);
+  const base = D.objetivoBase(p);
+  const tope = Math.max(base?.kcal || 0, ...res.map((r) => Math.max(r.t.kcal, r.obj?.kcal || 0))) * 1.08 || 1;
+  const rango = `${new Date(dias[0] + "T12:00:00").toLocaleDateString("es-ES", { day: "numeric", month: "short" })} – ${new Date(dias[6] + "T12:00:00").toLocaleDateString("es-ES", { day: "numeric", month: "short" })}`;
+  const kP = media("p") * 4, kC = media("c") * 4, kG = media("g") * 9, kt = kP + kC + kG || 1;
+  const pk = p.peso ? media("p") / p.peso : null;
+  return `<div class="nutri-fecha"><button type="button" data-acc="semana" data-v="-7" aria-label="Semana anterior">‹</button><b>${lunesDe(hoy) === lun ? "Esta semana" : rango}</b>
+      <button type="button" data-acc="semana" data-v="7" aria-label="Semana siguiente" ${lunesDe(hoy) === lun ? "disabled" : ""}>›</button></div>
+    <section class="tarjeta-entreno"><h2>Calorías por día · ${rango}</h2>
+      <div class="nutri-barras" role="img" aria-label="Calorías de cada día de la semana">
+        ${base ? `<div class="nutri-meta" style="bottom:${(base.kcal / tope * 100).toFixed(1)}%"><span>${n0(base.kcal)}</span></div>` : ""}
+        ${res.map((r) => {
+          const col = !r.anotado ? "var(--elevado)" : r.obj && r.t.kcal > r.obj.kcal * 1.05 ? "var(--nutri-carb)" : "var(--acento)";
+          return `<button type="button" class="nutri-barra-dia" data-acc="ir-dia-hoy" data-v="${r.f}" aria-label="${r.f}: ${n0(r.t.kcal)} kcal"><i style="height:${r.anotado ? Math.max(4, r.t.kcal / tope * 100) : 3}%;background:${col}"></i></button>`;
+        }).join("")}</div>
+      <div class="nutri-barras-eje">${res.map((r) => `<span class="${r.f === hoy ? "hoy" : ""}">${diaCorto(r.f)}</span>`).join("")}</div></section>
+    <div class="cifras nutri-cifras"><div><span>Calorías media</span><b>${con.length ? n0(media("kcal")) : "—"}</b></div>
+      <div><span style="color:var(--nutri-prot)">Proteína</span><b>${con.length ? n0(media("p")) + " g" : "—"}</b>${pk ? `<small>${n1(pk)} g/kg</small>` : ""}</div>
+      <div><span>Días anotados</span><b>${con.length}/7</b></div></div>
+    ${con.length ? `<section class="tarjeta-entreno"><h2>Reparto de las calorías (media)</h2>
+      <div class="nutri-reparto"><i style="width:${kP / kt * 100}%;background:var(--nutri-prot)"></i><i style="width:${kC / kt * 100}%;background:var(--nutri-carb)"></i><i style="width:${kG / kt * 100}%;background:var(--nutri-grasa)"></i></div>
+      <div class="nutri-reparto-leyenda"><span style="color:var(--nutri-prot)">Proteína ${Math.round(kP / kt * 100)} %</span><span style="color:var(--nutri-carb)">Carbos ${Math.round(kC / kt * 100)} %</span><span style="color:var(--nutri-grasa)">Grasa ${Math.round(kG / kt * 100)} %</span></div>
+      <p class="nota">La línea de puntos es tu objetivo de un día sin entreno. Toca una barra para abrir ese día.</p></section>`
+    : `<section class="tarjeta-entreno"><p class="nota">Esta semana aún no hay comidas anotadas.</p></section>`}`;
+}
+
 function macro(nombre, v, obj, color) {
   const pct = Math.min(100, obj ? (v / obj) * 100 : 0);
   return `<div class="nutri-macro"><div><span>${nombre}</span><span><b>${n0(v)}</b> / ${n0(obj)} g</span></div>
@@ -322,6 +416,9 @@ function alTocar(e) {
   switch (b.dataset.acc) {
     case "sub": detenerCamara(); est.escaner = false; est.sub = v; est.anadiendo = null; pintar(); scrollTo(0, 0); break;
     case "dia": est.fecha = D.sumarDias(est.fecha, Number(v)); pintar(); break;
+    case "semana": { const n = D.sumarDias(est.fecha, Number(v)); est.fecha = n > D.hoy() ? D.hoy() : n; pintar(); break; }
+    case "ir-dia": est.fecha = v; pintar(); break;
+    case "ir-dia-hoy": est.fecha = v; est.sub = "hoy"; pintar(); scrollTo(0, 0); break;
     case "anadir": est.anadiendo = v; est.busca = ""; est.elegido = null; est.creando = false; est.escaner = false; est.offRes = null; est.offMsg = ""; pintar(); scrollTo(0, 0); break;
     case "cerrar": detenerCamara(); est.anadiendo = null; est.escaner = false; est.offRes = null; est.offMsg = ""; pintar(); break;
     case "escaner": est.sinCamara = false; est.escaner = true; est.escMsg = "Abriendo la cámara…"; pintar(); break;

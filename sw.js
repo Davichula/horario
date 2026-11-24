@@ -9,7 +9,7 @@
 // No hace falta tocar este archivo cuando cambies el resto de la web:
 // como siempre pregunta primero a la red, las novedades llegan solas.
 
-const CACHE = "mi-horario-v15";
+const CACHE = "mi-horario-v16";
 
 // Lo mínimo para que la app arranque sin conexión
 const ESENCIALES = [
