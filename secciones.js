@@ -22,12 +22,14 @@
   const ICONOS = {
     calendario: svg(`<rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13.5h2M11 13.5h2M14.5 13.5h2M7.5 17h2M11 17h2"/>`),
     pulso: svg(`<path d="M2.5 12h4l2.5-6 4 12 2.5-6h6"/>`),
+    manzana: svg(`<path d="M12 7c-3-2-7-1-7 4 0 5 3 9 5 9 1 0 1.5-.5 2-.5s1 .5 2 .5c2 0 5-4 5-9 0-5-4-6-7-4z"/><path d="M12 7c0-2 1-4 3-4"/>`),
   };
 
   // Para añadir una sección en el futuro basta con una línea más aquí
   const SECCIONES = [
     { id: "horario", nombre: "Horario", icono: ICONOS.calendario },
     { id: "entreno", nombre: "Entreno", icono: ICONOS.pulso, codigo: "entreno/entreno.js", estilos: "entreno/entreno.css" },
+    { id: "nutricion", nombre: "Nutrición", icono: ICONOS.manzana, codigo: "nutricion/nutricion.js", estilos: "nutricion/nutricion.css" },
   ];
 
   // ----- La barra de pestañas -----

@@ -1,0 +1,60 @@
+/* nutricion/nutricion.css — estilos de la sección Nutrición (usa los colores de la app) */
+#seccion-nutricion { flex: 1; width: 100%; max-width: 920px; margin: 0 auto; }
+#seccion-nutricion .cabecera h1 { visibility: visible; }
+#seccion-nutricion {
+  --nutri-prot: #5b9cff; --nutri-carb: #f5b942; --nutri-grasa: #c77dff;
+}
+.nutri-sub { padding: 0 16px; margin: 4px 0 8px; }
+.nutri-fecha { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.nutri-fecha b { text-transform: capitalize; font-size: 1.05rem; }
+.nutri-fecha button { width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--elevado); color: var(--texto); font-size: 1.3rem; }
+.nutri-fecha button:disabled { opacity: .3; }
+.nutri-resumen { display: flex; align-items: center; gap: 12px; }
+.nutri-resumen svg { flex: none; }
+.nutri-datos { margin: 0; flex: 1; display: grid; gap: 8px; }
+.nutri-datos div { display: flex; justify-content: space-between; font-size: .95rem; }
+.nutri-datos dt { color: var(--suave); }
+.nutri-datos dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.nutri-datos .extra dt, .nutri-datos .extra dd { color: var(--c-pulso); }
+.nutri-macro { margin-top: 14px; font-size: .9rem; }
+.nutri-macro > div:first-child { display: flex; justify-content: space-between; }
+.nutri-macro span:last-child { color: var(--suave); }
+.nutri-macro b { color: var(--texto); }
+.nutri-barra { height: 8px; border-radius: 9px; background: var(--elevado); margin-top: 5px; overflow: hidden; }
+.nutri-barra i { display: block; height: 100%; border-radius: 9px; }
+.nutri-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.nutri-chips span { background: var(--elevado); padding: 6px 12px; border-radius: 99px; font-size: .82rem; }
+.nutri-comidas { padding-top: 4px; }
+.nutri-comida { padding: 12px 0; border-top: 1px solid var(--linea); }
+.nutri-comida:first-child { border-top: 0; }
+.nutri-comida-cab { display: flex; justify-content: space-between; align-items: center; }
+.nutri-comida-cab span { color: var(--suave); font-size: .85rem; }
+.nutri-mas { width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--elevado); color: var(--acento); font-size: 1.4rem; font-weight: 600; line-height: 1; }
+.nutri-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: .9rem; color: var(--suave); margin-top: 8px; }
+.nutri-item small { opacity: .8; }
+.nutri-item span:last-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.nutri-quitar { border: 0; background: none; color: var(--suave); padding: 4px 6px 4px 10px; font-size: .85rem; }
+.nutri-buscar { width: 100%; padding: 13px 14px; border-radius: 12px; border: 1px solid var(--linea); background: var(--tarjeta); color: var(--texto); font: inherit; font-size: 16px; }
+.nutri-res { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 11px 0; border: 0; border-top: 1px solid var(--linea); background: none; color: var(--texto); font: inherit; }
+.nutri-res small { display: block; color: var(--suave); font-size: .76rem; margin-top: 2px; }
+.nutri-res b { font-variant-numeric: tabular-nums; }
+.nutri-lista h2 + .nutri-res { border-top: 0; }
+.etq { font-style: normal; font-size: .65rem; padding: 2px 6px; border-radius: 6px; background: var(--hoy); color: var(--acento); font-weight: 700; margin-left: 4px; }
+.nutri-form { display: grid; gap: 12px; }
+.nutri-form label { display: grid; gap: 5px; font-size: .82rem; color: var(--suave); }
+.nutri-form input, .nutri-form select { width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--linea); background: var(--elevado); color: var(--texto); font: inherit; font-size: 16px; }
+.nutri-campos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.nutri-cifras small { color: var(--suave); }
+.boton-secundario { width: 100%; padding: 12px; border-radius: 12px; border: 0; background: var(--elevado); color: var(--texto); font: inherit; font-weight: 600; }
+.nutri-peso-cab { display: flex; justify-content: space-between; align-items: flex-end; }
+.nutri-grande { font-size: 2.2rem; letter-spacing: -.03em; }
+.nutri-ritmo { text-align: right; display: grid; }
+.nutri-ritmo span { font-size: .78rem; color: var(--suave); }
+.nutri-grafica { width: 100%; height: auto; margin-top: 10px; }
+.nutri-eje { fill: var(--suave); font-size: 9px; }
+.nutri-como summary { cursor: pointer; font-weight: 600; }
+.nutri-como p { font-size: .9rem; }
+.nutri-cifras + .nutri-cifras, .nutri-cifras + .nota { margin-top: 14px; }
+.nutri-cifras b small { font-size: .7rem; font-weight: 600; }
+.nutri-cifras small { color: var(--suave); }
+.nutri-cifras.cuatro { grid-template-columns: repeat(4, 1fr); gap: 6px; }
