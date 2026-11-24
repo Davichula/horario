@@ -860,3 +860,6 @@ a.tarjeta-dato:hover, button.tarjeta-dato:hover, .tarjeta-deporte:hover { box-sh
 .anillos small { color: var(--suave); font-size: 0.8rem; }
 .anillos small::first-letter { text-transform: uppercase; }
 .donut-semana { display: flex; justify-content: center; margin: 2px 0 12px; }
+.caja-intervals { background: var(--tarjeta); border-radius: 14px; padding: 14px; margin-top: 10px; display: grid; gap: 8px; }
+.caja-intervals .fila-campos { flex-wrap: nowrap; }
+.clave-intervals { flex: 1; min-width: 0; font: inherit; background: var(--elevado); color: var(--texto); border: 0; border-radius: 10px; padding: 9px 12px; }
