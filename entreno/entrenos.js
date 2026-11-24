@@ -3,8 +3,8 @@
 // ---------------------------------------------------------------------
 // Aquí diseñas una sesión (calentamiento, series, recuperaciones...) y la
 // descargas como archivo .FIT de entrenamiento, el formato que entiende
-// tu Garmin. Cuando Garmin nos dé acceso a su Training API, el botón
-// "Enviar a Garmin" la mandará directa a tu calendario de Garmin Connect.
+// tu Garmin, o la mandas a tu calendario de Garmin Connect a través de
+// Intervals.icu (función "intervals" de Supabase): de ahí llega sola al reloj.
 //
 // Cómo se guarda un entrenamiento (en localStorage, clave
 // "mi-horario:entreno-planes", y sincronizado con Supabase):
@@ -280,9 +280,10 @@ export function pintarEditor(cont, id) {
     <div class="botones-anadir"><button type="button" data-anadir="paso">+ Paso</button><button type="button" data-anadir="repetir">+ Repetición</button></div>
     <div class="botones-plan">
       <button type="button" class="boton-secundario" data-plan="fit">Descargar .FIT</button>
-      <button type="button" class="boton-principal" data-plan="garmin" disabled>Enviar a Garmin</button>
+      <button type="button" class="boton-principal" data-plan="garmin">${firma(w) === w.enviado ? "Enviado ✓" : w.enviado ? "Enviar cambios" : "Enviar a Garmin"}</button>
     </div>
-    <p class="nota">"Enviar a Garmin" funcionará cuando Garmin nos dé acceso. Mientras, el .FIT se puede copiar al reloj con un cable (carpeta GARMIN/NewFiles).</p>
+    <div class="caja-intervals" hidden></div>
+    <p class="nota">${!w.fecha ? "Ponle fecha para poder enviarlo. " : ""}"Enviar a Garmin" lo pone en tu calendario de Garmin Connect (vía Intervals.icu) y el reloj lo recibe al sincronizar. El .FIT sirve para copiarlo con cable (carpeta GARMIN/NewFiles).</p>
     <footer class="ficha-entreno-pie"><button class="boton-peligro" data-plan="borrar">Borrar entrenamiento</button></footer>`;
 
   const repintar = () => { guardar(w); pintarEditor(cont, id); };
@@ -372,9 +373,47 @@ export function pintarEditor(cont, id) {
     catch (err) { console.error(err); b.textContent = "No se pudo crear"; }
     setTimeout(() => { b.disabled = false; b.textContent = "Descargar .FIT"; }, 2500);
   });
+  const caja = cont.querySelector(".caja-intervals");
+  const botonGarmin = cont.querySelector('[data-plan="garmin"]');
+  const enviar = async () => {
+    if (!w.fecha) { botonGarmin.textContent = "Ponle fecha primero"; return; }
+    botonGarmin.disabled = true; botonGarmin.textContent = "Enviando…";
+    try {
+      await intervals("enviar", { entreno: { id: w.id, nombre: w.nombre, tipo: TIPO_INTERVALS[w.deporte], fecha: w.fecha, texto: textoIntervals(w, R) } });
+      w.enviado = firma(w); guardar(w);
+      botonGarmin.textContent = "Enviado ✓";
+    } catch (err) {
+      if (/Conecta primero/.test(err.message)) { pedirClave(); botonGarmin.textContent = "Enviar a Garmin"; }
+      else { botonGarmin.textContent = "No se pudo enviar"; caja.hidden = false; caja.innerHTML = `<p class="form-error">${escapar(err.message)}</p>`; }
+    }
+    botonGarmin.disabled = false;
+  };
+  // Primera vez: pegar la API key de Intervals.icu (se guarda en Supabase, la web no la ve)
+  const pedirClave = () => {
+    caja.hidden = false;
+    caja.innerHTML = `
+      <b>Conecta Intervals.icu</b>
+      <p class="nota sin-margen">En intervals.icu → Settings → Developer Settings, copia tu API key y pégala aquí. Solo hace falta una vez.</p>
+      <div class="fila-campos"><input type="password" class="clave-intervals" placeholder="API key" autocomplete="off"><button type="button" class="boton-principal" data-intervals="conectar">Conectar</button></div>`;
+    caja.querySelector('[data-intervals="conectar"]').addEventListener("click", async (ev) => {
+      const b = ev.currentTarget; b.disabled = true; b.textContent = "Comprobando…";
+      try {
+        const r = await intervals("conectar", { clave: caja.querySelector(".clave-intervals").value });
+        caja.innerHTML = `<p class="nota sin-margen">Conectado a Intervals.icu (${escapar(r.atleta)}). Enviando…</p>`;
+        await enviar();
+        caja.hidden = true;
+      } catch (err) {
+        b.disabled = false; b.textContent = "Conectar";
+        caja.querySelector(".form-error")?.remove();
+        caja.insertAdjacentHTML("beforeend", `<p class="form-error">${escapar(err.message)}</p>`);
+      }
+    });
+  };
+  botonGarmin.addEventListener("click", enviar);
   cont.querySelector('[data-plan="borrar"]').addEventListener("click", (ev) => {
     const b = ev.currentTarget;
     if (!b.dataset.seguro) { b.dataset.seguro = "1"; b.textContent = "Toca otra vez para borrarlo"; return; }
+    if (w.enviado) intervals("quitar", { id: w.id }).catch(() => {}); // también de tu calendario
     borrar(w.id);
     location.hash = "#entreno/planes";
   });
@@ -389,6 +428,51 @@ export function pintarEditor(cont, id) {
 // Unidades que pide el formato: tiempo en milisegundos, distancia en
 // centímetros, velocidad en mm/s y pulso en ppm + 100.
 // =====================================================================
+// =====================================================================
+// ENVIAR a Garmin a través de Intervals.icu
+// ---------------------------------------------------------------------
+// Intervals entiende los entrenos escritos como texto, una línea por paso:
+//   - Calentamiento 15m 60-70% HR
+//
+//   6x
+//   - Correr 800mtr 4:16/km-4:26/km Pace
+//   - Recuperar 90s
+// (m = minutos, mtr = metros; el pulso va en % de tu máximo)
+// =====================================================================
+const TIPO_INTERVALS = { correr: "Run", bici: "Ride", nadar: "Swim" };
+async function intervals(accion, datos = {}) {
+  if (!window.nube || !navigator.onLine) throw new Error("Necesitas conexión a internet");
+  const sb = await window.nube.supabase();
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) throw new Error("Inicia sesión en Sincronizar (panel del Horario) para enviar a Garmin");
+  const { data, error } = await sb.functions.invoke("intervals", { body: { accion, ...datos } });
+  if (error) {
+    let mensaje = error.message;
+    try { mensaje = (await error.context?.json())?.error || mensaje; } catch {}
+    if (/Failed to send|not found|404/i.test(mensaje)) mensaje = "La función «intervals» aún no está instalada en Supabase";
+    throw new Error(mensaje);
+  }
+  return data;
+}
+const durIntervals = (x) => {
+  if (x.dur.tipo === "distancia") return `${Math.round(x.dur.valor)}mtr`;
+  if (x.dur.tipo === "boton") return "5m"; // Intervals no tiene "hasta pulsar vuelta": 5 min y lo avisamos en el nombre
+  const s = Math.round(x.dur.valor), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+  return `${h ? h + "h" : ""}${m ? m + "m" : ""}${r ? r + "s" : ""}` || "10s";
+};
+export function textoIntervals(w, R = referencias()) {
+  const linea = (x) => {
+    const nombre = x.tipo === "trabajo" ? verbo(w.deporte) : NOMBRE_TIPO[x.tipo];
+    let obj = "";
+    if (x.obj.tipo === "ritmo") obj = ` ${mmss(x.obj.min)}/km-${mmss(x.obj.max)}/km Pace`;
+    else if (x.obj.tipo === "pulso") obj = ` ${Math.round((x.obj.min / R.fcMax) * 100)}-${Math.round((x.obj.max / R.fcMax) * 100)}% HR`;
+    return `- ${nombre}${x.dur.tipo === "boton" ? " (pulsa vuelta)" : ""} ${durIntervals(x)}${obj}`;
+  };
+  return w.pasos.map((x) => x.tipo === "repetir" ? `\n${x.veces}x\n${x.pasos.map(linea).join("\n")}\n` : linea(x)).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+// Para saber si lo enviado sigue igual que lo que ves
+const firma = (w) => JSON.stringify([w.nombre, w.fecha, w.deporte, w.pasos]).length + ":" + [...JSON.stringify([w.nombre, w.fecha, w.deporte, w.pasos])].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0);
+
 export function pasosFit(w) {
   const salida = [];
   const INTENSIDAD = { calentar: "warmup", trabajo: "active", recuperar: "recovery", enfriar: "cooldown" };
