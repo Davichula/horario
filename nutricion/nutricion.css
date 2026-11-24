@@ -73,3 +73,10 @@
 .nutri-marco { position: absolute; inset: 22% 10%; border: 2px solid var(--acento); border-radius: 12px; box-shadow: 0 0 0 999px rgb(0 0 0 / .35); }
 .nutri-marco::after { content: ""; position: absolute; left: 6%; right: 6%; top: 50%; height: 2px; background: var(--c-pulso); }
 .etq-off { background: color-mix(in srgb, var(--nutri-carb) 18%, transparent); color: var(--nutri-carb); }
+.nutri-rev-cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+.nutri-rev-cab h2 { margin: 0; }
+.nutri-rev-datos { gap: 10px; margin-bottom: 4px; }
+.nutri-rev-veredicto { background: var(--elevado); border-radius: 12px; padding: 12px; font-size: .92rem; line-height: 1.4; margin: 12px 0; }
+.nutri-rev-veredicto b { color: var(--acento); }
+.nutri-rev .boton-principal, .nutri-rev .boton-secundario { margin-bottom: 8px; }
+.nutri-faltan { margin: 0 0 8px; padding-left: 20px; font-size: .9rem; }

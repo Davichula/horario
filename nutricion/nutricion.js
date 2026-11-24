@@ -189,6 +189,37 @@ function pintarAnadir() {
 const previa = (t) => `<div><span>kcal</span><b>${n0(t.kcal)}</b></div><div><span>Prot.</span><b>${n1(t.p)} <small>g</small></b></div><div><span>Carbos</span><b>${n1(t.c)} <small>g</small></b></div><div><span>Grasa</span><b>${n1(t.g)} <small>g</small></b></div>`;
 
 // ----- PROGRESO -----
+function htmlRevision() {
+  const p = D.perfil();
+  const id = D.idRevision();
+  const hecha = D.revisiones().find((r) => r.id === id);
+  const fecha = (f) => new Date(f + "T12:00:00").toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+  if (hecha) {
+    return `<section class="tarjeta-entreno nutri-rev"><div class="nutri-rev-cab"><h2>Revisión del ${fecha(hecha.id)}</h2><span class="etq">${hecha.aplicada ? "Aplicada" : "Mantenida"}</span></div>
+      <p class="nota">${esc(hecha.resumen)}</p></section>`;
+  }
+  const r = D.calcularRevision(p);
+  const cab = `<div class="nutri-rev-cab"><h2>Revisión de la semana ${fecha(r.desde)}–${fecha(r.hasta)}</h2><span class="etq">Nueva</span></div>`;
+  if (!r.suficiente) {
+    return `<section class="tarjeta-entreno nutri-rev">${cab}
+      <p class="nota">Todavía no hay datos para revisar tu objetivo. Para la primera revisión necesito:</p>
+      <ul class="nutri-faltan">${r.faltan.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>
+      <p class="nota">Mientras tanto, tu objetivo sigue en el cálculo inicial. Volveré a mirarlo cada lunes.</p></section>`;
+  }
+  const cambioTxt = r.cambioKcal === 0 ? `Mantengo tu objetivo.` : `${r.cambioKcal > 0 ? "Subo" : "Bajo"} tu objetivo ${Math.abs(r.cambioKcal)} kcal al día.`;
+  return `<section class="tarjeta-entreno nutri-rev">${cab}
+    <dl class="nutri-datos nutri-rev-datos">
+      <div><dt>Días anotados</dt><dd>${r.diasAnotados} de 7</dd></div>
+      <div><dt>Calorías medias</dt><dd>${n0(r.kcalMedia)} kcal</dd></div>
+      <div><dt>Peso (media 7 días)</dt><dd>${n1(r.pesoAntes)} → ${n1(r.pesoAhora)} kg</dd></div>
+      <div><dt>Ritmo</dt><dd>${r.dKg > 0 ? "+" : ""}${n1(r.dKg)} kg/sem (${n1(r.pct)} %)</dd></div>
+      <div><dt>Gasto real estimado</dt><dd>${n0(r.gasto)} kcal/día</dd></div>
+    </dl>
+    <div class="nutri-rev-veredicto"><b>${esc(r.veredicto)}</b> ${cambioTxt}</div>
+    <button type="button" class="boton-principal" data-acc="rev-aplicar">${r.cambioKcal === 0 ? "Entendido" : "Aplicar"}</button>
+    ${r.cambioKcal === 0 ? "" : `<button type="button" class="boton-secundario" data-acc="rev-mantener">Mantener el actual</button>`}
+    <p class="nota">El gasto real sale de lo que comes y de cuánto cambia tu peso (1 kg ≈ 7.700 kcal). Es una estimación: mejora cuantas más semanas anotes.</p></section>`;
+}
 function htmlAtajo() {
   const url = est.atajoUrl;
   return `<section class="tarjeta-entreno nutri-atajo"><h2>Báscula Renpho (automático)</h2>
@@ -220,8 +251,8 @@ function htmlProgreso() {
       <label>Peso (kg)<input name="kg" type="number" inputmode="decimal" step="any" min="30" max="250" required placeholder="${ult?.kg ?? ""}"></label>
       <label>% grasa (opcional)<input name="grasa" type="number" inputmode="decimal" step="any" min="2" max="60" placeholder="${ult?.grasa ?? ""}"></label>
     </div><button class="boton-principal" type="submit">Guardar</button></form>`;
-  if (!dias.length) return `<section class="tarjeta-entreno"><h2>Tu peso</h2><p class="nota">Pésate por la mañana en ayunas y anótalo aquí. Con unas semanas de datos calculo tu gasto real y ajusto tu objetivo.</p></section>${form}${htmlAtajo()}`;
-  return `<section class="tarjeta-entreno"><h2>Peso · media de 7 días</h2>
+  if (!dias.length) return `${htmlRevision()}<section class="tarjeta-entreno"><h2>Tu peso</h2><p class="nota">Pésate por la mañana en ayunas y anótalo aquí. Con unas semanas de datos calculo tu gasto real y ajusto tu objetivo.</p></section>${form}${htmlAtajo()}`;
+  return `${htmlRevision()}<section class="tarjeta-entreno"><h2>Peso · media de 7 días</h2>
     <div class="nutri-peso-cab"><div><b class="nutri-grande">${media ? n1(media) : "—"}</b> <span>kg</span></div>
     <div class="nutri-ritmo"><span>Ritmo semanal</span><b>${ritmo == null ? "—" : (ritmo > 0 ? "+" : "") + n1(ritmo) + " kg"}</b></div></div>
     ${graficaPeso(pesos)}
@@ -312,6 +343,15 @@ function alTocar(e) {
       if (!(g > 0)) return;
       D.anadir(est.fecha, { comida: est.anadiendo, nombre: a.nombre, cant: g, ...D.porciones(a, g), base: { id: a.id, nombre: a.nombre, kcal: a.kcal, p: a.p, c: a.c, g: a.g, az: a.az, fi: a.fi, racion: a.racion, unidad: a.unidad, origen: a.origen, codigo: a.codigo } });
       detenerCamara(); est.anadiendo = null; est.elegido = null; est.escaner = false; est.offRes = null; pintar(); scrollTo(0, 0); break;
+    }
+    case "rev-aplicar": case "rev-mantener": {
+      const p = D.perfil(), r = D.calcularRevision(p);
+      if (!r.suficiente) break;
+      const aplicar = b.dataset.acc === "rev-aplicar" && r.cambioKcal !== 0;
+      if (aplicar) D.guardarPerfil({ deficit: r.nuevoDeficit });
+      D.guardarRevision({ id: r.id, aplicada: aplicar, deficitAntes: p.deficit, deficitDespues: aplicar ? r.nuevoDeficit : p.deficit, gasto: r.gasto, dKg: r.dKg,
+        resumen: `${r.veredicto} Peso ${n1(r.pesoAntes)} → ${n1(r.pesoAhora)} kg, gasto real ≈ ${n0(r.gasto)} kcal/día. ${aplicar ? `Objetivo ${r.cambioKcal > 0 ? "+" : "−"}${Math.abs(r.cambioKcal)} kcal.` : "Objetivo sin cambios."}` });
+      pintar(); break;
     }
     case "atajo-preparar": atajoPreparar(); break;
     case "atajo-copiar": navigator.clipboard?.writeText(est.atajoUrl).then(() => { b.textContent = "¡Copiado!"; }, () => { b.textContent = "No se pudo copiar: mantén pulsado el enlace"; }); break;

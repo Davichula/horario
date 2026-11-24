@@ -13,6 +13,7 @@ const K = {
   diario: "mi-horario:nutricion-diario",
   propios: "mi-horario:nutricion-propios",
   pesos: "mi-horario:nutricion-pesos",
+  revisiones: "mi-horario:nutricion-revisiones",
 };
 const leer = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 const escribir = (k, v) => localStorage.setItem(k, JSON.stringify(v));
@@ -117,4 +118,50 @@ export function mediaPeso(p, hasta, dias = 7) {
   const v = [];
   for (let i = 0; i < dias; i++) { const m = p[sumarDias(hasta, -i)]; if (m?.kg) v.push(m.kg); }
   return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+}
+
+// ----- Revisión semanal -----
+// Cada revisión que decides (Aplicar / Mantener) se guarda: { id: "2026-11-24", ... }
+export const revisiones = () => leer(K.revisiones, []);
+export function guardarRevision(r) {
+  const l = revisiones().filter((x) => x.id !== r.id);
+  l.push(r);
+  escribir(K.revisiones, l);
+}
+// El día de la revisión que toca ahora: hoy si aún no hay ninguna (la primera) y luego cada lunes
+export function idRevision(f = hoy()) {
+  if (!revisiones().length) return f;
+  const d = new Date(f + "T12:00:00");
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // retrocede hasta el lunes
+  return aTexto(d);
+}
+const KCAL_POR_KG = 7700; // lo que "pesa" un kg de grasa corporal (aproximado)
+// Mira los últimos 7 días completos (hasta ayer) y propone qué hacer con el déficit
+export function calcularRevision(p, f = hoy()) {
+  const fin = sumarDias(f, -1), ini = sumarDias(f, -7);
+  const diaria = [];
+  for (let i = 0; i < 7; i++) {
+    const t = totales(dia(sumarDias(ini, i)));
+    if (t.kcal >= 800) diaria.push(t.kcal); // un día con menos de 800 kcal anotadas es un día a medias
+  }
+  const ps = pesos();
+  let pesadas = 0;
+  for (let i = 0; i < 7; i++) if (ps[sumarDias(ini, i)]?.kg) pesadas++;
+  const ahora = mediaPeso(ps, fin), antes = mediaPeso(ps, sumarDias(fin, -7));
+  const r = { id: idRevision(f), desde: ini, hasta: fin, diasAnotados: diaria.length, pesadas, deficit: p.deficit };
+  const faltan = [];
+  if (diaria.length < 4) faltan.push(`anotar la comida al menos 4 días (llevas ${diaria.length} de la última semana)`);
+  if (pesadas < 2) faltan.push(`pesarte al menos 2 veces (llevas ${pesadas})`);
+  if (ahora == null || antes == null) faltan.push("tener también peso de la semana anterior");
+  if (faltan.length) return { ...r, suficiente: false, faltan, pesoAhora: ahora };
+  const kcalMedia = diaria.reduce((a, b) => a + b, 0) / diaria.length;
+  const dKg = ahora - antes;
+  const pct = (dKg / antes) * 100;
+  const gasto = Math.round(kcalMedia - (dKg * KCAL_POR_KG) / 7);
+  let cambio = 0, veredicto;
+  if (pct < -0.7) { cambio = 150; veredicto = "Pierdes peso más rápido de lo recomendable: se te puede ir músculo."; }
+  else if (pct > -0.2) { cambio = -100; veredicto = pct > 0.2 ? "Tu peso sube: hay que apretar un poco." : "Tu peso apenas baja: hay que apretar un poco."; }
+  else veredicto = "Pierdes grasa a buen ritmo sin bajar demasiado.";
+  const nuevoDeficit = Math.max(0, Math.min(800, p.deficit - cambio));
+  return { ...r, suficiente: true, kcalMedia: Math.round(kcalMedia), pesoAntes: antes, pesoAhora: ahora, dKg, pct, gasto, veredicto, nuevoDeficit, cambioKcal: cambio };
 }
