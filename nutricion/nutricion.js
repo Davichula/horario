@@ -7,7 +7,7 @@
 //   Objetivo  → tus datos y cómo se calcula tu objetivo de calorías y macros
 // secciones.js llama a iniciar() la primera vez que abres la pestaña.
 // =====================================================================
-import { ALIMENTOS } from "./alimentos.js";
+import { ALIMENTOS, unidadesDe, textoCantidad, numBonito } from "./alimentos.js";
 import * as D from "./datos.js";
 import * as almacen from "../entreno/almacen.js";
 import { anillo } from "../entreno/graficas.js";
@@ -21,7 +21,11 @@ const n1 = (x) => (Math.round(x * 10) / 10).toLocaleString("es-ES", { maximumFra
 const quitarTildes = (t) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 let caja = null;
-const est = { sub: "hoy", fecha: D.hoy(), anadiendo: null, busca: "", elegido: null, creando: false, escaner: false, escMsg: "", offRes: null, offMsg: "", codigoManual: "" };
+const est = { sub: "hoy", fecha: D.hoy(), anadiendo: null, busca: "", elegido: null, creando: false, escaner: false, escMsg: "", offRes: null, offMsg: "", codigoManual: "",
+  abiertas: new Set(), // comidas desplegadas en Hoy
+  editando: null,      // id del alimento anotado que estás cambiando
+  uds: [], ud: 0, n: 1 // formas de medir el alimento elegido, cuál usas y cuántas
+};
 
 export function iniciar(elemento) {
   caja = elemento;
@@ -34,6 +38,8 @@ export function iniciar(elemento) {
   caja.addEventListener("click", alTocar);
   caja.addEventListener("input", alEscribir);
   caja.addEventListener("submit", alEnviar);
+  // Las cabeceras de las comidas se pueden abrir también con el teclado
+  caja.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && e.target.matches('[role="button"][data-acc]')) { e.preventDefault(); alTocar(e); } });
   window.addEventListener("storage", (e) => { if (e.key?.startsWith("mi-horario:nutricion") && !est.anadiendo) pintar(); });
   return { mostrar: () => { est.fecha = est.fecha || D.hoy(); pintar(); } };
 }
@@ -101,19 +107,41 @@ function htmlHoy() {
       <div class="nutri-chips"><span>Azúcar ${n0(t.az)} g</span><span>Fibra ${n0(t.fi)} / ${n0(14 * obj.kcal / 1000)} g</span></div></section>`;
   }
 
+  // Cada comida plegada enseña solo su resumen; al tocarla se despliegan sus alimentos
   const comidas = COMIDAS.map((c) => {
     const l = entradas.filter((e) => e.comida === c);
     const k = l.reduce((x, e) => x + e.kcal, 0);
     const pr = l.reduce((x, e) => x + (e.p || 0), 0);
+    const cb = l.reduce((x, e) => x + (e.c || 0), 0);
     const buena = c !== "Merienda" && pr >= 30;
-    return `<div class="nutri-comida"><div class="nutri-comida-cab"><div class="nutri-comida-tit">${ICONO_COMIDA[c]}<div><b>${c}</b>
-      <div class="nutri-comida-sub">${l.length ? `${n0(k)} kcal · ${n0(pr)} g prot.${buena ? ' <em class="nutri-ok">✓ 30+ g</em>' : ""}` : "—"}</div></div></div>
-      <button type="button" class="nutri-mas" data-acc="anadir" data-v="${c}" aria-label="Añadir a ${c}">+</button></div>
-      ${l.map((e) => `<div class="nutri-item"><span><span class="nutri-emo" aria-hidden="true">${emojiDe(e.nombre)}</span>${esc(e.nombre)} <small>${n0(e.cant ?? 0)} g</small></span><span>${n0(e.kcal)}<button type="button" class="nutri-quitar" data-acc="quitar" data-v="${e.id}" aria-label="Quitar ${esc(e.nombre)}">✕</button></span></div>`).join("")}</div>`;
+    const abierta = l.length > 0 && est.abiertas.has(c);
+    const cab = l.length
+      ? `data-acc="plegar" data-v="${c}" role="button" tabindex="0" aria-expanded="${abierta}" aria-label="${c}: ${abierta ? "plegar" : "ver alimentos"}"`
+      : `data-acc="anadir" data-v="${c}" role="button" tabindex="0" aria-label="Añadir a ${c}"`;
+    const sub = l.length
+      ? `<span class="nm-p">P ${n0(pr)} g</span> · <span class="nm-c">C ${n0(cb)} g</span>${buena ? ' <em class="nutri-ok" title="30 g o más de proteína">✓ 30+</em>' : ""}`
+      : "Sin anotar";
+    return `<div class="nutri-comida${abierta ? " abierta" : ""}"><div class="nutri-comida-cab" ${cab}><div class="nutri-comida-tit">${ICONO_COMIDA[c]}<div><b>${c}</b>${l.length ? FLECHA : ""}
+      <div class="nutri-comida-sub">${sub}</div></div></div>
+      <div class="nutri-comida-der">${l.length ? `<span><b>${n0(k)}</b><small>kcal</small></span>` : ""}<button type="button" class="nutri-mas" data-acc="anadir" data-v="${c}" aria-label="Añadir a ${c}">+</button></div></div>
+      ${abierta ? `<div class="nutri-items">${l.map((e) => `<button type="button" class="nutri-item" data-acc="editar" data-v="${e.id}" aria-label="Cambiar ${esc(e.nombre)}">
+        <span class="nutri-emo" aria-hidden="true">${emojiDe(e.nombre)}</span><span class="nutri-item-txt">${esc(e.nombre)}<small>${cantidadDe(e)}</small></span>
+        <span class="nutri-item-kcal">${n0(e.kcal)}<small>kcal</small></span></button>`).join("")}</div>` : ""}</div>`;
   }).join("");
   const ayer = D.dia(D.sumarDias(est.fecha, -1)).length;
   return `${nav}${est.fecha >= D.hoy() ? htmlPlanDia(est.fecha) : ""}${resumen}<section class="tarjeta-entreno nutri-comidas">${comidas}
     ${ayer && !entradas.length ? `<button type="button" class="boton-secundario" data-acc="copiar">Copiar las comidas de ayer</button>` : ""}</section>`;
+}
+const FLECHA = `<svg class="nutri-flecha" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>`;
+// "3 huevos · 180 g" (o solo "180 g" si lo anotaste en gramos)
+function cantidadDe(e) {
+  const uds = unidadesDe({ ...(e.base || {}), nombre: e.nombre });
+  const g = `${n0(e.cant ?? 0)} ${uds[uds.length - 1].s}`;
+  if (e.ud) return `${esc(textoCantidad(e.udN, { s: e.ud, pl: e.udPl || e.ud }))} · ${g}`;
+  // Anotado antes en gramos: si cuadra con su unidad (180 g = 3 huevos), lo digo así
+  const u = uds[0], n = (e.cant || 0) / u.g;
+  if (!u.gramos && n >= 0.5 && Math.abs(n * 2 - Math.round(n * 2)) < 0.02) return `${esc(textoCantidad(Math.round(n * 2) / 2, u))} · ${g}`;
+  return g;
 }
 // ----- Plan del día: qué comer alrededor del entreno (entreno/hoy.js) -----
 function htmlPlanDia(f) {
@@ -253,21 +281,35 @@ function pintarAnadir() {
           <label>Azúcares (g)<input name="az" type="number" inputmode="decimal" step="any" value="0"></label>
           <label>Fibra (g)<input name="fi" type="number" inputmode="decimal" step="any" value="0"></label>
         </div>
+        <p class="nota">Opcional: si lo sueles contar por unidades (una barrita, un yogur…), dime cómo se llama y cuánto pesa una.</p>
+        <div class="nutri-campos">
+          <label>Unidad<input name="unidad" placeholder="barrita" autocomplete="off"></label>
+          <label>Peso de 1 (g)<input name="racion" type="number" inputmode="decimal" step="any" min="0"></label>
+        </div>
         <button class="boton-principal" type="submit">Guardar alimento</button>
         <button type="button" class="boton-secundario" data-acc="cancelar-crear">Cancelar</button></form></div>`;
     return;
   }
   if (est.elegido) {
-    const a = est.elegido, g = est.gramos ?? a.racion ?? 100, t = D.porciones(a, g);
-    caja.innerHTML = `<header class="cabecera"><h1>${esc(c)}</h1></header><div class="entreno-cuerpo">
-      <section class="tarjeta-entreno nutri-form"><h2>${esc(a.nombre)}${a.origen === "off" ? ' <em class="etq etq-off">Open Food Facts</em>' : ""}</h2>
+    const a = est.elegido, u = est.uds[est.ud], t = D.porciones(a, gramosElegidos());
+    const editar = !!est.editando;
+    const rapidas = u.gramos ? [50, 100, 150, 200].map((v) => [v, String(v)]) : [0.5, 1, 2, 3, 4].map((v) => [v, numBonito(v)]);
+    caja.innerHTML = `<header class="cabecera"><h1>${editar ? "Cambiar cantidad" : esc(c)}</h1></header><div class="entreno-cuerpo">
+      <section class="tarjeta-entreno nutri-form"><h2><span class="nutri-emo" aria-hidden="true">${emojiDe(a.nombre)}</span>${esc(a.nombre)}${a.origen === "off" ? ' <em class="etq etq-off">Open Food Facts</em>' : ""}</h2>
         ${a.origen === "off" ? '<p class="nota">Datos aportados por usuarios: si no cuadran con la etiqueta, usa «Crear alimento nuevo» con los de tu envase.</p>' : ""}
-        <label>Cantidad (gramos o ml)<input data-campo="gramos" type="number" inputmode="decimal" min="1" step="any" value="${g}"></label>
-        <div class="chips chips-mini">${[[0.5, "½"], [1, "1"], [1.5, "1½"], [2, "2"]].map(([m, tx]) => a.racion ? `<button type="button" data-acc="racion" data-v="${m}">× ${tx}</button>` : "").join("")}</div>
-        ${a.racion ? `<p class="nota">1 ${esc(a.unidad || "ración")} ≈ ${a.racion} g</p>` : ""}
+        ${editar ? `<div class="nutri-etq">Está en</div><div class="nutri-uds nutri-mover" role="group" aria-label="Comida">${COMIDAS.map((x) => `<button type="button" data-acc="mover" data-v="${x}" class="${x === c ? "activo" : ""}" aria-pressed="${x === c}">${x}</button>`).join("")}</div>` : ""}
+        <div class="nutri-etq">Cantidad</div>
+        <div class="nutri-cant"><button type="button" data-acc="menos" aria-label="Menos">−</button>
+          <input data-campo="n" type="text" inputmode="decimal" value="${esc(u.gramos ? Math.round(est.n) : String(est.n).replace(".", ","))}" aria-label="Cantidad" autocomplete="off">
+          <button type="button" data-acc="mas" aria-label="Más">+</button></div>
+        <div class="nutri-uds" role="group" aria-label="Unidad">${est.uds.map((x, i) => `<button type="button" data-acc="ud" data-v="${i}" class="${i === est.ud ? "activo" : ""}" aria-pressed="${i === est.ud}">${esc(x.s)}${x.gramos ? "" : ` <small>${n1(x.g)} ${est.uds[est.uds.length - 1].s}</small>`}</button>`).join("")}</div>
+        <p class="nutri-equiv" id="nutri-equiv">${equivalencia()}</p>
+        <div class="chips chips-mini nutri-rapidas">${rapidas.map(([v, tx]) => `<button type="button" data-acc="rapida" data-v="${v}">${tx}${u.gramos ? " " + u.s : ""}</button>`).join("")}</div>
         <div class="cifras nutri-cifras cuatro" id="nutri-prev">${previa(t)}</div>
-        <button class="boton-principal" type="button" data-acc="confirmar">Añadir a ${esc(c)}</button>
-        <button type="button" class="boton-secundario" data-acc="volver-lista">Volver</button></section></div>`;
+        <button class="boton-principal" type="button" data-acc="confirmar">${editar ? "Guardar cambios" : `Añadir a ${esc(c)}`}</button>
+        ${editar ? `<button type="button" class="boton-secundario nutri-borrar" data-acc="quitar-editando">Quitar de ${esc(est.editandoDe)}</button>
+          <button type="button" class="boton-secundario" data-acc="cerrar">Cancelar</button>`
+        : `<button type="button" class="boton-secundario" data-acc="volver-lista">Volver</button>`}</section></div>`;
     return;
   }
   const q = quitarTildes(est.busca.trim());
@@ -296,6 +338,53 @@ function pintarAnadir() {
   const inp = caja.querySelector('.nutri-buscar[data-campo="busca"]');
   if (inp && !est.escaner && document.activeElement !== inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
   if (est.escaner && !est.sinCamara) arrancarCamara();
+}
+// ----- Cantidad del alimento elegido -----
+const gramosElegidos = () => (Number(est.n) || 0) * (est.uds[est.ud]?.g || 1);
+// "3 huevos = 180 g" o, si estás en gramos, "≈ 3 huevos"
+function equivalencia() {
+  const u = est.uds[est.ud], g = gramosElegidos(), base = est.uds[est.uds.length - 1].s;
+  if (!(g > 0)) return "";
+  if (!u.gramos) return `${textoCantidad(est.n, u)} = <b>${n0(g)} ${base}</b>`;
+  const p = est.uds[0];
+  if (p.gramos) return "";
+  const n = Math.round((g / p.g) * 4) / 4;
+  return n >= 0.25 ? `≈ ${textoCantidad(n, p)} <small>(1 ${esc(p.s)} = ${n0(p.g)} ${base})</small>` : "";
+}
+// Prepara la pantalla de cantidad: unidades del alimento y lo que pusiste la última vez
+function prepararCantidad(a, previo) {
+  est.elegido = a;
+  est.uds = unidadesDe(a);
+  const ig = est.uds.length - 1;
+  if (previo?.ud) {
+    const i = est.uds.findIndex((u) => u.s === previo.ud);
+    if (i >= 0) { est.ud = i; est.n = previo.udN; return; }
+  }
+  if (previo?.cant > 0) {
+    // Si lo anotaste en gramos y cuadra con una unidad (180 g = 3 huevos), lo enseño en unidades
+    const u0 = est.uds[0], n = previo.cant / u0.g;
+    if (!u0.gramos && Math.abs(n * 2 - Math.round(n * 2)) < 0.02 && n >= 0.5) { est.ud = 0; est.n = Math.round(n * 2) / 2; }
+    else { est.ud = ig; est.n = Math.round(previo.cant); }
+    return;
+  }
+  est.ud = 0;
+  est.n = est.uds[0].gramos ? (a.racion || 100) : est.uds[0].def || 1;
+}
+// La última vez que comiste ese alimento (para proponer la misma cantidad)
+function ultimaVez(nombre) {
+  const d = D.diario();
+  for (const f of Object.keys(d).sort().reverse()) for (const e of [...d[f]].reverse()) if (e.nombre === nombre) return e;
+  return null;
+}
+function refrescarCantidad() {
+  const prev = caja.querySelector("#nutri-prev"), eq = caja.querySelector("#nutri-equiv");
+  if (prev) prev.innerHTML = previa(D.porciones(est.elegido, gramosElegidos()));
+  if (eq) eq.innerHTML = equivalencia();
+}
+// Lo que se guarda en el diario de la cantidad elegida
+function datosCantidad() {
+  const u = est.uds[est.ud], g = Math.round(gramosElegidos() * 10) / 10;
+  return { cant: g, ud: u.gramos ? null : u.s, udPl: u.gramos ? null : u.pl, udN: u.gramos ? null : Number(est.n), udG: u.gramos ? null : u.g };
 }
 const previa = (t) => `<div><span>kcal</span><b>${n0(t.kcal)}</b></div><div><span>Prot.</span><b>${n1(t.p)} <small>g</small></b></div><div><span>Carbos</span><b>${n1(t.c)} <small>g</small></b></div><div><span>Grasa</span><b>${n1(t.g)} <small>g</small></b></div>`;
 
@@ -436,27 +525,55 @@ function alTocar(e) {
     case "semana": { const n = D.sumarDias(est.fecha, Number(v)); est.fecha = n > D.hoy() ? D.hoy() : n; pintar(); break; }
     case "ir-dia": est.fecha = v; pintar(); break;
     case "ir-dia-hoy": est.fecha = v; est.sub = "hoy"; pintar(); scrollTo(0, 0); break;
-    case "anadir": est.anadiendo = v; est.busca = ""; est.elegido = null; est.creando = false; est.escaner = false; est.offRes = null; est.offMsg = ""; pintar(); scrollTo(0, 0); break;
-    case "cerrar": detenerCamara(); est.anadiendo = null; est.escaner = false; est.offRes = null; est.offMsg = ""; pintar(); break;
+    case "anadir": est.editando = null; est.anadiendo = v; est.busca = ""; est.elegido = null; est.creando = false; est.escaner = false; est.offRes = null; est.offMsg = ""; pintar(); scrollTo(0, 0); break;
+    case "cerrar": detenerCamara(); est.anadiendo = null; est.editando = null; est.elegido = null; est.escaner = false; est.offRes = null; est.offMsg = ""; pintar(); break;
     case "escaner": est.sinCamara = false; est.escaner = true; est.escMsg = "Abriendo la cámara…"; pintar(); break;
     case "escaner-cerrar": detenerCamara(); est.escaner = false; pintar(); break;
     case "codigo-buscar": detenerCamara(); buscarCodigo(est.codigoManual); break;
     case "off-buscar": buscarEnOff(); break;
     case "quitar": D.quitar(est.fecha, v); pintar(); break;
+    case "plegar": est.abiertas.has(v) ? est.abiertas.delete(v) : est.abiertas.add(v); pintar(); break;
+    case "editar": {
+      const e = D.dia(est.fecha).find((x) => x.id === v);
+      if (!e) break;
+      // El alimento con sus valores por 100 g (de tu lista, o de lo que se guardó al anotarlo)
+      let a = todosAlimentos().find((x) => x.nombre === e.nombre) || (e.base ? { ...e.base, nombre: e.nombre } : null);
+      if (!a && e.cant > 0) { const k = 100 / e.cant; a = { nombre: e.nombre, kcal: e.kcal * k, p: (e.p || 0) * k, c: (e.c || 0) * k, g: (e.g || 0) * k, az: (e.az || 0) * k, fi: (e.fi || 0) * k }; }
+      if (!a) break;
+      est.editando = e.id; est.editandoDe = e.comida; est.anadiendo = e.comida;
+      prepararCantidad(a, e); pintar(); scrollTo(0, 0); break;
+    }
+    case "mover": est.anadiendo = v; pintar(); break;
+    case "ud": {
+      const g = gramosElegidos(), u = est.uds[Number(v)];
+      est.ud = Number(v);
+      est.n = u.gramos ? Math.round(g) || 100 : (g > 0 ? Math.max(0.5, Math.round((g / u.g) * 2) / 2) : u.def || 1);
+      pintar(); break;
+    }
+    case "rapida": est.n = Number(v); pintar(); break;
+    case "menos": case "mas": {
+      const u = est.uds[est.ud], sube = b.dataset.acc === "mas", n = Number(est.n) || 0;
+      if (u.gramos) est.n = Math.max(5, Math.round(n / 10) * 10 + (sube ? 10 : -10));
+      else est.n = sube ? (n < 1 ? n + 0.5 : Math.floor(n) + 1) : n <= 1 ? 0.5 : Math.ceil(n) - 1;
+      pintar(); break;
+    }
+    case "quitar-editando": D.quitar(est.fecha, est.editando); est.editando = null; est.anadiendo = null; est.elegido = null; pintar(); break;
     case "copiar": D.copiarDia(D.sumarDias(est.fecha, -1), est.fecha); pintar(); break;
     case "elegir": {
-      est.elegido = (est.offRes || []).find((a) => a.id === v) || todosAlimentos().find((a) => (v && a.id === v) || a.nombre === b.dataset.n) || null;
-      est.gramos = null; pintar(); break;
+      const a = (est.offRes || []).find((a) => a.id === v) || todosAlimentos().find((a) => (v && a.id === v) || a.nombre === b.dataset.n) || null;
+      if (a) prepararCantidad(a, ultimaVez(a.nombre));
+      pintar(); break;
     }
     case "volver-lista": est.elegido = null; pintar(); break;
-    case "racion": est.gramos = Math.round(est.elegido.racion * Number(v)); pintar(); break;
     case "crear": est.creando = true; pintar(); break;
     case "cancelar-crear": est.creando = false; pintar(); break;
     case "confirmar": {
-      const a = est.elegido, g = Number(est.gramos ?? a.racion ?? 100);
-      if (!(g > 0)) return;
-      D.anadir(est.fecha, { comida: est.anadiendo, nombre: a.nombre, cant: g, ...D.porciones(a, g), base: { id: a.id, nombre: a.nombre, kcal: a.kcal, p: a.p, c: a.c, g: a.g, az: a.az, fi: a.fi, racion: a.racion, unidad: a.unidad, origen: a.origen, codigo: a.codigo } });
-      detenerCamara(); est.anadiendo = null; est.elegido = null; est.escaner = false; est.offRes = null; pintar(); scrollTo(0, 0); break;
+      const a = est.elegido, cant = datosCantidad();
+      if (!(cant.cant > 0)) return;
+      if (est.editando) D.actualizar(est.fecha, est.editando, { comida: est.anadiendo, ...cant, ...D.porciones(a, cant.cant) });
+      else D.anadir(est.fecha, { comida: est.anadiendo, nombre: a.nombre, ...cant, ...D.porciones(a, cant.cant), base: { id: a.id, nombre: a.nombre, kcal: a.kcal, p: a.p, c: a.c, g: a.g, az: a.az, fi: a.fi, racion: a.racion, unidad: a.unidad, origen: a.origen, codigo: a.codigo } });
+      est.abiertas.add(est.anadiendo); // al volver, esa comida aparece desplegada
+      detenerCamara(); est.anadiendo = null; est.editando = null; est.elegido = null; est.escaner = false; est.offRes = null; pintar(); scrollTo(0, 0); break;
     }
     case "rev-aplicar": case "rev-mantener": {
       const p = D.perfil(), r = D.calcularRevision(p);
@@ -476,10 +593,11 @@ function alEscribir(e) {
   const c = e.target.dataset.campo;
   if (c === "busca") { est.busca = e.target.value; est.offMsg = ""; if (est.escaner) { detenerCamara(); est.escaner = false; } pintarAnadir(); }
   else if (c === "codigo") est.codigoManual = e.target.value;
-  else if (c === "gramos") {
-    est.gramos = Number(e.target.value) || 0;
-    const prev = caja.querySelector("#nutri-prev");
-    if (prev) prev.innerHTML = previa(D.porciones(est.elegido, est.gramos));
+  else if (c === "n") {
+    // Acepta "1,5", "1.5" o "½"
+    const t = e.target.value.trim().replace(",", ".").replace("½", ".5").replace("¼", ".25").replace("¾", ".75");
+    est.n = Number(t) || 0;
+    refrescarCantidad();
   }
 }
 function alEnviar(e) {
@@ -497,8 +615,9 @@ function alEnviar(e) {
     D.guardarPeso(d.fecha, { kg: num(d.kg), ...(num(d.grasa) ? { grasa: num(d.grasa) } : {}) });
     pintar();
   } else if (f.dataset.form === "crear") {
-    const a = D.guardarPropio({ nombre: d.nombre.trim(), kcal: num(d.kcal) || 0, p: num(d.p) || 0, c: num(d.c) || 0, g: num(d.g) || 0, az: num(d.az) || 0, fi: num(d.fi) || 0, racion: null });
-    est.creando = false; est.elegido = a; est.gramos = 100; pintar();
+    const a = D.guardarPropio({ nombre: d.nombre.trim(), kcal: num(d.kcal) || 0, p: num(d.p) || 0, c: num(d.c) || 0, g: num(d.g) || 0, az: num(d.az) || 0, fi: num(d.fi) || 0,
+      racion: num(d.racion) > 0 ? num(d.racion) : null, unidad: d.unidad?.trim() || (num(d.racion) > 0 ? "ración" : null) });
+    est.creando = false; prepararCantidad(a); pintar();
   }
 }
 
@@ -558,7 +677,7 @@ async function buscarCodigo(codigo) {
   mensajeEscaner(`Buscando ${codigo}…`);
   try {
     const p = await off.porCodigo(codigo);
-    if (p) { est.escaner = false; est.elegido = p; est.gramos = null; pintar(); scrollTo(0, 0); return; }
+    if (p) { est.escaner = false; prepararCantidad(p, ultimaVez(p.nombre)); pintar(); scrollTo(0, 0); return; }
     detenerCamara();
     mensajeEscaner(`No encuentro el código ${codigo} en Open Food Facts. Puedes crearlo tú con «Crear alimento nuevo» (queda guardado).`);
   } catch (e) {
