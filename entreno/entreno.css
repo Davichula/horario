@@ -709,7 +709,7 @@ a.tarjeta-dato:hover, button.tarjeta-dato:hover, .tarjeta-deporte:hover { box-sh
 /* La barra de apartados cabe entera en el móvil: no se desliza hacia los
    lados (solo se mueve la página, hacia arriba y abajo) */
 .apartados { overflow-x: hidden; touch-action: pan-y; padding: 6px 8px 0; gap: 0; justify-content: space-between; }
-.apartados a { flex: 1 1 auto; text-align: center; padding: 11px 4px 12px; font-size: 0.88rem; letter-spacing: -0.01em; }
+.apartados a { flex: 1 1 auto; text-align: center; padding: 11px 2px 12px; font-size: clamp(0.74rem, 3.5vw, 0.88rem); letter-spacing: -0.02em; }
 @media (min-width: 620px) { .apartados { justify-content: flex-start; padding: 6px 16px 0; gap: 4px; } .apartados a { flex: none; padding: 11px 12px 12px; font-size: 0.95rem; } }
 .subpestanas { overflow-x: hidden; touch-action: pan-y; }
 .subpestanas button { flex: 1 1 0; min-width: 0; padding: 8px 6px; overflow: hidden; text-overflow: ellipsis; }
@@ -725,3 +725,80 @@ a.tarjeta-dato:hover, button.tarjeta-dato:hover, .tarjeta-deporte:hover { box-sh
 .mes-entreno h2 { align-items: baseline; }
 .mes-entreno h2::first-letter { text-transform: uppercase; }
 .mes-entreno h2 span { font-size: 0.82rem; color: var(--suave); text-align: right; }
+
+/* =====================================================================
+   PLANES: crear entrenamientos para el reloj (entrenos.js)
+   ===================================================================== */
+.panel-entreno > .volver-deportes { display: inline-block; margin: 0 0 10px; }
+.titulo-lista { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--suave); margin: 18px 4px 8px; font-weight: 700; }
+.plantillas-nuevas { display: grid; gap: 10px; margin-bottom: 12px; }
+.fila-plantillas { display: grid; grid-template-columns: 32px 1fr; gap: 8px; align-items: start; min-width: 0; }
+.fila-plantillas .chips { min-width: 0; }
+.plantilla-dep { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; color: var(--serie); background: color-mix(in srgb, var(--serie) 16%, transparent); }
+.plantilla-dep .ico, .plan-cab .ico { width: 18px; height: 18px; }
+
+.lista-planes { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.tarjeta-plan { display: block; position: relative; overflow: hidden; background: var(--tarjeta); border-radius: 14px; padding: 12px 14px 10px 17px; color: inherit; text-decoration: none; }
+.tarjeta-plan::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--serie); }
+.plan-cab { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; margin-bottom: 8px; }
+.plan-cab .actividad-icono { width: 34px; height: 34px; border-radius: 10px; color: var(--serie); }
+.plan-cab strong { display: block; font-size: 0.95rem; }
+.plan-cab small { display: block; color: var(--suave); font-size: 0.8rem; font-weight: 500; }
+.plan-cab small::first-letter { text-transform: uppercase; }
+.plan-total { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; font-size: 0.92rem; }
+
+/* El perfil: bloques más altos = más intensos */
+.perfil-entreno { display: block; width: 100%; height: auto; }
+.tarjeta-plan .perfil-entreno { height: 34px; }
+.perfil-entreno .bloque-trabajo { fill: var(--acento); }
+.perfil-entreno .bloque-recuperar { fill: color-mix(in srgb, var(--acento) 35%, var(--elevado)); }
+.perfil-entreno .bloque-suave { fill: color-mix(in srgb, var(--suave) 45%, var(--elevado)); }
+.mini-cab { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--suave); font-weight: 700; }
+.mini-cab b { text-transform: none; letter-spacing: 0; color: var(--texto); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+
+/* Cabecera del editor */
+.cabecera-plan { display: grid; gap: 10px; margin-bottom: 12px; }
+.nombre-plan { font: inherit; font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; background: transparent; color: var(--texto); border: 0; border-bottom: 1px solid var(--linea); padding: 4px 0 6px; border-radius: 0; width: 100%; }
+.nombre-plan:focus { outline: none; border-bottom-color: var(--acento); }
+.fila-campos { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.fecha-plan { font: inherit; font-size: 0.9rem; background: var(--elevado); color: var(--texto); border: 0; border-radius: 10px; padding: 7px 10px; min-height: 36px; }
+
+/* Los pasos */
+.pasos { display: grid; gap: 8px; margin: 12px 0; }
+.paso { background: var(--tarjeta); border-radius: 14px; overflow: hidden; --tono: var(--suave); }
+.paso.tipo-trabajo { --tono: var(--acento); }
+.paso.tipo-recuperar { --tono: color-mix(in srgb, var(--acento) 45%, var(--suave)); }
+.paso-resumen { display: grid; grid-template-columns: 4px 1fr auto; gap: 12px; align-items: center; width: 100%; background: none; border: 0; color: inherit; font: inherit; text-align: left; padding: 12px 14px 12px 0; cursor: pointer; }
+.paso-resumen i { align-self: stretch; background: var(--tono); border-radius: 0 3px 3px 0; }
+.paso-resumen b { display: block; font-size: 0.95rem; }
+.paso-resumen small { display: block; color: var(--suave); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+.paso-resumen .obj { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.paso.abierto .paso-resumen { border-bottom: 1px solid var(--linea); }
+.editor-paso { padding: 4px 14px 14px; display: grid; gap: 8px; }
+.etiqueta-campo { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--suave); font-weight: 700; margin-top: 6px; }
+.segmento { display: flex; background: var(--elevado); border-radius: 10px; padding: 3px; gap: 2px; }
+.segmento button { flex: 1 1 0; min-width: 0; border: 0; background: none; color: var(--suave); font: inherit; font-size: 0.82rem; font-weight: 600; padding: 7px 4px; border-radius: 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.segmento button.activo { background: var(--tarjeta); color: var(--texto); box-shadow: 0 1px 3px rgb(0 0 0 / 0.25); }
+.chips.envolver { flex-wrap: wrap; overflow: visible; }
+.ajuste-ritmo { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; text-align: center; font-variant-numeric: tabular-nums; }
+.ajuste-ritmo .boton-icono { width: auto; padding: 0 12px; font-size: 0.85rem; font-weight: 700; background: var(--elevado); border-radius: 10px; }
+.acciones-paso { display: flex; gap: 14px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid var(--linea); margin-top: 4px; }
+.acciones-paso .boton-texto { color: var(--suave); }
+.acciones-paso .confirmar, .repe-pie .confirmar { color: var(--ahora); margin-left: auto; }
+
+/* Bloque de repeticiones */
+.repe { border: 1.5px solid color-mix(in srgb, var(--acento) 45%, transparent); border-radius: 16px; padding: 10px; display: grid; gap: 8px; }
+.repe .paso { background: var(--elevado); }
+.repe .segmento { background: var(--tarjeta); }
+.repe .segmento button.activo { background: var(--elevado); }
+.repe-cab { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--acento); font-weight: 800; padding: 0 4px; }
+.contador-repe { display: inline-flex; align-items: center; gap: 4px; text-transform: none; letter-spacing: 0; color: var(--texto); }
+.contador-repe b { min-width: 72px; text-align: center; font-size: 0.95rem; }
+.contador-repe button { width: 34px; height: 34px; border-radius: 10px; border: 0; background: var(--elevado); color: var(--texto); font-size: 1.2rem; cursor: pointer; }
+.repe-pie { display: flex; gap: 14px; padding: 2px 4px 0; }
+.repe-pie .boton-texto { color: var(--suave); }
+
+.botones-anadir { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.botones-anadir button { border: 1.5px dashed var(--linea); background: none; color: var(--texto); font: inherit; font-weight: 600; font-size: 0.9rem; border-radius: 12px; padding: 11px; cursor: pointer; }
+.botones-plan { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 18px; }
+.botones-plan button:disabled { opacity: 0.45; }

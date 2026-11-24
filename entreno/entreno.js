@@ -17,6 +17,7 @@ import * as garmin from "./garmin.js";
 import { graficaLinea, graficaBarras, crearGrupo, suavizar, mapa } from "./graficas.js";
 import { pintarResumen, pintarForma, pintarSalud, pintarDeportes } from "./panel.js";
 import * as analisis from "./analisis.js";
+import { pintarPlanes, pintarEditor } from "./entrenos.js";
 
 let caja = null;
 let filtro = "todo";
@@ -27,9 +28,11 @@ const APARTADOS = [
   { id: "salud", nombre: "Salud", icono: "❤️" },
   { id: "deportes", nombre: "Deportes", icono: "🏅" },
   { id: "actividades", nombre: "Actividades", icono: "☰" },
+  { id: "planes", nombre: "Planes", icono: "▤" }, // tus entrenamientos para el reloj (entrenos.js)
 ];
 let apartado = "resumen";
 let deporteSel = null; // dentro de Deportes: el deporte abierto (#entreno/deportes/correr)
+let planSel = null; // dentro de Planes: el entrenamiento que editas (#entreno/plan/abc123)
 
 export function iniciar(elemento) {
   caja = elemento;
@@ -50,9 +53,10 @@ function mostrar(ruta) {
   const r = decodeURIComponent(ruta || "");
   if (r === "natacion") { location.replace("#entreno/deportes/nadar"); return; } // dirección antigua
   const [primero, sub] = r.split("/");
-  if (!r || APARTADOS.some((a) => a.id === r) || (primero === "deportes" && sub)) {
-    apartado = primero || "resumen";
+  if (!r || APARTADOS.some((a) => a.id === r) || (primero === "deportes" && sub) || (primero === "plan" && sub)) {
+    apartado = primero === "plan" ? "planes" : primero || "resumen";
     deporteSel = primero === "deportes" ? sub || null : null;
+    planSel = primero === "plan" ? sub : null;
     pintarLista();
   } else pintarFicha(r);
 }
@@ -121,7 +125,8 @@ function pintarLista() {
   const panel = caja.querySelector(".panel-entreno");
   if (!panel) return;
   const repintar = () => { if (enApartado()) pintarLista(); };
-  if (apartado === "forma") pintarForma(panel);
+  if (apartado === "planes") planSel ? pintarEditor(panel, planSel) : pintarPlanes(panel);
+  else if (apartado === "forma") pintarForma(panel);
   else if (apartado === "salud") pintarSalud(panel);
   else if (apartado === "deportes") pintarDeportes(panel, { deporte: deporteSel, alCambiar: repintar });
   else pintarResumen(panel, { alCambiar: repintar });
