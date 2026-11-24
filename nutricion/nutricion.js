@@ -175,6 +175,23 @@ function pintarAnadir() {
 const previa = (t) => `<div><span>kcal</span><b>${n0(t.kcal)}</b></div><div><span>Prot.</span><b>${n1(t.p)} <small>g</small></b></div><div><span>Carbos</span><b>${n1(t.c)} <small>g</small></b></div><div><span>Grasa</span><b>${n1(t.g)} <small>g</small></b></div>`;
 
 // ----- PROGRESO -----
+function htmlAtajo() {
+  const url = est.atajoUrl;
+  return `<section class="tarjeta-entreno nutri-atajo"><h2>Báscula Renpho (automático)</h2>
+    <p class="nota">Cada vez que te peses, el iPhone puede mandar tu peso y % de grasa aquí sin que hagas nada. Se hace con un Atajo (una sola vez).</p>
+    ${url ? `<div class="nutri-url">${esc(url)}</div>
+      <button type="button" class="boton-principal" data-acc="atajo-copiar">Copiar mi enlace</button>
+      <details class="nutri-como" open><summary>Pasos en la app Atajos</summary>
+        <ol>
+          <li>Abre <b>Atajos</b> → pestaña <b>Automatización</b> → <b>+</b> → <b>App</b> → elige <b>Renpho Health</b> → marca <b>Está cerrada</b> → <b>Ejecutar inmediatamente</b>.</li>
+          <li>Añade la acción <b>Buscar muestras de Salud</b>: Tipo <b>Peso</b>, ordenar por fecha de inicio (más reciente primero), límite 1.</li>
+          <li>Añade otra igual con <b>Porcentaje de grasa corporal</b> (para el % de grasa).</li>
+          <li>Añade <b>Obtener contenido de URL</b> y pega mi enlace. Detrás escribe <code>&amp;kg=</code> y toca la variable del peso, y luego <code>&amp;grasa=</code> con la variable de la grasa.</li>
+          <li>Guarda. Pésate, cierra la app de Renpho y el dato aparece aquí.</li>
+        </ol>
+        <p class="nota">Si algo no te cuadra en tu pantalla, mándame una captura y lo ajustamos. Este enlace es secreto: no lo compartas.</p></details>`
+    : `<button type="button" class="boton-principal" data-acc="atajo-preparar">Preparar mi enlace</button>${est.atajoError ? `<p class="nota" style="color:var(--c-pulso)">${esc(est.atajoError)}</p>` : ""}`}</section>`;
+}
 function htmlProgreso() {
   const pesos = D.pesos();
   const hoy = D.hoy();
@@ -189,13 +206,13 @@ function htmlProgreso() {
       <label>Peso (kg)<input name="kg" type="number" inputmode="decimal" step="any" min="30" max="250" required placeholder="${ult?.kg ?? ""}"></label>
       <label>% grasa (opcional)<input name="grasa" type="number" inputmode="decimal" step="any" min="2" max="60" placeholder="${ult?.grasa ?? ""}"></label>
     </div><button class="boton-principal" type="submit">Guardar</button></form>`;
-  if (!dias.length) return `<section class="tarjeta-entreno"><h2>Tu peso</h2><p class="nota">Pésate por la mañana en ayunas y anótalo aquí. Con unas semanas de datos calculo tu gasto real y ajusto tu objetivo.</p></section>${form}`;
+  if (!dias.length) return `<section class="tarjeta-entreno"><h2>Tu peso</h2><p class="nota">Pésate por la mañana en ayunas y anótalo aquí. Con unas semanas de datos calculo tu gasto real y ajusto tu objetivo.</p></section>${form}${htmlAtajo()}`;
   return `<section class="tarjeta-entreno"><h2>Peso · media de 7 días</h2>
     <div class="nutri-peso-cab"><div><b class="nutri-grande">${media ? n1(media) : "—"}</b> <span>kg</span></div>
     <div class="nutri-ritmo"><span>Ritmo semanal</span><b>${ritmo == null ? "—" : (ritmo > 0 ? "+" : "") + n1(ritmo) + " kg"}</b></div></div>
     ${graficaPeso(pesos)}
     ${ult?.grasa ? `<p class="nota">Última grasa corporal: ${ult.grasa} %</p>` : ""}</section>${form}
-    <section class="tarjeta-entreno"><h2>Últimas medidas</h2>${dias.slice(-8).reverse().map((f) => `<div class="nutri-item"><span>${new Date(f + "T12:00:00").toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" })}</span><span>${pesos[f].kg ? n1(pesos[f].kg) + " kg" : ""}${pesos[f].grasa ? " · " + n1(pesos[f].grasa) + " %" : ""}<button type="button" class="nutri-quitar" data-acc="borrar-peso" data-v="${f}" aria-label="Borrar medida">✕</button></span></div>`).join("")}</section>`;
+    <section class="tarjeta-entreno"><h2>Últimas medidas</h2>${dias.slice(-8).reverse().map((f) => `<div class="nutri-item"><span>${new Date(f + "T12:00:00").toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" })}</span><span>${pesos[f].kg ? n1(pesos[f].kg) + " kg" : ""}${pesos[f].grasa ? " · " + n1(pesos[f].grasa) + " % grasa" : ""}${pesos[f].magra ? " · " + n1(pesos[f].magra) + " kg magra" : ""}<button type="button" class="nutri-quitar" data-acc="borrar-peso" data-v="${f}" aria-label="Borrar medida">✕</button></span></div>`).join("")}</section>${htmlAtajo()}`;
 }
 // Puntos de cada día + línea de la media de 7 días (últimas 8 semanas)
 function graficaPeso(pesos) {
@@ -278,6 +295,8 @@ function alTocar(e) {
       D.anadir(est.fecha, { comida: est.anadiendo, nombre: a.nombre, cant: g, ...D.porciones(a, g), base: { id: a.id, nombre: a.nombre, kcal: a.kcal, p: a.p, c: a.c, g: a.g, az: a.az, fi: a.fi, racion: a.racion, unidad: a.unidad, origen: a.origen } });
       est.anadiendo = null; est.elegido = null; pintar(); scrollTo(0, 0); break;
     }
+    case "atajo-preparar": atajoPreparar(); break;
+    case "atajo-copiar": navigator.clipboard?.writeText(est.atajoUrl).then(() => { b.textContent = "¡Copiado!"; }, () => { b.textContent = "No se pudo copiar: mantén pulsado el enlace"; }); break;
     case "borrar-peso": D.borrarPeso(v); pintar(); break;
   }
 }
@@ -298,14 +317,29 @@ function alEnviar(e) {
   const num = (x) => (x === "" || x == null ? null : Number(String(x).replace(",", ".")));
   if (f.dataset.form === "perfil") {
     D.guardarPerfil({ sexo: d.sexo, edad: num(d.edad), altura: num(d.altura), peso: num(d.peso), grasa: num(d.grasa), factor: num(d.factor), deficit: num(d.deficit) ?? 300 });
+    // Si cambias el peso aquí, queda anotado hoy (así no lo pisa una medida antigua)
+    if (num(d.peso) && num(d.peso) !== D.perfil().peso || !Object.keys(D.pesos()).length) D.guardarPeso(D.hoy(), { kg: num(d.peso), ...(num(d.grasa) ? { grasa: num(d.grasa) } : {}) });
     pintar();
   } else if (f.dataset.form === "peso") {
     D.guardarPeso(d.fecha, { kg: num(d.kg), ...(num(d.grasa) ? { grasa: num(d.grasa) } : {}) });
-    // El peso más reciente pasa a ser el de tu objetivo (así se ajusta solo)
-    if (d.fecha === D.hoy() || !D.perfil().peso) D.guardarPerfil({ peso: num(d.kg), ...(num(d.grasa) ? { grasa: num(d.grasa) } : {}) });
     pintar();
   } else if (f.dataset.form === "crear") {
     const a = D.guardarPropio({ nombre: d.nombre.trim(), kcal: num(d.kcal) || 0, p: num(d.p) || 0, c: num(d.c) || 0, g: num(d.g) || 0, az: num(d.az) || 0, fi: num(d.fi) || 0, racion: null });
     est.creando = false; est.elegido = a; est.gramos = 100; pintar();
   }
+}
+
+// Pide a la función "peso" tu enlace secreto para el Atajo
+async function atajoPreparar() {
+  est.atajoError = "";
+  try {
+    if (!window.nube) throw new Error("Inicia sesión en Sincronizar (panel del Horario) primero");
+    const sb = await window.nube.supabase();
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) throw new Error("Inicia sesión en Sincronizar (panel del Horario) primero");
+    const { data, error } = await sb.functions.invoke("peso", { body: { accion: "token" } });
+    if (error || !data?.token) throw new Error(data?.error || "No se pudo crear el enlace");
+    est.atajoUrl = `${sb.supabaseUrl}/functions/v1/peso?token=${data.token}`;
+  } catch (e) { est.atajoError = e.message; }
+  pintar();
 }
