@@ -38,6 +38,7 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
     "mi-horario:nutricion-diario",  // lo que comes cada día
     "mi-horario:nutricion-propios", // alimentos que creas tú
     "mi-horario:nutricion-pesos",   // tu peso y % de grasa
+    "mi-horario:nutricion-revisiones", // las revisiones semanales que has decidido
   ];
   const CLAVE_SELLOS = "mi-horario:sync-sellos"; // cuándo cambió cada cosa en ESTE dispositivo
   const CLAVE_ULTIMA = "mi-horario:sync-ultima"; // última sincronización que salió bien
