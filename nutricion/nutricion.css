@@ -106,3 +106,48 @@
 .nutri-barras-eje .hoy { color: var(--texto); font-weight: 700; }
 .nutri-reparto { display: flex; height: 12px; border-radius: 9px; overflow: hidden; margin-top: 4px; }
 .nutri-reparto-leyenda { display: flex; justify-content: space-between; gap: 6px; font-size: .78rem; margin: 8px 0; flex-wrap: wrap; }
+/* Comidas plegables: la cabecera se toca para abrir/cerrar */
+.nutri-comida-cab { cursor: pointer; -webkit-tap-highlight-color: transparent; gap: 10px; border-radius: 12px; }
+.nutri-comida-cab:focus-visible { outline: 2px solid var(--acento); outline-offset: 4px; }
+.nutri-comida-tit b { font-size: 1rem; }
+.nutri-flecha { margin-left: 6px; vertical-align: -1px; color: var(--suave); transition: transform .2s; }
+.nutri-comida.abierta .nutri-flecha { transform: rotate(180deg); }
+.nutri-comida-sub .nm-p { color: var(--nutri-prot); }
+.nutri-comida-sub .nm-c { color: var(--nutri-carb); }
+.nutri-comida-der { display: flex; align-items: center; gap: 12px; flex: none; }
+.nutri-comida-der b { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.nutri-comida-der small { color: var(--suave); font-size: .72rem; margin-left: 3px; }
+.nutri-comida-der b + small { margin-right: 0; }
+.nutri-items { margin: 10px 0 0 48px; border-left: 2px solid var(--elevado); padding-left: 10px; animation: nutri-abrir .18s ease-out; }
+@keyframes nutri-abrir { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+button.nutri-item { width: 100%; margin: 0; padding: 9px 8px; border: 0; border-radius: 12px; background: none; color: var(--texto); font: inherit; text-align: left; display: flex; align-items: center; gap: 0; }
+button.nutri-item:active, button.nutri-item:hover { background: var(--elevado); }
+.nutri-item-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: .92rem; }
+.nutri-item-txt small { color: var(--suave); font-size: .78rem; margin-top: 1px; opacity: 1; }
+.nutri-item-kcal { font-variant-numeric: tabular-nums; font-weight: 600; font-size: .9rem; white-space: nowrap; }
+.nutri-item-kcal small { color: var(--suave); font-weight: 400; font-size: .72rem; margin-left: 2px; }
+/* Pantalla de cantidad */
+.nutri-form h2 .nutri-emo { margin-right: 8px; }
+.nutri-etq { color: var(--suave); font-size: .8rem; font-weight: 600; margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .04em; }
+.nutri-cant { display: flex; align-items: center; gap: 10px; }
+.nutri-cant input { flex: 1; min-width: 0; text-align: center; font-size: 1.8rem; font-weight: 700; padding: 8px; border-radius: 14px; border: 1px solid var(--linea); background: var(--elevado); color: var(--texto); font-variant-numeric: tabular-nums; }
+.nutri-cant button { flex: none; width: 52px; height: 52px; border-radius: 50%; border: 0; background: var(--elevado); color: var(--acento); font-size: 1.6rem; font-weight: 600; }
+.nutri-uds { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.nutri-uds button { border: 1px solid var(--linea); background: none; color: var(--texto); border-radius: 99px; padding: 7px 13px; font: inherit; font-size: .88rem; }
+.nutri-uds button small { color: var(--suave); font-size: .72rem; margin-left: 2px; }
+.nutri-uds button.activo { background: var(--acento); border-color: var(--acento); color: var(--sobre-acento); font-weight: 600; }
+.nutri-uds button.activo small { color: inherit; opacity: .75; }
+.nutri-equiv { margin: 12px 0 0; min-height: 1.3em; color: var(--suave); font-size: .92rem; }
+.nutri-equiv b { color: var(--texto); }
+.nutri-equiv small { font-size: .78rem; }
+.nutri-rapidas { margin-top: 10px; }
+.nutri-rapidas + .nutri-cifras { margin-top: 16px; }
+.nutri-borrar { color: var(--c-pulso); }
+.nutri-comida-tit > div { min-width: 0; }
+.nutri-comida-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nutri-comida-der > span { white-space: nowrap; }
+.nutri-form h2 { margin-bottom: 0; }
+.nutri-form h2 + .nutri-etq { margin-top: 10px; }
+.nutri-mover { display: grid; grid-template-columns: repeat(4, 1fr); }
+.nutri-mover button { padding: 7px 4px; font-size: .82rem; }
+.nutri-comida-der b { color: var(--texto); }

@@ -45,6 +45,14 @@ export function quitar(f, id) {
   if (!d[f].length) delete d[f];
   escribir(K.diario, d);
 }
+// Cambia una entrada ya anotada (cantidad, unidad o comida)
+export function actualizar(f, id, cambios) {
+  const d = diario();
+  const e = (d[f] || []).find((x) => x.id === id);
+  if (!e) return;
+  Object.assign(e, cambios);
+  escribir(K.diario, d);
+}
 export function copiarDia(desde, hasta, comida) {
   for (const e of dia(desde).filter((x) => !comida || x.comida === comida)) {
     const { id, ...resto } = e;

@@ -139,8 +139,142 @@ const F = [
   ["Burger de restaurante (completa)", 260, 13, 22, 13, 4, 1.5, 250, "unidad"],
   ["Sushi (maki)", 140, 4, 28, 1, 4, 0.6, 30, "pieza"],
   ["Barrita de proteínas", 370, 30, 35, 12, 5, 4, 55, "barrita"],
+  // Añadidos después (van al final para no cambiar el número de los de arriba)
+  ["Café solo", 2, 0.1, 0, 0, 0, 0, 50, "café"],
+  ["Café con leche y azúcar", 45, 1.7, 7, 1.1, 7, 0, 200, "taza"],
+  ["Leche con cacao (tipo Cola Cao)", 70, 3.5, 10, 1.8, 9, 0.6, 250, "taza"],
+  ["Cacao soluble en polvo", 375, 6, 79, 3, 70, 6, 15, "cucharada"],
+  ["Tostada de pan (sin nada)", 265, 9, 54, 1.5, 3, 2.5, 40, "tostada"],
 ];
+
+// ---------------------------------------------------------------------
+// Otras formas de medir cada alimento (además de gramos):
+//   [nombre, plural, gramos que pesa 1, cuántas se ponen por defecto]
+// La primera de la lista es la que sale elegida al añadirlo.
+// Si un alimento no está aquí, usa su ración de arriba (y gramos).
+// ---------------------------------------------------------------------
+const U = {
+  "Arroz blanco crudo": [["ración", "raciones", 70], ["taza", "tazas", 185]],
+  "Pasta cruda": [["ración", "raciones", 80]],
+  "Avena (copos)": [["ración", "raciones", 50], ["cucharada", "cucharadas", 10], ["taza", "tazas", 80]],
+  "Pan blanco (barra)": [["rebanada", "rebanadas", 40], ["barra entera", "barras enteras", 250], ["bocadillo (media barra)", "bocadillos", 125]],
+  "Pan integral": [["rebanada", "rebanadas", 30]],
+  "Pan de molde": [["rebanada", "rebanadas", 30]],
+  "Tostada de pan (sin nada)": [["tostada", "tostadas", 40]],
+  "Cereales de desayuno (copos de maíz)": [["ración", "raciones", 30], ["taza", "tazas", 30]],
+  "Galletas María": [["galleta", "galletas", 6, 4]],
+  "Tortita de arroz": [["tortita", "tortitas", 9, 2]],
+  "Patata cocida": [["patata mediana", "patatas medianas", 170], ["ración", "raciones", 200]],
+  "Boniato asado": [["boniato mediano", "boniatos medianos", 150]],
+  "Muslo de pollo (sin piel)": [["muslo", "muslos", 120]],
+  "Jamón serrano": [["loncha", "lonchas", 15, 2]],
+  "Jamón cocido (york)": [["loncha", "lonchas", 15, 2]],
+  "Pechuga de pavo (fiambre)": [["loncha", "lonchas", 10, 3]],
+  "Salchichas": [["salchicha", "salchichas", 50, 2]],
+  "Hamburguesa de ternera": [["hamburguesa", "hamburguesas", 120]],
+  "Atún al natural (lata)": [["lata pequeña", "latas pequeñas", 52]],
+  "Atún en aceite (escurrido)": [["lata pequeña", "latas pequeñas", 52]],
+  "Sardinas en lata": [["lata", "latas", 70]],
+  "Huevo entero": [["huevo", "huevos", 60, 2]],
+  "Clara de huevo": [["clara", "claras", 33, 3], ["vaso (claras de brick)", "vasos", 250]],
+  "Leche semidesnatada": [["vaso", "vasos", 250], ["taza", "tazas", 200], ["chorrito", "chorritos", 30]],
+  "Leche entera": [["vaso", "vasos", 250], ["taza", "tazas", 200], ["chorrito", "chorritos", 30]],
+  "Bebida de soja": [["vaso", "vasos", 250], ["taza", "tazas", 200]],
+  "Bebida de avena": [["vaso", "vasos", 250], ["taza", "tazas", 200]],
+  "Yogur natural": [["yogur", "yogures", 125]],
+  "Yogur griego natural": [["yogur", "yogures", 125]],
+  "Yogur proteico (tipo skyr)": [["tarrina", "tarrinas", 150]],
+  "Queso fresco batido 0%": [["tarrina", "tarrinas", 125], ["cucharada", "cucharadas", 20]],
+  "Queso curado": [["loncha", "lonchas", 15, 2], ["cuña", "cuñas", 30]],
+  "Queso fresco (Burgos)": [["ración", "raciones", 60], ["tarrina", "tarrinas", 250]],
+  "Whey / proteína en polvo": [["cacito", "cacitos", 30]],
+  "Almendras": [["puñado", "puñados", 25], ["almendra", "almendras", 1.2, 10]],
+  "Nueces": [["puñado", "puñados", 25], ["nuez", "nueces", 5, 3]],
+  "Cacahuetes": [["puñado", "puñados", 25]],
+  "Crema de cacahuete": [["cucharada", "cucharadas", 15], ["cucharadita", "cucharaditas", 5]],
+  "Plátano": [["plátano", "plátanos", 120]],
+  "Manzana": [["manzana", "manzanas", 180]],
+  "Naranja": [["naranja", "naranjas", 200]],
+  "Mandarina": [["mandarina", "mandarinas", 80, 2]],
+  "Pera": [["pera", "peras", 170]],
+  "Kiwi": [["kiwi", "kiwis", 75, 2]],
+  "Melocotón": [["melocotón", "melocotones", 150]],
+  "Fresas": [["ración", "raciones", 150], ["fresa", "fresas", 12, 8]],
+  "Aguacate": [["aguacate", "aguacates", 200, 0.5]],
+  "Dátiles": [["dátil", "dátiles", 8, 3]],
+  "Tomate": [["tomate", "tomates", 150]],
+  "Zanahoria": [["zanahoria", "zanahorias", 100]],
+  "Pimiento": [["pimiento", "pimientos", 120]],
+  "Cebolla": [["cebolla", "cebollas", 100]],
+  "Calabacín": [["calabacín", "calabacines", 200]],
+  "Gazpacho": [["vaso", "vasos", 250], ["brick", "bricks", 1000]],
+  "Aceite de oliva virgen extra": [["cucharada", "cucharadas", 10], ["cucharadita", "cucharaditas", 4], ["chorrito", "chorritos", 5]],
+  "Mantequilla": [["porción", "porciones", 10], ["cucharadita", "cucharaditas", 5]],
+  "Mayonesa": [["cucharada", "cucharadas", 15]],
+  "Tomate frito": [["ración", "raciones", 60], ["cucharada", "cucharadas", 15]],
+  "Miel": [["cucharada", "cucharadas", 15], ["cucharadita", "cucharaditas", 7]],
+  "Azúcar": [["cucharadita", "cucharaditas", 5], ["sobre", "sobres", 8], ["terrón", "terrones", 4]],
+  "Mermelada": [["cucharada", "cucharadas", 15]],
+  "Chocolate negro 70%": [["onza", "onzas", 10, 2]],
+  "Chocolate con leche": [["onza", "onzas", 10, 2]],
+  "Crema de cacao (tipo Nutella)": [["cucharada", "cucharadas", 15]],
+  "Helado": [["bola", "bolas", 80]],
+  "Croissant": [["croissant", "croissants", 60]],
+  "Magdalena": [["magdalena", "magdalenas", 40]],
+  "Cerveza": [["caña", "cañas", 200], ["tercio / lata", "tercios", 330], ["pinta", "pintas", 500]],
+  "Vino tinto": [["copa", "copas", 150]],
+  "Refresco de cola": [["lata", "latas", 330], ["vaso", "vasos", 250]],
+  "Zumo de naranja": [["vaso", "vasos", 200]],
+  "Café con leche": [["taza", "tazas", 200], ["vaso", "vasos", 250], ["cortado", "cortados", 100]],
+  "Café con leche y azúcar": [["taza", "tazas", 200], ["vaso", "vasos", 250]],
+  "Café solo": [["café", "cafés", 50]],
+  "Leche con cacao (tipo Cola Cao)": [["taza", "tazas", 250]],
+  "Cacao soluble en polvo": [["cucharada", "cucharadas", 15], ["cucharadita", "cucharaditas", 6]],
+  "Tortilla de patatas": [["pincho", "pinchos", 100], ["ración", "raciones", 150]],
+  "Tortilla francesa (2 huevos)": [["tortilla", "tortillas", 120]],
+  "Croquetas": [["croqueta", "croquetas", 25, 4]],
+  "Pizza (margarita)": [["porción", "porciones", 125], ["pizza entera", "pizzas enteras", 450]],
+  "Bocadillo de jamón serrano": [["bocadillo", "bocadillos", 150]],
+  "Burger de restaurante (completa)": [["hamburguesa", "hamburguesas", 250]],
+  "Sushi (maki)": [["pieza", "piezas", 30, 6]],
+  "Barrita de proteínas": [["barrita", "barritas", 55]],
+};
+
+// Bebidas: se miden en ml en vez de en gramos
+const LIQUIDO = /^(leche|bebida de|zumo|caf[eé]|cerveza|vino|refresco|gazpacho)/i;
 
 export const ALIMENTOS = F.map(([nombre, kcal, p, c, g, az, fi, racion, unidad], i) => ({
   id: "b" + i, nombre, kcal, p, c, g, az, fi, racion, unidad, origen: "base",
+  ml: LIQUIDO.test(nombre),
+  unidades: (U[nombre] || []).map(([s, pl, gr, def]) => ({ s, pl, g: gr, def: def || 1 })),
 }));
+const PORNOMBRE = new Map(ALIMENTOS.map((a) => [a.nombre, a]));
+
+// Plural sencillo en español (para raciones de alimentos tuyos o de supermercado)
+export function plural(s) {
+  return s.split(" ").map((w, i) => (i > 0 && !/^[a-záéíóúñ]+$/i.test(w)) || /^(de|con|y|sin)$/.test(w) ? w
+    : /[aeiouáéó]$/i.test(w) ? w + "s" : /ón$/.test(w) ? w.slice(0, -2) + "ones" : /[a-z]$/i.test(w) ? w + "es" : w).join(" ");
+}
+// Todas las formas de medir un alimento: sus unidades, su ración y siempre gramos (o ml)
+export function unidadesDe(a) {
+  const ref = PORNOMBRE.get(a.nombre);
+  let l = ref?.unidades?.length ? ref.unidades : a.unidades?.length ? a.unidades : [];
+  if (!l.length && a.racion) {
+    const s = a.unidad && !/^\d/.test(a.unidad) ? a.unidad : "ración";
+    l = [{ s, pl: plural(s), g: a.racion, def: 1 }];
+  }
+  const base = (ref?.ml ?? LIQUIDO.test(a.nombre)) ? "ml" : "g";
+  return [...l, { s: base, pl: base, g: 1, gramos: true }];
+}
+// "0.5" → "½", "1.5" → "1½", "2" → "2"
+export function numBonito(n) {
+  const e = Math.floor(n + 1e-9), r = Math.round((n - e) * 100) / 100;
+  const fr = { 0.25: "¼", 0.5: "½", 0.75: "¾" }[r];
+  if (fr) return (e ? e : "") + fr;
+  return (Math.round(n * 10) / 10).toLocaleString("es-ES");
+}
+// "3 huevos", "1 taza", "½ aguacate", "180 g"
+export function textoCantidad(n, u) {
+  if (u.gramos) return `${Math.round(n).toLocaleString("es-ES")} ${u.s}`;
+  return `${numBonito(n)} ${n > 0 && n <= 1 ? u.s : u.pl}`;
+}
