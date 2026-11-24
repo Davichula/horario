@@ -15,7 +15,7 @@
 :root {
   --c-pulso: #e5383b; --c-ritmo: #1f7ae0; --c-cadencia: #8b5cf6; --c-altitud: #8e8e93; --c-potencia: #d99a00;
   --c-sueno: #6d5fd6; --c-vfc: #12a150; --c-energia: #12a150; --c-estres: #d97706; --c-pasos: #8e8e93;
-  --dep-nadar: #3b82c4; --dep-correr: #d9733b; --dep-bici: #3f9e6e; --dep-gimnasio: #9b7fd1;
+  --dep-nadar: #3b82c4; --dep-correr: #d9733b; --dep-bici: #1f9c8f; --dep-gimnasio: #9b7fd1;
   --dep-otro: #8e8e93; --dep-andar: #a08463; --dep-raqueta: #a3a83a; --dep-nieve: #5aa9c6; --dep-escalada: #b0708f; --dep-agua: #3c9aa3;
   --serie-pulso: var(--c-pulso);
   --serie-neutra: var(--c-sueno);
@@ -27,7 +27,7 @@
   :root:not([data-tema="claro"]) {
     --c-pulso: #ff4d4f; --c-ritmo: #3d9bff; --c-cadencia: #a78bfa; --c-altitud: #9a9aa0; --c-potencia: #ffc233;
     --c-sueno: #8b7dff; --c-vfc: #2fd27a; --c-energia: #2fd27a; --c-estres: #ff9f0a; --c-pasos: #9a9aa0;
-    --dep-nadar: #4f9ee8; --dep-correr: #f08a4b; --dep-bici: #45b37c; --dep-gimnasio: #b39ae6;
+    --dep-nadar: #4f9ee8; --dep-correr: #f08a4b; --dep-bici: #2fbfb0; --dep-gimnasio: #b39ae6;
     --dep-otro: #8e8e93; --dep-andar: #b89a76; --dep-raqueta: #bfc44a; --dep-nieve: #6fc0dd; --dep-escalada: #cf8aac; --dep-agua: #4fb5bf;
     --estilo-1: #4f9ee8; --estilo-2: #f08a4b; --estilo-3: #45b37c; --estilo-4: #e0b93a; --estilo-5: #cf8aac;
     --zona-1: #5c1f20; --zona-2: #8f2b2d; --zona-3: #d13a3c; --zona-4: #ff5c5e; --zona-5: #ff9a9b;
@@ -36,7 +36,7 @@
 :root[data-tema="oscuro"] {
   --c-pulso: #ff4d4f; --c-ritmo: #3d9bff; --c-cadencia: #a78bfa; --c-altitud: #9a9aa0; --c-potencia: #ffc233;
   --c-sueno: #8b7dff; --c-vfc: #2fd27a; --c-energia: #2fd27a; --c-estres: #ff9f0a; --c-pasos: #9a9aa0;
-  --dep-nadar: #4f9ee8; --dep-correr: #f08a4b; --dep-bici: #45b37c; --dep-gimnasio: #b39ae6;
+  --dep-nadar: #4f9ee8; --dep-correr: #f08a4b; --dep-bici: #2fbfb0; --dep-gimnasio: #b39ae6;
   --dep-otro: #8e8e93; --dep-andar: #b89a76; --dep-raqueta: #bfc44a; --dep-nieve: #6fc0dd; --dep-escalada: #cf8aac; --dep-agua: #4fb5bf;
   --estilo-1: #4f9ee8; --estilo-2: #f08a4b; --estilo-3: #45b37c; --estilo-4: #e0b93a; --estilo-5: #cf8aac;
   --zona-1: #5c1f20; --zona-2: #8f2b2d; --zona-3: #d13a3c; --zona-4: #ff5c5e; --zona-5: #ff9a9b;
@@ -705,3 +705,23 @@ a.tarjeta-dato:hover, button.tarjeta-dato:hover, .tarjeta-deporte:hover { box-sh
 .fila-periodo { margin: 0; }
 .cifras-forma span i.barrita { width: 10px; height: 4px; background: var(--texto); }
 .tarjeta-salud.elegida { box-shadow: inset 0 0 0 1.5px var(--acento); }
+
+/* La barra de apartados cabe entera en el móvil: no se desliza hacia los
+   lados (solo se mueve la página, hacia arriba y abajo) */
+.apartados { overflow-x: hidden; touch-action: pan-y; padding: 6px 8px 0; gap: 0; justify-content: space-between; }
+.apartados a { flex: 1 1 auto; text-align: center; padding: 11px 4px 12px; font-size: 0.88rem; letter-spacing: -0.01em; }
+@media (min-width: 620px) { .apartados { justify-content: flex-start; padding: 6px 16px 0; gap: 4px; } .apartados a { flex: none; padding: 11px 12px 12px; font-size: 0.95rem; } }
+.subpestanas { overflow-x: hidden; touch-action: pan-y; }
+.subpestanas button { flex: 1 1 0; min-width: 0; padding: 8px 6px; overflow: hidden; text-overflow: ellipsis; }
+
+/* Listas de actividades: una franja con el color del deporte a la izquierda */
+.ultimas a[data-deporte], .actividad[data-deporte] { position: relative; }
+.ultimas a[data-deporte] { padding-left: 12px; }
+.ultimas a[data-deporte]::before, .actividad[data-deporte]::before {
+  content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--serie);
+}
+.actividad[data-deporte] { padding-left: 16px; }
+.ultimas .actividad-icono, .actividad .actividad-icono { color: var(--serie); }
+.mes-entreno h2 { align-items: baseline; }
+.mes-entreno h2::first-letter { text-transform: uppercase; }
+.mes-entreno h2 span { font-size: 0.82rem; color: var(--suave); text-align: right; }
