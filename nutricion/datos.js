@@ -18,7 +18,17 @@ const leer = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; 
 const escribir = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
 export const PERFIL_BASE = { sexo: "h", edad: null, altura: null, peso: null, grasa: null, factor: 1.4, deficit: 300, protKg: 2, grasaKg: 0.9, pctEntreno: 75 };
-export const perfil = () => ({ ...PERFIL_BASE, ...leer(K.perfil, {}) });
+// Tu peso y % de grasa de la ficha son siempre los más recientes que hayas anotado
+// (a mano o llegados solos desde la báscula), así el objetivo se ajusta solo.
+export function perfil() {
+  const p = { ...PERFIL_BASE, ...leer(K.perfil, {}) };
+  const ps = leer(K.pesos, {});
+  const ultimo = Object.keys(ps).sort().reverse().find((f) => ps[f].kg);
+  if (ultimo) p.peso = ps[ultimo].kg;
+  const conGrasa = Object.keys(ps).sort().reverse().find((f) => ps[f].grasa);
+  if (conGrasa) p.grasa = ps[conGrasa].grasa;
+  return p;
+}
 export const guardarPerfil = (p) => escribir(K.perfil, { ...perfil(), ...p });
 
 export const diario = () => leer(K.diario, {});

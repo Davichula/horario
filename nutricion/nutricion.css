@@ -58,3 +58,7 @@
 .nutri-cifras b small { font-size: .7rem; font-weight: 600; }
 .nutri-cifras small { color: var(--suave); }
 .nutri-cifras.cuatro { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.nutri-url { word-break: break-all; font-size: .75rem; font-family: ui-monospace, monospace; background: var(--elevado); padding: 10px; border-radius: 10px; margin: 10px 0; user-select: all; }
+.nutri-atajo { display: grid; gap: 4px; }
+.nutri-como ol { padding-left: 20px; font-size: .9rem; }
+.nutri-como li { margin-bottom: 8px; }
