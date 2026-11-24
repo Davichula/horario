@@ -869,3 +869,62 @@ a.tarjeta-dato:hover, button.tarjeta-dato:hover, .tarjeta-deporte:hover { box-sh
 .rango-propio .desplegable select { padding-left: 10px; padding-right: 26px; }
 .rango-propio .dos-puntos { color: var(--texto); margin: 0 -2px; }
 .boton-repetir { width: 100%; margin-top: 10px; }
+
+/* =====================================================================
+   Entreno → Hoy: semáforo de recuperación (entreno/hoy.js)
+   ===================================================================== */
+.hoy-sem { display: flex; gap: 16px; align-items: center; }
+.hoy-luz {
+  width: 72px; height: 72px; border-radius: 50%; flex: none;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c) 65%, #fff), var(--c));
+  box-shadow: 0 0 26px color-mix(in srgb, var(--c) 45%, transparent);
+}
+.hoy-sem h3 { margin: 0; font-size: 1.2rem; }
+.hoy-sem p { margin: 4px 0 0; font-size: 0.9rem; line-height: 1.35; }
+.hoy-consejo { display: flex; gap: 10px; align-items: center; background: var(--elevado); border-radius: 12px; padding: 10px 12px; margin-top: 14px; }
+.hoy-consejo p { margin: 0; font-size: 0.88rem; line-height: 1.35; }
+.hoy-ico { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex: none; background: var(--elevado); color: var(--texto); }
+.hoy-consejo .hoy-ico { background: var(--tarjeta); }
+.hoy-ico svg { width: 20px; height: 20px; }
+.hoy-factor { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--linea); font-size: 0.92rem; }
+.hoy-factor:first-of-type { border-top: 0; padding-top: 0; }
+.hoy-punto { width: 10px; height: 10px; border-radius: 50%; background: var(--c); flex: none; }
+.hoy-fn { flex: 1; }
+.hoy-fv { color: var(--suave); font-size: 0.8rem; text-align: right; line-height: 1.3; }
+.hoy-q { font-size: 0.86rem; margin: 12px 0 6px; }
+.hoy-preguntas h2 + .hoy-q { margin-top: 0; }
+.hoy-opc { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.hoy-opc button {
+  font: inherit; font-size: 0.84rem; font-weight: 600; padding: 9px 0; border-radius: 10px;
+  border: 1px solid transparent; background: var(--elevado); color: var(--texto); cursor: pointer;
+}
+.hoy-opc button.activo { background: color-mix(in srgb, var(--acento) 18%, transparent); color: var(--acento); border-color: var(--acento); }
+.hoy-preguntas summary { display: flex; justify-content: space-between; align-items: center; cursor: pointer; list-style: none; }
+.hoy-preguntas summary::-webkit-details-marker { display: none; }
+.hoy-preguntas summary h2 { margin: 0; }
+.hoy-preguntas details[open] summary { margin-bottom: 12px; }
+.hoy-ok { color: var(--acento); }
+.hoy-plan { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+.hoy-plan .nota { margin: 2px 0 0; }
+
+/* ----- Nutrición → Hoy: plan del día ----- */
+.plan-cab { display: flex; gap: 10px; align-items: center; }
+.plan-cab > div { flex: 1; min-width: 0; }
+.plan-cab .nota { margin: 2px 0 0; }
+.plan-chip { flex: none; font-size: 0.75rem; font-weight: 700; padding: 4px 10px; border-radius: 999px; color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); }
+.plan-obj { margin: 12px 0 4px; font-size: 0.95rem; }
+.plan-obj small { color: var(--suave); }
+.plan-linea { position: relative; padding-left: 22px; margin-top: 6px; }
+.plan-linea::before { content: ""; position: absolute; left: 6px; top: 14px; bottom: 14px; width: 2px; background: var(--linea); }
+.plan-paso { position: relative; padding: 8px 0; --c: var(--suave); }
+.plan-paso.antes { --c: var(--nutri-carb, #f5b942); }
+.plan-paso.durante { --c: var(--acento); }
+.plan-paso.despues { --c: var(--nutri-prot, #5aa9ff); }
+.plan-paso::before { content: ""; position: absolute; left: -21px; top: 13px; width: 10px; height: 10px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 3px var(--tarjeta); }
+.plan-h { font-size: 0.75rem; color: var(--suave); font-weight: 600; }
+.plan-paso b { display: block; font-size: 0.95rem; margin: 2px 0; }
+.plan-paso p { margin: 0; font-size: 0.86rem; color: var(--suave); }
+.plan-ej { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.plan-ej span { font-size: 0.8rem; background: var(--elevado); padding: 5px 9px; border-radius: 9px; }
+.plan-ej span.tuyo { background: color-mix(in srgb, var(--acento) 16%, transparent); }
+.plan-consejos { margin: 10px 0 0; padding-left: 18px; font-size: 0.88rem; line-height: 1.45; }

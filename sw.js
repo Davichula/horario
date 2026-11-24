@@ -9,7 +9,7 @@
 // No hace falta tocar este archivo cuando cambies el resto de la web:
 // como siempre pregunta primero a la red, las novedades llegan solas.
 
-const CACHE = "mi-horario-v16";
+const CACHE = "mi-horario-v17";
 
 // Lo mínimo para que la app arranque sin conexión
 const ESENCIALES = [
@@ -18,7 +18,7 @@ const ESENCIALES = [
   "tareas.js", "resumen.js", "estudio.js", "estadisticas.js",
   "sincronizar.js", "avisos.js", "vendor/supabase.js", "secciones.js",
   "entreno/entreno.js", "entreno/entreno.css", "entreno/fit.js", "entreno/almacen.js", "entreno/graficas.js", "entreno/garmin.js",
-  "entreno/analisis.js", "entreno/panel.js", "entreno/series.js", "entreno/salud.js", "entreno/entrenos.js",
+  "entreno/analisis.js", "entreno/panel.js", "entreno/series.js", "entreno/salud.js", "entreno/entrenos.js", "entreno/hoy.js", "hoy-linea.js",
   "nutricion/nutricion.js", "nutricion/nutricion.css", "nutricion/datos.js", "nutricion/alimentos.js", "nutricion/openfoodfacts.js",
   "calendario.ics", "manifest.json", "icono.svg", "icono-180.png", "icono-512.png",
 ];

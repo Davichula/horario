@@ -18,11 +18,13 @@ import { graficaLinea, graficaBarras, crearGrupo, suavizar, mapa, donut, anillo 
 import { pintarResumen, pintarForma, pintarSalud, pintarDeportes } from "./panel.js";
 import * as analisis from "./analisis.js";
 import { pintarPlanes, pintarEditor } from "./entrenos.js";
+import { pintarHoy } from "./hoy.js";
 
 let caja = null;
 let filtro = "todo";
 // Los apartados de Entreno: cada uno tiene su dirección (#entreno/forma...)
 const APARTADOS = [
+  { id: "hoy", nombre: "Hoy", icono: "●" }, // el semáforo de recuperación (hoy.js)
   { id: "resumen", nombre: "Resumen", icono: "◉" },
   { id: "forma", nombre: "Forma", icono: "📈" },
   { id: "salud", nombre: "Salud", icono: "❤️" },
@@ -30,7 +32,8 @@ const APARTADOS = [
   { id: "actividades", nombre: "Actividades", icono: "☰" },
   { id: "planes", nombre: "Planes", icono: "▤" }, // tus entrenamientos para el reloj (entrenos.js)
 ];
-let apartado = "resumen";
+const INICIO = "hoy"; // el apartado que se abre con solo #entreno
+let apartado = INICIO;
 let deporteSel = null; // dentro de Deportes: el deporte abierto (#entreno/deportes/correr)
 let planSel = null; // dentro de Planes: el entrenamiento que editas (#entreno/plan/abc123)
 
@@ -45,7 +48,7 @@ export function iniciar(elemento) {
     if (document.visibilityState === "visible" && /^#\/?entreno/.test(location.hash)) traerDeGarmin();
   }, 60e3);
   // Si llegan actividades desde otro dispositivo, redibujamos la lista
-  window.addEventListener("storage", (e) => { if (e.key === "mi-horario:entreno" && enApartado()) pintarLista(); });
+  window.addEventListener("storage", (e) => { if ((e.key === "mi-horario:entreno" || e.key === "mi-horario:entreno-sensaciones") && enApartado()) pintarLista(); });
   return { mostrar };
 }
 
@@ -54,7 +57,7 @@ function mostrar(ruta) {
   if (r === "natacion") { location.replace("#entreno/deportes/nadar"); return; } // dirección antigua
   const [primero, sub] = r.split("/");
   if (!r || APARTADOS.some((a) => a.id === r) || (primero === "deportes" && sub) || (primero === "plan" && sub)) {
-    apartado = primero === "plan" ? "planes" : primero || "resumen";
+    apartado = primero === "plan" ? "planes" : primero || INICIO;
     deporteSel = primero === "deportes" ? sub || null : null;
     planSel = primero === "plan" ? sub : null;
     pintarLista();
@@ -103,13 +106,13 @@ function pintarLista() {
 
   caja.innerHTML = `
     <header class="cabecera entreno-cabecera">
-      <h1>Entreno${todas.length && apartado !== "resumen" ? `<small> · ${titulo}</small>` : ""}</h1>
+      <h1>Entreno${todas.length && apartado !== INICIO ? `<small> · ${titulo}</small>` : ""}</h1>
       <button class="boton-icono" data-accion="sincronizar-garmin" aria-label="Traer actividades de Garmin" title="Traer de Garmin"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.5-4.5L4 8M4 4v4h4M4 13a8 8 0 0 0 14.5 4.5L20 16M20 20v-4h-4"/></svg></button>
       <button class="boton-icono" data-accion="ajustes" aria-label="Ajustes de entreno" title="Ajustes"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
       <label class="boton-principal boton-subir"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>Subir<input type="file" multiple data-accion="subir" hidden></label>
     </header>
     ${todas.length ? `<nav class="apartados" aria-label="Apartados de Entreno">
-      ${APARTADOS.map((a) => `<a href="#entreno${a.id === "resumen" ? "" : "/" + a.id}" ${a.id === apartado ? 'aria-current="page"' : ""}>${a.nombre}</a>`).join("")}
+      ${APARTADOS.map((a) => `<a href="#entreno${a.id === INICIO ? "" : "/" + a.id}" ${a.id === apartado ? 'aria-current="page"' : ""}>${a.nombre}</a>`).join("")}
     </nav>` : ""}
     <div class="entreno-cuerpo">
       ${!todas.length ? vacio() : apartado !== "actividades" ? `<div class="panel-entreno"></div>` : `${presentes.length > 1 ? `<div class="chips" role="group" aria-label="Filtrar por deporte">
@@ -128,6 +131,7 @@ function pintarLista() {
   if (apartado === "planes") planSel ? pintarEditor(panel, planSel) : pintarPlanes(panel);
   else if (apartado === "forma") pintarForma(panel);
   else if (apartado === "salud") pintarSalud(panel);
+  else if (apartado === "hoy") pintarHoy(panel);
   else if (apartado === "deportes") pintarDeportes(panel, { deporte: deporteSel, alCambiar: repintar });
   else pintarResumen(panel, { alCambiar: repintar });
 }

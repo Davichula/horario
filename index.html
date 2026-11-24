@@ -141,6 +141,9 @@
         <button id="btn-siguiente" aria-label="Siguiente">›</button>
       </nav>
 
+      <!-- Semáforo y plan de hoy en una línea (lo rellena hoy-linea.js) -->
+      <a id="linea-hoy" class="linea-hoy" href="#entreno" hidden></a>
+
       <main id="calendario">Cargando calendario…</main>
 
       <footer id="leyenda" class="leyenda"></footer>
@@ -240,5 +243,6 @@
   <script src="avisos.js"></script>
   <!-- Las pestañas (Horario, Entreno...). Cada sección nueva vive en su carpeta -->
   <script src="secciones.js"></script>
+  <script type="module" src="hoy-linea.js"></script>
 </body>
 </html>
