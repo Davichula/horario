@@ -251,3 +251,44 @@ export async function mapa(caja, lat, lon, grupo) {
   });
   new ResizeObserver(() => m.invalidateSize()).observe(caja);
 }
+
+// ---------------------------------------------------------------------
+// Gráficas CIRCULARES (como las de Garmin Connect)
+//   donut: un anillo partido en trozos (p. ej. tiempo en cada zona)
+//   anillo: un indicador de 0 a "max" (p. ej. efecto del entreno de 0 a 5)
+// Devuelven el SVG como texto, para meterlo directamente en el HTML.
+// ---------------------------------------------------------------------
+const arco = (cx, cy, r, desde, hasta) => {
+  // ángulos en vueltas (0 = arriba, 1 = vuelta completa)
+  const p = (f) => [cx + r * Math.sin(2 * Math.PI * f), cy - r * Math.cos(2 * Math.PI * f)];
+  const [x1, y1] = p(desde), [x2, y2] = p(hasta);
+  return `M${x1.toFixed(2)} ${y1.toFixed(2)}A${r} ${r} 0 ${hasta - desde > 0.5 ? 1 : 0} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+};
+export function donut({ segmentos, centro = "", sub = "", tam = 150, grosor = 16 }) {
+  const total = segmentos.reduce((s, x) => s + (x.valor || 0), 0);
+  const c = tam / 2, r = c - grosor / 2 - 1;
+  const hueco = segmentos.filter((x) => x.valor > 0).length > 1 ? 0.006 : 0;
+  let f = 0, trozos = "";
+  for (const x of segmentos) {
+    if (!x.valor) continue;
+    const parte = x.valor / total;
+    trozos += parte >= 0.999 ? `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${x.color}" stroke-width="${grosor}"><title>${x.etiqueta || ""}</title></circle>`
+      : `<path d="${arco(c, c, r, f + hueco, f + parte - hueco)}" fill="none" stroke="${x.color}" stroke-width="${grosor}"><title>${x.etiqueta || ""}</title></path>`;
+    f += parte;
+  }
+  return `<svg class="donut" viewBox="0 0 ${tam} ${tam}" width="${tam}" height="${tam}" role="img" aria-label="${centro} ${sub}">
+    <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--elevado)" stroke-width="${grosor}"/>${trozos}
+    <text x="${c}" y="${c + (sub ? 2 : 7)}" text-anchor="middle" class="donut-centro">${centro}</text>
+    ${sub ? `<text x="${c}" y="${c + 20}" text-anchor="middle" class="donut-sub">${sub}</text>` : ""}</svg>`;
+}
+export function anillo({ valor, max, color = "var(--acento)", centro = "", sub = "", tam = 110, grosor = 11 }) {
+  const c = tam / 2, r = c - grosor / 2 - 1;
+  const parte = Math.max(0, Math.min(1, valor / max));
+  // Un anillo abierto por abajo (de -0,375 a 0,375 vueltas), como un velocímetro
+  const ini = -0.375, fin = 0.375;
+  return `<svg class="donut" viewBox="0 0 ${tam} ${tam}" width="${tam}" height="${tam}" role="img" aria-label="${centro} ${sub}">
+    <path d="${arco(c, c, r, ini, fin)}" fill="none" stroke="var(--elevado)" stroke-width="${grosor}" stroke-linecap="round"/>
+    ${parte > 0 ? `<path d="${arco(c, c, r, ini, ini + (fin - ini) * parte)}" fill="none" stroke="${color}" stroke-width="${grosor}" stroke-linecap="round"/>` : ""}
+    <text x="${c}" y="${c + 6}" text-anchor="middle" class="donut-centro">${centro}</text>
+    ${sub ? `<text x="${c}" y="${tam - 8}" text-anchor="middle" class="donut-sub">${sub}</text>` : ""}</svg>`;
+}

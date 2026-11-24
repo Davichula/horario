@@ -802,3 +802,61 @@ a.tarjeta-dato:hover, button.tarjeta-dato:hover, .tarjeta-deporte:hover { box-sh
 .botones-anadir button { border: 1.5px dashed var(--linea); background: none; color: var(--texto); font: inherit; font-weight: 600; font-size: 0.9rem; border-radius: 12px; padding: 11px; cursor: pointer; }
 .botones-plan { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 18px; }
 .botones-plan button:disabled { opacity: 0.45; }
+
+/* =====================================================================
+   FICHA de actividad (rediseño): etiquetas, rejilla de datos, subpestañas,
+   vueltas con barras y gráficas circulares
+   ===================================================================== */
+.insignias { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
+.insignia { background: var(--elevado); color: var(--suave); font-size: 0.8rem; font-weight: 600; padding: 5px 11px; border-radius: 999px; }
+.insignia.destacada { background: color-mix(in srgb, var(--acento) 18%, transparent); color: var(--acento); }
+.kpis { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--tarjeta); border-radius: 14px; overflow: hidden; }
+.kpis > div { padding: 12px 12px 13px; min-width: 0; display: flex; flex-direction: column; gap: 3px; border-right: 1px solid var(--linea); border-bottom: 1px solid var(--linea); }
+.kpis > div:nth-child(3n) { border-right: 0; }
+.kpis > div:nth-last-child(-n + 3) { border-bottom: 0; }
+.kpis span { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--suave); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpis b { font-size: clamp(1.15rem, 5.6vw, 1.5rem); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; white-space: nowrap; line-height: 1.15; }
+.kpis b i { font-style: normal; font-size: 0.55em; font-weight: 600; color: var(--suave); margin-left: 3px; letter-spacing: 0; }
+.kpis b.tono-pulso { color: var(--c-pulso); }
+.kpis b.tono-ritmo { color: var(--c-ritmo); }
+.kpis small { font-size: 0.72rem; color: var(--suave); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mas-datos { background: var(--tarjeta); border-radius: 14px; }
+.mas-datos summary { padding: 12px 16px; font-weight: 600; font-size: 0.9rem; color: var(--suave); cursor: pointer; list-style: none; display: flex; justify-content: space-between; }
+.mas-datos summary::-webkit-details-marker { display: none; }
+.mas-datos summary::after { content: "›"; transform: rotate(90deg); transition: transform 0.2s; }
+.mas-datos[open] summary::after { transform: rotate(-90deg); }
+.mas-datos .cifras-grandes { background: none; padding: 4px 16px 16px; border-radius: 0; }
+.vista-ficha { display: flex; flex-direction: column; gap: 12px; }
+.vista-ficha[hidden] { display: none; }
+
+/* Vueltas con barras */
+.vueltas-barras .tarjeta-cabecera { display: flex; justify-content: space-between; align-items: baseline; }
+.vueltas-barras .tarjeta-cabecera span { font-size: 0.8rem; color: var(--suave); }
+.vueltas-barras ol { list-style: none; margin: 0; padding: 0; }
+.vueltas-barras li { display: grid; grid-template-columns: 22px 1fr 52px 38px; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--linea); font-variant-numeric: tabular-nums; }
+.vueltas-barras li:first-child { border-top: 0; }
+.vuelta-n { color: var(--suave); font-size: 0.85rem; }
+.vuelta-barra { min-width: 0; }
+.vuelta-barra i { display: block; height: 8px; border-radius: 4px; background: var(--c-ritmo); }
+.vueltas-barras li.rapida .vuelta-barra i { background: var(--acento); }
+.vuelta-barra small { display: block; font-size: 0.72rem; color: var(--suave); margin-top: 3px; }
+.vueltas-barras b { text-align: right; font-size: 0.95rem; }
+.vuelta-fc { text-align: right; color: var(--c-pulso); font-size: 0.9rem; }
+
+/* Gráficas circulares */
+.donut { display: block; flex: none; }
+.donut-centro { fill: var(--texto); font-size: 20px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.donut-sub { fill: var(--suave); font-size: 10.5px; font-weight: 600; }
+.donut-y-leyenda { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
+.donut-y-leyenda ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; min-width: 0; }
+.donut-y-leyenda li { display: grid; grid-template-columns: 10px 1fr auto; gap: 8px; align-items: center; font-size: 0.85rem; }
+.donut-y-leyenda li > i { width: 10px; height: 10px; border-radius: 3px; }
+.donut-y-leyenda li small { display: block; color: var(--suave); font-size: 0.72rem; }
+.donut-y-leyenda .zona-tiempo { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+@media (max-width: 330px) { .donut-y-leyenda { grid-template-columns: 1fr; justify-items: center; } .donut-y-leyenda ul { width: 100%; } }
+.anillos { display: flex; justify-content: space-around; gap: 12px; }
+.anillos > div { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.anillos b { font-size: 0.9rem; }
+.anillos small { color: var(--suave); font-size: 0.8rem; }
+.anillos small::first-letter { text-transform: uppercase; }
+.donut-semana { display: flex; justify-content: center; margin: 2px 0 12px; }

@@ -14,7 +14,7 @@
 import { leerArchivos, DEPORTES, ESTILOS, iconoDe } from "./fit.js";
 import * as almacen from "./almacen.js";
 import * as garmin from "./garmin.js";
-import { graficaLinea, graficaBarras, crearGrupo, suavizar, mapa } from "./graficas.js";
+import { graficaLinea, graficaBarras, crearGrupo, suavizar, mapa, donut, anillo } from "./graficas.js";
 import { pintarResumen, pintarForma, pintarSalud, pintarDeportes } from "./panel.js";
 import * as analisis from "./analisis.js";
 import { pintarPlanes, pintarEditor } from "./entrenos.js";
@@ -496,6 +496,7 @@ document.addEventListener("submit", async (e) => {
 // =====================================================================
 // FICHA DE UNA ACTIVIDAD
 // =====================================================================
+let vistaFicha = "graficas"; // la subpestaña abierta en la ficha (se recuerda al cambiar de actividad)
 async function pintarFicha(id) {
   const resumen = almacen.buscar(id);
   caja.innerHTML = `
@@ -511,6 +512,17 @@ async function pintarFicha(id) {
   const a = act || resumen; // sin detalle (p. ej. sin conexión) enseñamos al menos el resumen
   const inicio = new Date(a.inicio);
 
+  // Lo que va en cada subpestaña (solo las que tienen algo que enseñar)
+  const vistas = [];
+  if (act?.puntos?.t?.length) vistas.push(["graficas", "Gráficas", `<div class="graficas-entreno" data-deporte="${a.deporte}"></div>`]);
+  if (act && act.deporte !== "nadar" && act.vueltas?.filter((v) => v.dur > 0).length > 1) vistas.push(["vueltas", "Vueltas", vueltasHtml(act)]);
+  if (act?.deporte === "nadar") { const n = natacionHtml(act); if (n.trim()) vistas.push(["nado", "Series y largos", n]); }
+  if (act?.series?.length) vistas.push(["ejercicios", "Ejercicios", seriesHtml(act)]);
+  const zonas = act ? zonasHtml(act) : "";
+  if (zonas) vistas.push(["zonas", "Zonas", zonas]);
+  if (!vistas.some(([v]) => v === vistaFicha)) vistaFicha = vistas[0]?.[0];
+  const { principales, resto } = cifras(a);
+
   cuerpo.innerHTML = `
     <section class="ficha-entreno-cabecera" data-deporte="${a.deporte}">
       <span class="actividad-icono grande" aria-hidden="true">${iconoDe(a)}</span>
@@ -519,30 +531,51 @@ async function pintarFicha(id) {
         <p>${fechaLarga(inicio)} · ${horaDe(inicio)}${a.dispositivo ? ` · ${escapar(a.dispositivo)}` : ""}</p>
       </div>
     </section>
+    ${insignias(a)}
     ${a.gps ? `<div class="mapa-entreno" data-deporte="${a.deporte}"></div>` : ""}
-    <section class="cifras-grandes">${cifras(a)}</section>
+    <section class="kpis" data-deporte="${a.deporte}">${principales}</section>
+    ${resto ? `<details class="mas-datos"><summary>Más datos</summary><div class="cifras-grandes">${resto}</div></details>` : ""}
     ${act ? "" : `<p class="nota">No he podido cargar el detalle (gráficas y vueltas). Comprueba la conexión.</p>`}
-    <div class="graficas-entreno" data-deporte="${a.deporte}"></div>
-    ${act ? zonasHtml(act) : ""}
-    ${act?.deporte === "nadar" ? natacionHtml(act) : ""}
-    ${act?.series?.length ? seriesHtml(act) : ""}
-    ${act && act.deporte !== "nadar" && act.vueltas?.length > 1 ? vueltasHtml(act) : ""}
+    ${vistas.length > 1 ? `<nav class="subpestanas" aria-label="Partes de la actividad">${vistas.map(([v, t]) =>
+      `<button type="button" data-vista-ficha="${v}" class="${v === vistaFicha ? "activo" : ""}" aria-pressed="${v === vistaFicha}">${t}</button>`).join("")}</nav>` : ""}
+    ${vistas.map(([v, , html]) => `<div class="vista-ficha" data-vista="${v}"${v === vistaFicha ? "" : " hidden"}>${html}</div>`).join("")}
     <footer class="ficha-entreno-pie">
       <button class="boton-peligro" data-accion="borrar">Borrar actividad</button>
     </footer>`;
+  cuerpo.querySelectorAll("[data-vista-ficha]").forEach((b) => b.addEventListener("click", () => {
+    vistaFicha = b.dataset.vistaFicha;
+    cuerpo.querySelectorAll("[data-vista-ficha]").forEach((x) => { x.classList.toggle("activo", x === b); x.setAttribute("aria-pressed", x === b); });
+    cuerpo.querySelectorAll(".vista-ficha").forEach((x) => (x.hidden = x.dataset.vista !== vistaFicha));
+  }));
 
   if (!act) return;
   const grupo = crearGrupo();
   const mapaCaja = cuerpo.querySelector(".mapa-entreno");
   if (mapaCaja && act.puntos?.lat) mapa(mapaCaja, act.puntos.lat, act.puntos.lon, grupo).catch(() => mapaCaja.remove());
-  dibujarGraficas(act, cuerpo.querySelector(".graficas-entreno"), grupo);
+  const graficas = cuerpo.querySelector(".graficas-entreno");
+  if (graficas) dibujarGraficas(act, graficas, grupo);
   if (act.deporte === "nadar") dibujarLargos(act, cuerpo.querySelector(".largos-grafica"));
 }
 
-// Los datos grandes de arriba (cambian según el deporte)
+// Los datos de arriba: los 6 más importantes de cada deporte en la rejilla,
+// y el resto plegado en "Más datos" (para no amontonar)
+const PRINCIPALES = {
+  correr: ["Distancia", "Tiempo", "Ritmo medio", "Pulso medio", "Desnivel +", "Cadencia"],
+  andar: ["Distancia", "Tiempo", "Ritmo medio", "Pulso medio", "Desnivel +", "Calorías"],
+  bici: ["Distancia", "Tiempo", "Velocidad media", "Pulso medio", "Desnivel +", "Potencia"],
+  nadar: ["Distancia", "Tiempo", "Ritmo medio", "SWOLF", "Largos", "Pulso medio"],
+  gimnasio: ["Tiempo", "Series", "Repeticiones", "Volumen", "Pulso medio", "Calorías"],
+};
+// "9,42 km" → número grande y unidad pequeña
+function kpi(d) {
+  const m = String(d.valor).match(/^(.*\d)\s+([^\d\s].*)$/);
+  const num = m ? m[1] : d.valor, uni = m ? m[2] : "";
+  const tono = d.nombre === "Pulso medio" ? ' class="tono-pulso"' : /Ritmo|Velocidad/.test(d.nombre) ? ' class="tono-ritmo"' : "";
+  return `<div><span>${d.nombre}</span><b${tono}>${num}${uni ? `<i>${uni}</i>` : ""}</b>${d.extra ? `<small>${d.extra}</small>` : ""}</div>`;
+}
 function cifras(a) {
-  const c = [];
-  const pon = (nombre, valor, extra = "") => valor && valor !== "—" && c.push(`<div><span>${nombre}</span><b>${valor}</b>${extra ? `<small>${extra}</small>` : ""}</div>`);
+  const datos = [];
+  const pon = (nombre, valor, extra = "") => valor && valor !== "—" && datos.push({ nombre, valor, extra });
   pon("Distancia", distanciaDe(a));
   pon("Tiempo", tiempo(a.duracion), a.transcurrido && a.transcurrido - a.duracion > 60 ? `${tiempo(a.transcurrido)} con pausas` : "");
   if (a.deporte === "correr") pon("Ritmo medio", ritmoKm(a.velMedia));
@@ -573,7 +606,30 @@ function cifras(a) {
   const x = a.puntos ? analisis.derivados(a) : a;
   pon("Eficiencia", x.ef && x.ef.toLocaleString("es-ES", { maximumFractionDigits: 2 }), x.efPot ? "vatios por latido" : "metros/min por latido");
   pon("Desacople", x.desacople != null && `${x.desacople.toLocaleString("es-ES")} %`, x.desacople != null ? (x.desacople < 5 ? "buena base aeróbica" : "se cae en la 2ª mitad") : "");
-  return c.join("");
+  const orden = PRINCIPALES[a.deporte] || [];
+  const elegidos = orden.map((n) => datos.find((d) => d.nombre === n)).filter(Boolean);
+  for (const d of datos) if (elegidos.length < 6 && !elegidos.includes(d) && !["Efecto aeróbico", "Carga (TSS)", "Carga Garmin"].includes(d.nombre)) elegidos.push(d);
+  const principales = elegidos.length > 3 ? elegidos.slice(0, elegidos.length >= 6 ? 6 : 3) : elegidos;
+  return {
+    principales: principales.map(kpi).join(""),
+    resto: datos.filter((d) => !principales.includes(d)).map((d) => `<div><span>${d.nombre}</span><b>${d.valor}</b>${d.extra ? `<small>${d.extra}</small>` : ""}</div>`).join(""),
+  };
+}
+
+// Etiquetas automáticas debajo del título: récords, efecto del entreno, carga
+const EFECTO = [[5, "te pasaste"], [4, "mejora mucho"], [3, "mejora"], [2, "mantiene"], [1, "suave"], [0, "sin efecto"]];
+function insignias(a) {
+  const xs = [];
+  const recs = a.deporte === "correr" ? analisis.recordsCarrera() : a.deporte === "nadar" ? analisis.recordsNado() : [];
+  const nombreDist = (d) => analisis.NOMBRE_DISTANCIA[d] || `${d} m`;
+  const propio = recs.filter((r) => r.mejor.id === a.id).at(-1);
+  const delAnio = recs.filter((r) => r.mejorAnio?.id === a.id).at(-1);
+  if (propio) xs.push(`<span class="insignia destacada">Récord: mejor ${nombreDist(propio.distancia)}</span>`);
+  else if (delAnio) xs.push(`<span class="insignia destacada">Mejor ${nombreDist(delAnio.distancia)} del año</span>`);
+  if (a.efectoAerobico != null) xs.push(`<span class="insignia">Efecto ${a.efectoAerobico.toLocaleString("es-ES")} · ${EFECTO.find(([n]) => a.efectoAerobico >= n)[1]}</span>`);
+  const carga = analisis.cargaDe(a, analisis.umbrales());
+  if (carga.tss) xs.push(`<span class="insignia">Carga ${carga.tss}</span>`);
+  return xs.length ? `<div class="insignias">${xs.join("")}</div>` : "";
 }
 
 function dibujarGraficas(a, caja, grupo) {
@@ -631,42 +687,53 @@ function zonasHtml(a) {
   }
   const total = segundos.reduce((s, x) => s + x, 0);
   if (!total) return "";
-  const max = Math.max(...segundos);
+  const principal = segundos.indexOf(Math.max(...segundos));
   return `
-    <section class="tarjeta-entreno zonas">
+    <section class="tarjeta-entreno zonas-donut">
       <h2>Zonas de pulso</h2>
-      <ul>${ZONAS.map((z, i) => `
-        <li>
-          <span class="zona-nombre"><b>${z.nombre}</b> ${z.texto}<small>${Math.round(z.desde * fc.valor)}–${i < 4 ? Math.round(ZONAS[i + 1].desde * fc.valor) - 1 : fc.valor} ppm</small></span>
-          <span class="zona-barra"><span style="width:${(segundos[i] / max) * 100}%;${segundos[i] ? "" : "min-width:0"}" data-zona="${i + 1}"></span></span>
-          <span class="zona-tiempo">${tiempo(segundos[i], true)}<small>${Math.round((segundos[i] / total) * 100)} %</small></span>
-        </li>`).join("")}
-      </ul>
-      <p class="nota">Calculadas con pulsaciones máximas de ${fc.valor}${fc.estimada ? " (estimadas)" : ""}. <button class="enlace" data-accion="ajustes">Cambiar</button></p>
+      <div class="donut-y-leyenda">
+        ${donut({ segmentos: ZONAS.map((z, i) => ({ valor: segundos[i], color: `var(--zona-${i + 1})`, etiqueta: `${z.nombre} · ${tiempo(segundos[i], true)}` })), centro: ZONAS[principal].nombre, sub: "zona principal", tam: 124, grosor: 14 })}
+        <ul>${ZONAS.map((z, i) => `
+          <li><i style="background:var(--zona-${i + 1})"></i><span><b>${z.nombre}</b> ${z.texto}<small>${Math.round(z.desde * fc.valor)}–${i < 4 ? Math.round(ZONAS[i + 1].desde * fc.valor) - 1 : fc.valor} ppm</small></span>
+            <span class="zona-tiempo">${Math.round((segundos[i] / total) * 100)} %<small>${tiempo(segundos[i], true)}</small></span></li>`).join("")}
+        </ul>
+      </div>
+      <details class="explica"><summary>Cómo se calculan</summary><p class="nota">Con pulsaciones máximas de ${fc.valor}${fc.estimada ? " (estimadas)" : ""}. <button class="enlace" data-accion="ajustes">Cambiar</button></p></details>
+    </section>
+    ${efectoHtml(a)}`;
+}
+
+// ----- Efecto del entreno (Garmin, de 0 a 5): dos anillos -----
+function efectoHtml(a) {
+  if (a.efectoAerobico == null) return "";
+  const texto = (v) => EFECTO.find(([n]) => v >= n)[1];
+  return `
+    <section class="tarjeta-entreno efecto-anillos">
+      <h2>Efecto del entreno</h2>
+      <div class="anillos">
+        <div>${anillo({ valor: a.efectoAerobico, max: 5, color: "var(--acento)", centro: a.efectoAerobico.toLocaleString("es-ES"), sub: "de 5" })}<b>Aeróbico</b><small>${texto(a.efectoAerobico)}</small></div>
+        ${a.efectoAnaerobico != null ? `<div>${anillo({ valor: a.efectoAnaerobico, max: 5, color: "var(--c-potencia)", centro: a.efectoAnaerobico.toLocaleString("es-ES"), sub: "de 5" })}<b>Anaeróbico</b><small>${texto(a.efectoAnaerobico)}</small></div>` : ""}
+      </div>
     </section>`;
 }
 
-// ----- Vueltas (carrera, bici) -----
+// ----- Vueltas (carrera, bici): una barra por vuelta, la más rápida en verde -----
 function vueltasHtml(a) {
   const vueltas = a.vueltas.filter((v) => v.dur > 0);
   const vels = vueltas.map((v) => v.vel).filter(Boolean);
   const vMax = Math.max(...vels), vMin = Math.min(...vels);
-  const esCorrer = a.deporte === "correr";
+  const esCorrer = a.deporte === "correr" || a.deporte === "andar";
   return `
-    <section class="tarjeta-entreno vueltas">
-      <h2>Vueltas</h2>
-      <table>
-        <thead><tr><th>#</th><th>Distancia</th><th>Tiempo</th><th>${esCorrer ? "Ritmo" : "Velocidad"}</th><th>Pulso</th></tr></thead>
-        <tbody>${vueltas.map((v, i) => `
-          <tr>
-            <td>${i + 1}</td>
-            <td>${km(v.dist)}</td>
-            <td>${tiempo(v.dur)}</td>
-            <td class="celda-barra"><span class="mini-barra" style="width:${vMax > vMin ? 35 + ((v.vel - vMin) / (vMax - vMin)) * 65 : 100}%"></span><span>${esCorrer ? ritmoKm(v.vel).replace(" /km", "") : kmh(v.vel)}</span></td>
-            <td>${v.fcMedia ?? "—"}</td>
-          </tr>`).join("")}
-        </tbody>
-      </table>
+    <section class="tarjeta-entreno vueltas-barras">
+      <header class="tarjeta-cabecera"><h2>Vueltas</h2><span>${esCorrer ? "ritmo" : "velocidad"} · pulso</span></header>
+      <ol>${vueltas.map((v, i) => `
+        <li class="${v.vel && v.vel === vMax && vMax > vMin ? "rapida" : ""}">
+          <span class="vuelta-n">${i + 1}</span>
+          <span class="vuelta-barra"><i style="width:${v.vel && vMax > vMin ? 30 + ((v.vel - vMin) / (vMax - vMin)) * 70 : 100}%"></i><small>${km(v.dist)} · ${tiempo(v.dur)}</small></span>
+          <b>${v.vel ? (esCorrer ? ritmoKm(v.vel).replace(" /km", "") : kmh(v.vel).replace(" km/h", "")) : "—"}</b>
+          <span class="vuelta-fc">${v.fcMedia ?? "—"}</span>
+        </li>`).join("")}
+      </ol>
     </section>`;
 }
 

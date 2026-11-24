@@ -15,7 +15,7 @@ import { DEPORTES, iconoDe } from "./fit.js";
 import * as almacen from "./almacen.js";
 import * as an from "./analisis.js";
 import * as salud from "./salud.js";
-import { NS, marcas } from "./graficas.js";
+import { NS, marcas, donut } from "./graficas.js";
 import { graficaSeries, sparkline } from "./series.js";
 
 const DIA = 864e5;
@@ -105,7 +105,10 @@ export function pintarResumen(cont, { alCambiar } = {}) {
 
   const sub = subpestanas("subResumen", [["hoy", "Hoy"], ["totales", "Totales"], ["constancia", "Constancia"]]);
   cont.innerHTML = sub + (pref.subResumen === "totales" ? `
-    ${porDeporte ? tarjeta("Esta semana por deporte", `<ul class="por-deporte sin-borde">${porDeporte}</ul>`, { icono: "📅" }) : ""}
+    ${porDeporte ? tarjeta("Esta semana por deporte", `${Object.keys(actual.deportes).length < 2 ? "" : `<div class="donut-semana">${donut({
+      segmentos: Object.entries(actual.deportes).map(([d, x]) => ({ valor: x.horas, color: `var(--dep-${d})`, etiqueta: `${DEPORTES[d].nombre} · ${horas(x.horas)}` })),
+      centro: horas(Object.values(actual.deportes).reduce((t, x) => t + x.horas, 0)), sub: "en total", tam: 120, grosor: 13 })}</div>`}
+      <ul class="por-deporte sin-borde">${porDeporte}</ul>`, { icono: "📅" }) : ""}
 
     ${tarjeta("Totales", `
       <div class="fila-chips">${chips("medida", [["horas", "Horas"], ["carga", "Carga"], ["sesiones", "Sesiones"]])}</div>
