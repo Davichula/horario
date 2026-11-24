@@ -12,6 +12,7 @@ import * as D from "./datos.js";
 import * as almacen from "../entreno/almacen.js";
 import { anillo } from "../entreno/graficas.js";
 import * as off from "./openfoodfacts.js";
+import * as hoyE from "../entreno/hoy.js";
 
 const COMIDAS = ["Desayuno", "Comida", "Merienda", "Cena"];
 const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -38,15 +39,9 @@ export function iniciar(elemento) {
 }
 
 // ----- Datos auxiliares -----
-// Calorías que gastaste entrenando ese día (según tus actividades de Garmin)
-function kcalEntreno(fecha) {
-  let t = 0; const lista = [];
-  for (const a of almacen.listar()) {
-    if (!a.calorias || D.aTexto(new Date(a.inicio)) !== fecha) continue;
-    t += a.calorias; lista.push(a);
-  }
-  return { total: t, lista };
-}
+// Calorías de entreno de ese día: lo que gastaste según Garmin y, si aún no
+// has hecho el entreno planeado de hoy (Entreno → Planes), lo previsto
+const kcalEntreno = (fecha) => hoyE.kcalEntreno(fecha);
 const todosAlimentos = () => [...D.propios(), ...ALIMENTOS];
 // Los últimos alimentos que has comido (para "Recientes")
 function recientes() {
@@ -99,7 +94,7 @@ function htmlHoy() {
         <div><dt>Comido</dt><dd>${n0(t.kcal)}</dd></div>
         ${obj.extra ? `<div class="extra"><dt>+ Entreno</dt><dd>${n0(obj.extra)}</dd></div>` : ""}
       </dl></div>
-      ${obj.extra ? `<p class="nota">${en.lista.map((a) => esc(a.nombre)).join(" + ")}: ${n0(en.total)} kcal según Garmin (cuento el ${p.pctEntreno} %).</p>` : ""}
+      ${obj.extra ? `<p class="nota">${en.lista.map((a) => esc(a.nombre) + (a.previsto ? " (previsto)" : "")).join(" + ")}: ${n0(en.total)} kcal${en.lista.some((a) => a.previsto) ? " estimadas" : " según Garmin"} (cuento el ${p.pctEntreno} %).</p>` : ""}
       ${macro("Proteína", t.p, obj.prot, "var(--nutri-prot)")}
       ${macro("Carbohidratos", t.c, obj.carbos, "var(--nutri-carb)")}
       ${macro("Grasas", t.g, obj.grasa, "var(--nutri-grasa)")}
@@ -117,8 +112,30 @@ function htmlHoy() {
       ${l.map((e) => `<div class="nutri-item"><span><span class="nutri-emo" aria-hidden="true">${emojiDe(e.nombre)}</span>${esc(e.nombre)} <small>${n0(e.cant ?? 0)} g</small></span><span>${n0(e.kcal)}<button type="button" class="nutri-quitar" data-acc="quitar" data-v="${e.id}" aria-label="Quitar ${esc(e.nombre)}">✕</button></span></div>`).join("")}</div>`;
   }).join("");
   const ayer = D.dia(D.sumarDias(est.fecha, -1)).length;
-  return `${nav}${resumen}<section class="tarjeta-entreno nutri-comidas">${comidas}
+  return `${nav}${est.fecha >= D.hoy() ? htmlPlanDia(est.fecha) : ""}${resumen}<section class="tarjeta-entreno nutri-comidas">${comidas}
     ${ayer && !entradas.length ? `<button type="button" class="boton-secundario" data-acc="copiar">Copiar las comidas de ayer</button>` : ""}</section>`;
+}
+// ----- Plan del día: qué comer alrededor del entreno (entreno/hoy.js) -----
+function htmlPlanDia(f) {
+  const pl = hoyE.planDelDia(f);
+  if (!pl.obj) return "";
+  const tipo = hoyE.TIPO_DIA[pl.tipo];
+  const esHoy = f === D.hoy();
+  const fechaT = esHoy ? "hoy" : new Date(f + "T12:00:00").toLocaleDateString("es-ES", { weekday: "long", day: "numeric" });
+  const prin = pl.principal;
+  const cab = prin
+    ? `<div class="plan-cab"><span class="hoy-ico">${hoyE.iconoDeporte(prin.deporte)}</span><div><b>${esc(prin.nombre)}</b>
+        <div class="nota">${prin.hecho ? "Hecho" : prin.hora || "Sin hora"} · ${Math.round((prin.duracion || 0) / 60)} min${pl.entreno.todo.length > 1 ? ` · +${pl.entreno.todo.length - 1} más` : ""}</div></div>
+        <span class="plan-chip" style="--c:${tipo.color}">${tipo.nombre}</span></div>`
+    : `<div class="plan-cab"><div><b>Sin entreno planeado</b><div class="nota">Si planeas uno en Entreno → Planes, lo tengo en cuenta.</div></div><span class="plan-chip" style="--c:${tipo.color}">${tipo.nombre}</span></div>`;
+  const resumenObj = `<p class="plan-obj"><b>${n0(pl.obj.kcal)} kcal</b> · ${n0(pl.obj.carbos)} g de carbos${pl.obj.extra ? ` <small>(+${n0(pl.obj.extra)} por el entreno)</small>` : ""}</p>`;
+  const chip = (x) => `<span class="${x.tuyo ? "tuyo" : ""}">${x.emoji || emojiDe(x.nombre)} ${esc(x.nombre)}${x.g ? ` ${n0(x.g)} g` : ""}</span>`;
+  const linea = pl.pasos.length ? `<div class="plan-linea">${pl.pasos.map((x) => `<div class="plan-paso ${x.clase}">
+      <div class="plan-h">${esc(x.hora)}</div><b>${esc(x.titulo)}</b><p>${esc(x.texto)}</p>
+      ${x.ejemplos.length ? `<div class="plan-ej">${x.ejemplos.map(chip).join("")}</div>` : ""}</div>`).join("")}</div>
+      ${pl.pasos.some((x) => x.ejemplos.some((e) => e.tuyo)) ? `<p class="nota">Los ejemplos en verde salen de lo que sueles comer.</p>` : ""}`
+    : `<ul class="plan-consejos">${pl.consejos.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>`;
+  return `<section class="tarjeta-entreno plan-dia"><h2>Plan de ${fechaT}</h2>${cab}${resumenObj}${linea}</section>`;
 }
 // ----- Iconos de cada comida (dibujos de línea con un tono suave) -----
 const icono = (color, trazos) => `<span class="nutri-ico" style="--c:${color}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${trazos}</svg></span>`;

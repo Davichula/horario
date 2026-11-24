@@ -154,6 +154,22 @@ function velocidad(paso, w, R) {
 function plano(pasos) { // los pasos en orden, con las repeticiones desplegadas
   return pasos.flatMap((x) => (x.tipo === "repetir" ? Array.from({ length: x.veces }, () => plano(x.pasos)).flat() : [x]));
 }
+// Resumen de un plan para "Hoy" (entreno/hoy.js): cuánto dura y cómo de duro es
+export function resumenPlan(w, R = referencias()) {
+  const e = estimar(w, R);
+  const conSeries = w.pasos.some((x) => x.tipo === "repetir");
+  let dura = 0, media = 0;
+  for (const { paso, s } of e.tramos) {
+    if (paso.tipo !== "trabajo") continue;
+    // "libre" (sin objetivo): en series lo tomamos como esfuerzo medio, seguido como suave
+    const h = paso.obj.tipo === "libre" ? (conSeries ? 0.7 : 0.6) : altura(paso);
+    if (h >= 0.75) dura += s;
+    if (h >= 0.65) media += s;
+  }
+  const t = e.tiempo || 1;
+  const intensidad = dura / t >= 0.12 ? "duro" : media / t >= 0.3 ? "medio" : "suave";
+  return { tiempo: e.tiempo, dist: e.dist, intensidad };
+}
 function estimar(w, R) {
   let tiempo = 0, dist = 0;
   const tramos = plano(w.pasos).map((x) => {

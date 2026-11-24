@@ -18,6 +18,8 @@
   --hoy: #e8f6ee;
   --ahora: #e5484d;
   --sombra: 0 1px 2px rgb(0 0 0 / 0.05);
+  --sem-ambar: #d99a00;    /* semáforo de recuperación (entreno/hoy.js) */
+  --sem-rojo: #e5484d;
 }
 
 /* Colores del modo oscuro: NEGRO de verdad (como Strava), tarjetas gris
@@ -37,6 +39,8 @@
     --sobre-acento: #03140a;
     --hoy: #0f2a1b;
     --sombra: none;
+    --sem-ambar: #f5b942;
+    --sem-rojo: #ff5a5f;
     color-scheme: dark;
   }
 }
@@ -51,6 +55,8 @@
   --sobre-acento: #03140a;
   --hoy: #0f2a1b;
   --sombra: none;
+  --sem-ambar: #f5b942;
+  --sem-rojo: #ff5a5f;
   color-scheme: dark;
 }
 
@@ -1051,3 +1057,16 @@ main { flex: 1; padding: 0 16px 16px; }
   body.con-pestanas { padding-left: 76px; }
 }
 .fab[hidden] { display: none !important; }
+
+/* ----- Línea del semáforo de hoy, arriba del calendario (hoy-linea.js) ----- */
+.linea-hoy {
+  display: flex; align-items: center; gap: 12px; margin: 0 12px 10px; padding: 11px 14px;
+  background: var(--tarjeta); border-radius: 14px; box-shadow: var(--sombra);
+  color: var(--texto); text-decoration: none;
+}
+.linea-hoy[hidden] { display: none; }
+.linea-hoy-punto { width: 14px; height: 14px; border-radius: 50%; flex: none; background: var(--c); box-shadow: 0 0 10px color-mix(in srgb, var(--c) 50%, transparent); }
+.linea-hoy-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.linea-hoy-texto b { font-size: 0.95rem; }
+.linea-hoy-texto small { color: var(--suave); font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.linea-hoy-flecha { color: var(--suave); font-size: 1.3rem; }

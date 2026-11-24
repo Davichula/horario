@@ -34,6 +34,7 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
     "mi-horario:entreno",           // la lista de tus actividades (entreno/)
     "mi-horario:entreno-ajustes",   // tus pulsaciones máximas, etc.
     "mi-horario:entreno-planes",    // los entrenamientos que diseñas (entreno/entrenos.js)
+    "mi-horario:entreno-sensaciones", // tus respuestas de la mañana del semáforo (entreno/hoy.js)
     "mi-horario:nutricion-perfil",  // tus datos y objetivo de nutrición (nutricion/)
     "mi-horario:nutricion-diario",  // lo que comes cada día
     "mi-horario:nutricion-propios", // alimentos que creas tú
