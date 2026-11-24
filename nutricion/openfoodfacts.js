@@ -8,8 +8,10 @@
 // marca con su origen y puedes corregir los valores.
 // =====================================================================
 const BASE = "https://world.openfoodfacts.org";
+const BUSCADOR = "https://search.openfoodfacts.org"; // el buscador nuevo y rápido de Open Food Facts
 const CAMPOS = "code,product_name,product_name_es,brands,nutriments,serving_quantity,serving_size,quantity";
 
+const marca = (b) => (Array.isArray(b) ? b[0] : String(b || "").split(",")[0]).trim();
 const num = (x) => (x == null || x === "" || isNaN(Number(x)) ? null : Number(x));
 
 // Convierte un producto de Open Food Facts a nuestro formato (valores por 100 g)
@@ -23,7 +25,7 @@ export function convertir(p) {
   return {
     id: "off:" + p.code,
     codigo: String(p.code),
-    nombre: p.brands ? `${nombre} (${p.brands.split(",")[0].trim()})` : nombre,
+    nombre: marca(p.brands) ? `${nombre} (${marca(p.brands)})` : nombre,
     kcal: Math.round(kcal),
     p: num(n["proteins_100g"]) ?? 0,
     c: num(n["carbohydrates_100g"]) ?? 0,
@@ -36,10 +38,22 @@ export function convertir(p) {
   };
 }
 
-async function pedir(url) {
-  const r = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!r.ok) throw new Error(`Open Food Facts respondió ${r.status}`);
-  return r.json();
+// Pide con límite de tiempo y reintenta una vez (el servidor gratuito a veces tarda o falla)
+async function pedir(url, intentos = 2) {
+  let ultimo;
+  for (let i = 0; i < intentos; i++) {
+    const control = new AbortController();
+    const reloj = setTimeout(() => control.abort(), 12000);
+    try {
+      const r = await fetch(url, { headers: { Accept: "application/json" }, signal: control.signal });
+      if (!r.ok) throw new Error(`el servidor respondió ${r.status}`);
+      return await r.json();
+    } catch (e) {
+      ultimo = e.name === "AbortError" ? new Error("tardó demasiado en responder") : e;
+    } finally { clearTimeout(reloj); }
+    await new Promise((ok) => setTimeout(ok, 700));
+  }
+  throw ultimo;
 }
 
 // Un producto por su código de barras. Devuelve null si no existe.
@@ -51,9 +65,14 @@ export async function porCodigo(codigo) {
   return convertir({ ...d.product, code: limpio });
 }
 
-// Búsqueda por nombre (productos vendidos en España primero)
+// Búsqueda por nombre. Primero el buscador nuevo; si falla, el antiguo.
 export async function buscar(texto) {
   const q = encodeURIComponent(texto.trim());
-  const d = await pedir(`${BASE}/cgi/search.pl?search_terms=${q}&search_simple=1&action=process&json=1&page_size=20&tagtype_0=countries&tag_contains_0=contains&tag_0=spain&fields=${CAMPOS}`);
+  try {
+    const d = await pedir(`${BUSCADOR}/search?q=${q}&page_size=20&langs=es&fields=${CAMPOS}`, 1);
+    const l = (d.hits || []).map(convertir).filter(Boolean);
+    if (l.length) return l;
+  } catch { /* probamos el otro */ }
+  const d = await pedir(`${BASE}/cgi/search.pl?search_terms=${q}&search_simple=1&action=process&json=1&page_size=20&fields=${CAMPOS}`);
   return (d.products || []).map(convertir).filter(Boolean);
 }
