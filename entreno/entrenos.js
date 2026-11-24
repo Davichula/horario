@@ -33,8 +33,39 @@ function guardar(w) {
   const i = l.findIndex((x) => x.id === w.id);
   if (i >= 0) l[i] = w; else l.push(w);
   guardarTodos(l);
+  alCalendario(w);
 }
-function borrar(id) { guardarTodos(leer().filter((w) => w.id !== id)); }
+function borrar(id) { guardarTodos(leer().filter((w) => w.id !== id)); alCalendario({ id }); }
+
+// ---------------------------------------------------------------------
+// Tu entreno también en el calendario del Horario: lo guardamos como una
+// "cosa personal" más (mi-horario:personales), enlazada por su id. Si le
+// quitas la fecha o lo borras, desaparece del calendario.
+// ---------------------------------------------------------------------
+const CLAVE_PERSONALES = "mi-horario:personales";
+const ICONO_DEP = { correr: "🏃", bici: "🚴", nadar: "🏊" };
+function alCalendario(w) {
+  let lista;
+  try { lista = JSON.parse(localStorage.getItem(CLAVE_PERSONALES)) || []; } catch { return; }
+  const idCal = `plan-${w.id}`;
+  const antes = lista.find((x) => x.id === idCal);
+  lista = lista.filter((x) => x.id !== idCal);
+  if (w.fecha && w.pasos) {
+    const inicio = w.hora || "18:00";
+    const [h, m] = inicio.split(":").map(Number);
+    const finMin = Math.min(23 * 60 + 59, h * 60 + m + Math.max(15, Math.round(estimar(w, referencias()).tiempo / 60 / 5) * 5));
+    const item = {
+      id: idCal, plan: w.id, titulo: `${ICONO_DEP[w.deporte] || ""} ${w.nombre}`.trim(), categoria: "entreno",
+      fecha: w.fecha, inicio, fin: `${dos(Math.floor(finMin / 60))}:${dos(finMin % 60)}`,
+      lugar: "", notas: `Entreno de Planes (Entreno → Planes):\n${textoIntervals(w)}`, repetir: "no",
+    };
+    if (JSON.stringify(antes) === JSON.stringify(item)) return; // nada cambió
+    lista.push(item);
+  } else if (!antes) return;
+  localStorage.setItem(CLAVE_PERSONALES, JSON.stringify(lista));
+  window.dispatchEvent(new Event("mi-horario:personales")); // que el Horario se redibuje
+}
+export function sincronizarCalendario() { leer().forEach(alCalendario); }
 
 // ---------------------------------------------------------------------
 // Formatos
@@ -139,7 +170,7 @@ function estimar(w, R) {
 const ALTURA = { calentar: 0.35, trabajo: 1, recuperar: 0.22, enfriar: 0.3 };
 function altura(paso) {
   if (paso.tipo !== "trabajo") return ALTURA[paso.tipo];
-  if (paso.obj.tipo === "pulso") return 0.35 + 0.13 * Number(paso.obj.ref.slice(1));
+  if (paso.obj.tipo === "pulso") return /^Z\d$/.test(paso.obj.ref) ? 0.35 + 0.13 * Number(paso.obj.ref.slice(1)) : Math.max(0.3, Math.min(1, ((paso.obj.min + paso.obj.max) / 2 / (referencias().fcMax || 190) - 0.45) * 2));
   if (paso.obj.tipo === "ritmo") return { suave: 0.4, maraton: 0.6, umbral: 0.75, "10k": 0.85, "5k": 0.92, "1k": 1 }[paso.obj.ref] ?? 0.8;
   return 0.8;
 }
@@ -167,7 +198,7 @@ function textoDurExacto(x) {
 }
 function textoObj(x, R) {
   if (x.obj.tipo === "ritmo") return { grande: `${mmss(x.obj.min)}–${mmss(x.obj.max)}`, peque: `/km · ritmo ${R.ritmos[x.obj.ref]?.nombre.toLowerCase() || "propio"}` };
-  if (x.obj.tipo === "pulso") return { grande: x.obj.ref || "Pulso", peque: `${x.obj.min}–${x.obj.max} ppm` };
+  if (x.obj.tipo === "pulso") return x.obj.ref === "propio" ? { grande: `${x.obj.min}–${x.obj.max}`, peque: "ppm · pulso propio" } : { grande: x.obj.ref || "Pulso", peque: `${x.obj.min}–${x.obj.max} ppm` };
   return { grande: "Libre", peque: x.tipo === "recuperar" ? "trotando o parado" : "sin objetivo" };
 }
 
@@ -175,6 +206,7 @@ function textoObj(x, R) {
 // LISTA de entrenamientos
 // =====================================================================
 export function pintarPlanes(cont) {
+  sincronizarCalendario(); // por si hay entrenos de antes de que existiera el enlace con el Horario
   const R = referencias();
   const lista = listar();
   const hoy = an.claveDia(new Date());
@@ -222,6 +254,9 @@ export function pintarEditor(cont, id) {
   const seleccion = (nombre, opciones, actual, attrs = "") => `<label class="desplegable"><select ${attrs} data-campo="${nombre}">${opciones.map(([v, t]) => `<option value="${v}"${String(v) === String(actual) ? " selected" : ""}>${t}</option>`).join("")}</select></label>`;
   const segmento = (nombre, opciones, actual) => `<div class="segmento" role="group">${opciones.map(([v, t]) => `<button type="button" data-campo="${nombre}" data-valor="${v}" class="${v === actual ? "activo" : ""}" aria-pressed="${v === actual}">${t}</button>`).join("")}</div>`;
 
+  const rangoNum = (a, b, paso = 1) => Array.from({ length: Math.floor((b - a) / paso) + 1 }, (_, i) => a + i * paso);
+  // Ritmo exacto: minutos y segundos por km (2:30 a 12:00, de segundo en segundo)
+  const selRitmo = (campo, valor) => `${seleccion(campo + "M", rangoNum(2, 12).map((m) => [m, m]), Math.floor(valor / 60))}<b class="dos-puntos">:</b>${seleccion(campo + "S", rangoNum(0, 59).map((n) => [n, dos(n)]), Math.round(valor) % 60)}`;
   const editorPaso = (x) => {
     const minutos = Math.floor(x.dur.valor / 60), segundos = x.dur.valor % 60;
     const dists = DISTANCIAS[w.deporte].includes(x.dur.valor) ? DISTANCIAS[w.deporte] : [...DISTANCIAS[w.deporte], x.dur.valor].sort((a, b) => a - b);
@@ -233,8 +268,10 @@ export function pintarEditor(cont, id) {
         : `<p class="nota sin-margen">El paso acaba cuando pulses el botón de vuelta del reloj.</p>`}
       ${w.deporte === "nadar" ? "" : `<span class="etiqueta-campo">Objetivo</span>${segmento("objTipo", [["libre", "Libre"], ...(w.deporte === "correr" ? [["ritmo", "Ritmo"]] : []), ["pulso", "Pulso"]], x.obj.tipo)}
       ${x.obj.tipo === "ritmo" ? `<div class="chips chips-mini envolver">${RITMOS.map((r) => `<button type="button" data-campo="ritmoRef" data-valor="${r.ref}" class="${x.obj.ref === r.ref ? "activo" : ""}">${r.nombre} · ${mmss(R.ritmos[r.ref].centro)}</button>`).join("")}</div>
-        <div class="ajuste-ritmo"><button type="button" class="boton-icono" data-campo="ritmoMas" aria-label="Más rápido">−5 s</button><b>${mmss(x.obj.min)} – ${mmss(x.obj.max)} /km</b><button type="button" class="boton-icono" data-campo="ritmoMenos" aria-label="Más lento">+5 s</button></div>`
-        : x.obj.tipo === "pulso" ? `<div class="chips chips-mini envolver">${R.zonas.map((z) => `<button type="button" data-campo="zona" data-valor="${z.ref}" class="${x.obj.ref === z.ref ? "activo" : ""}">${z.ref} · ${z.min}–${z.max}</button>`).join("")}</div>` : ""}`}
+        <div class="ajuste-ritmo"><button type="button" class="boton-icono" data-campo="ritmoMas" aria-label="Más rápido">−5 s</button><b>${mmss(x.obj.min)} – ${mmss(x.obj.max)} /km</b><button type="button" class="boton-icono" data-campo="ritmoMenos" aria-label="Más lento">+5 s</button></div>
+        <div class="rango-propio"><div><span>Más rápido</span>${selRitmo("ritmoMin", x.obj.min)}<small>/km</small></div><div><span>Más lento</span>${selRitmo("ritmoMax", x.obj.max)}<small>/km</small></div></div>`
+        : x.obj.tipo === "pulso" ? `<div class="chips chips-mini envolver">${R.zonas.map((z) => `<button type="button" data-campo="zona" data-valor="${z.ref}" class="${x.obj.ref === z.ref ? "activo" : ""}">${z.ref} · ${z.min}–${z.max}</button>`).join("")}</div>
+        <div class="rango-propio"><div><span>Pulso propio</span>${seleccion("fcMin", rangoNum(80, 210).map((n) => [n, n]), x.obj.min)}<b class="dos-puntos">–</b>${seleccion("fcMax", rangoNum(80, 210).map((n) => [n, n]), x.obj.max)}<small>ppm</small></div></div>` : ""}`}
       <div class="acciones-paso">
         <button type="button" class="boton-texto" data-accion-paso="subir">↑ Subir</button>
         <button type="button" class="boton-texto" data-accion-paso="bajar">↓ Bajar</button>
@@ -270,6 +307,7 @@ export function pintarEditor(cont, id) {
       <div class="fila-campos">
         ${seleccion("deporte", Object.keys(PLANTILLAS).map((dep) => [dep, DEPORTES[dep].nombre]), w.deporte, 'data-campo-plan="deporte"')}
         <input type="date" class="fecha-plan" value="${w.fecha || ""}" data-campo-plan="fecha" aria-label="Fecha">
+        <input type="time" class="fecha-plan" value="${w.hora || "18:00"}" data-campo-plan="hora" aria-label="Hora">
       </div>
     </section>
     <section class="tarjeta-entreno">
@@ -284,6 +322,7 @@ export function pintarEditor(cont, id) {
     </div>
     <div class="caja-intervals" hidden></div>
     <p class="nota">${!w.fecha ? "Ponle fecha para poder enviarlo. " : ""}"Enviar a Garmin" lo pone en tu calendario de Garmin Connect (vía Intervals.icu) y el reloj lo recibe al sincronizar. El .FIT sirve para copiarlo con cable (carpeta GARMIN/NewFiles).</p>
+    <button type="button" class="boton-secundario boton-repetir" data-plan="repetir">Repetir otro día</button>
     <footer class="ficha-entreno-pie"><button class="boton-peligro" data-plan="borrar">Borrar entrenamiento</button></footer>`;
 
   const repintar = () => { guardar(w); pintarEditor(cont, id); };
@@ -305,6 +344,7 @@ export function pintarEditor(cont, id) {
       plano(w.pasos).forEach((x) => { if (x.obj.tipo === "ritmo" && w.deporte !== "correr") x.obj = { tipo: "libre" }; if (w.deporte === "nadar") x.obj = { tipo: "libre" }; });
     } else if (campo === "nombre") w.nombre = c.value.trim() || "Entrenamiento";
     else if (campo === "fecha") w.fecha = c.value || null;
+    else if (campo === "hora") w.hora = c.value || "18:00";
     repintar();
   }));
   // Abrir/cerrar un paso
@@ -327,6 +367,17 @@ export function pintarEditor(cont, id) {
     else if (campo === "ritmoMas") { x.obj.min -= 5; x.obj.max -= 5; x.obj.ref = "propio"; }
     else if (campo === "ritmoMenos") { x.obj.min += 5; x.obj.max += 5; x.obj.ref = "propio"; }
     else if (campo === "zona") x.obj = rangoPulso(R, valor);
+    else if (/^ritmo(Min|Max)[MS]$/.test(campo)) {
+      const k = campo.includes("Min") ? "min" : "max";
+      x.obj[k] = campo.endsWith("M") ? Number(valor) * 60 + (x.obj[k] % 60) : Math.floor(x.obj[k] / 60) * 60 + Number(valor);
+      if (x.obj.min > x.obj.max) [x.obj.min, x.obj.max] = [x.obj.max, x.obj.min];
+      x.obj.ref = "propio";
+    }
+    else if (campo === "fcMin" || campo === "fcMax") {
+      x.obj[campo === "fcMin" ? "min" : "max"] = Number(valor);
+      if (x.obj.min > x.obj.max) [x.obj.min, x.obj.max] = [x.obj.max, x.obj.min];
+      x.obj.ref = "propio";
+    }
     if (x.dur.tipo === "tiempo" && x.dur.valor <= 0) x.dur.valor = 10;
     repintar();
   };
@@ -410,6 +461,13 @@ export function pintarEditor(cont, id) {
     });
   };
   botonGarmin.addEventListener("click", enviar);
+  // Repetir: una copia para otro día (tu "biblioteca" de sesiones está aquí, en Planes)
+  cont.querySelector('[data-plan="repetir"]').addEventListener("click", () => {
+    const manana = new Date(); manana.setDate(manana.getDate() + 1);
+    const copia = { ...structuredClone(w), id: nuevoId(), creado: Date.now(), fecha: an.claveDia(manana), enviado: null };
+    guardar(copia);
+    location.hash = `#entreno/plan/${copia.id}`;
+  });
   cont.querySelector('[data-plan="borrar"]').addEventListener("click", (ev) => {
     const b = ev.currentTarget;
     if (!b.dataset.seguro) { b.dataset.seguro = "1"; b.textContent = "Toca otra vez para borrarlo"; return; }

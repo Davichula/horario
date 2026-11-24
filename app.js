@@ -829,6 +829,10 @@ btnBorrar.addEventListener("click", () => {
   dibujar();
   avisar("Borrado");
 });
+// Los entrenos de Entreno → Planes también se apuntan aquí (entreno/entrenos.js):
+// cuando cambian, recargamos tus cosas y redibujamos
+window.addEventListener("mi-horario:personales", () => { estado.personales = cargarPersonales(); dibujar(); });
+
 formulario.addEventListener("close", () => {
   btnBorrar.classList.remove("confirmar");
   btnBorrar.textContent = "Borrar";
