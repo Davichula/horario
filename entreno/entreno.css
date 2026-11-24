@@ -863,3 +863,9 @@ a.tarjeta-dato:hover, button.tarjeta-dato:hover, .tarjeta-deporte:hover { box-sh
 .caja-intervals { background: var(--tarjeta); border-radius: 14px; padding: 14px; margin-top: 10px; display: grid; gap: 8px; }
 .caja-intervals .fila-campos { flex-wrap: nowrap; }
 .clave-intervals { flex: 1; min-width: 0; font: inherit; background: var(--elevado); color: var(--texto); border: 0; border-radius: 10px; padding: 9px 12px; }
+.rango-propio { display: grid; gap: 6px; font-size: 0.85rem; color: var(--suave); }
+.rango-propio > div { display: flex; align-items: center; gap: 6px; }
+.rango-propio > div > span { width: 96px; flex: none; }
+.rango-propio .desplegable select { padding-left: 10px; padding-right: 26px; }
+.rango-propio .dos-puntos { color: var(--texto); margin: 0 -2px; }
+.boton-repetir { width: 100%; margin-top: 10px; }
