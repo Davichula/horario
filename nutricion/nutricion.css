@@ -163,3 +163,9 @@ button.nutri-item:active, button.nutri-item:hover { background: var(--elevado); 
 .nutri-repetir small { display: block; color: var(--suave); font-size: .78rem; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nutri-repetir > b small { font-size: .7rem; color: var(--suave); margin-left: 2px; }
 .nutri-repetir-ico { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--hoy); color: var(--acento); font-size: 1.2rem; font-weight: 700; flex: none; }
+/* Guardar una comida para repetirla otro día */
+.nutri-guardar-btn { margin-top: 10px; border: 0; background: none; color: var(--acento); font: inherit; font-size: .85rem; font-weight: 600; padding: 4px 0; }
+.nutri-guardar { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+.nutri-guardar input { flex: 1; min-width: 0; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--linea); background: var(--elevado); color: var(--texto); font: inherit; font-size: 16px; }
+.nutri-guardar .boton-principal { width: auto; padding: 9px 14px; }
+.nutri-quitar.seguro { color: var(--c-pulso, #ff5a5f); font-weight: 700; }

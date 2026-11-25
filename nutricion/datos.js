@@ -7,6 +7,7 @@
 //   diario    → lo que comes: { "2026-11-24": [ {comida, nombre, g, kcal, p, c, gr...} ] }
 //   propios   → alimentos que creas tú
 //   pesos     → tu peso y % de grasa por día: { "2026-11-24": { kg, grasa } }
+//   guardadas → comidas enteras con nombre: [ { id, nombre, items: [...] } ]
 // =====================================================================
 const K = {
   perfil: "mi-horario:nutricion-perfil",
@@ -14,6 +15,7 @@ const K = {
   propios: "mi-horario:nutricion-propios",
   pesos: "mi-horario:nutricion-pesos",
   revisiones: "mi-horario:nutricion-revisiones",
+  guardadas: "mi-horario:nutricion-guardadas",
 };
 const leer = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 const escribir = (k, v) => localStorage.setItem(k, JSON.stringify(v));
@@ -58,6 +60,18 @@ export function copiarDia(desde, hasta, comida) {
     const { id, ...resto } = e;
     anadir(hasta, resto);
   }
+}
+
+// Comidas guardadas: una lista de alimentos con su cantidad, para añadirlos todos de golpe
+export const guardadas = () => leer(K.guardadas, []);
+export function guardarComida(nombre, entradas) {
+  const items = entradas.map(({ id, comida, ...resto }) => resto);
+  escribir(K.guardadas, [...guardadas(), { id: Date.now().toString(36), nombre, items }]);
+}
+export function borrarComida(id) { escribir(K.guardadas, guardadas().filter((m) => m.id !== id)); }
+export function anadirComida(f, id, comida) {
+  const m = guardadas().find((x) => x.id === id);
+  for (const e of m?.items || []) anadir(f, { ...e, comida });
 }
 
 export const propios = () => leer(K.propios, []);
