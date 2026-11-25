@@ -6,6 +6,7 @@
 //   - las tareas para hoy (y las atrasadas),
 //   - tus hábitos para marcarlos,
 //   - lo próximo importante: exámenes y tareas de los próximos 14 días.
+//   - el domingo y el lunes, además, el resumen de la semana (semana.js).
 // Se puede volver a abrir con el botón 📋 de arriba, y desactivar.
 // =====================================================================
 
@@ -65,6 +66,7 @@ function abrirResumen({ refrescar = false } = {}) {
       <p>${frase}</p>
     </header>
     <div class="resumen-cuerpo">
+      <div id="resumen-semana"></div>
       ${hoy.length ? `
         <h3>Hoy</h3>
         <ul class="resumen-lista">${hoy.map((e) => `
@@ -96,6 +98,10 @@ function abrirResumen({ refrescar = false } = {}) {
   if (refrescar && !hoja.open) return;
   abrirHoja("resumen", html);
   hoja.querySelector("[data-cerrar-hoja]").onclick = cerrarHoja;
+  // Domingo o lunes: la tarjeta de la semana (entreno, comida y peso)
+  if ([0, 1].includes(ahora.getDay())) {
+    import("./semana.js").then((m) => m.pintar(hoja.querySelector("#resumen-semana"))).catch(() => {});
+  }
   hoja.querySelector("#resumen-auto").onchange = (e) => {
     try { localStorage.setItem(CLAVE_RESUMEN_APAGADO, e.target.checked ? "" : "1"); } catch {}
   };

@@ -1070,3 +1070,11 @@ main { flex: 1; padding: 0 16px 16px; }
 .linea-hoy-texto b { font-size: 0.95rem; }
 .linea-hoy-texto small { color: var(--suave); font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .linea-hoy-flecha { color: var(--suave); font-size: 1.3rem; }
+
+/* Resumen de la semana (semana.js), dentro del resumen del día el domingo y el lunes */
+.semana-tarjeta { display: grid; gap: 8px; margin-bottom: 6px; }
+.semana-bloque { display: grid; gap: 2px; padding: 10px 12px; background: var(--fondo); border-radius: 10px; border-left: 4px solid var(--acento); }
+.semana-bloque > span { font-size: 0.75rem; color: var(--suave); }
+.semana-bloque b { font-size: 1rem; }
+.semana-bloque b small { color: var(--suave); font-weight: 500; }
+.semana-bloque > small { color: var(--suave); font-size: 0.82rem; }
