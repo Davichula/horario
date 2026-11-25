@@ -49,16 +49,46 @@ export function iniciar(elemento) {
 // has hecho el entreno planeado de hoy (Entreno → Planes), lo previsto
 const kcalEntreno = (fecha) => hoyE.kcalEntreno(fecha);
 const todosAlimentos = () => [...D.propios(), ...ALIMENTOS];
-// Los últimos alimentos que has comido (para "Recientes")
-function recientes() {
-  const vistos = new Set(), r = [];
+// Lo que has comido, del más nuevo al más viejo: primero lo de ESTA comida
+// (desayuno, comida…) y luego el resto. Cada alimento va una sola vez, con
+// la última entrada (para proponer la misma cantidad).
+// Se calcula una vez al abrir el buscador, no en cada letra.
+function recientes(comida) {
+  const enEsta = new Map(), todas = new Map();
   const d = D.diario();
   for (const f of Object.keys(d).sort().reverse()) for (const e of [...d[f]].reverse()) {
-    if (vistos.has(e.nombre) || !e.base) continue;
-    vistos.add(e.nombre); r.push({ ...e.base, nombre: e.nombre, ultimoG: e.cant });
-    if (r.length >= 8) return r;
+    if (!e.base) continue;
+    const r = { a: { ...e.base, nombre: e.nombre }, e };
+    if (e.comida === comida && !enEsta.has(e.nombre)) enEsta.set(e.nombre, r);
+    if (!todas.has(e.nombre)) todas.set(e.nombre, r);
   }
-  return r;
+  return { enEsta: [...enEsta.values()], otras: [...todas.values()].filter((r) => !enEsta.has(r.a.nombre)) };
+}
+// El último día (antes del que miras) en que anotaste esa comida
+function ultimaComida(comida) {
+  const d = D.diario();
+  const f = Object.keys(d).filter((x) => x < est.fecha && d[x].some((e) => e.comida === comida)).sort().pop();
+  return f ? { f, l: d[f].filter((e) => e.comida === comida) } : null;
+}
+// Prepara el buscador: recientes y una lista de nombres ya "limpios" (sin
+// tildes) para que buscar al escribir sea instantáneo y no toque la red
+function prepararBuscador() {
+  const r = recientes(est.anadiendo);
+  const porNombre = new Map();
+  // Tus alimentos, los de supermercado que ya usaste y los básicos
+  for (const a of [...D.propios(), ...r.enEsta.map((x) => x.a), ...r.otras.map((x) => x.a), ...ALIMENTOS])
+    if (!porNombre.has(a.nombre)) porNombre.set(a.nombre, a);
+  est.rec = r;
+  est.indice = [...porNombre.values()].map((a) => ({ a, n: quitarTildes(a.nombre) }));
+}
+// Busca en tu lista: todas las palabras deben aparecer; primero lo que
+// empieza por lo que escribes, luego lo que ya has comido
+function buscarLocal(q) {
+  const pal = q.split(/\s+/).filter(Boolean);
+  const comidos = new Set([...est.rec.enEsta, ...est.rec.otras].map((x) => x.a.nombre));
+  return est.indice.filter((x) => pal.every((w) => x.n.includes(w)))
+    .map((x) => ({ x, p: (x.n.startsWith(q) ? 0 : x.n.includes(" " + pal[0]) ? 1 : 2) - (comidos.has(x.a.nombre) ? 0.5 : 0) }))
+    .sort((a, b) => a.p - b.p).slice(0, 30).map((y) => y.x.a);
 }
 
 // =====================================================================
@@ -175,7 +205,7 @@ const ICONO_COMIDA = {
 };
 // Un emoji pequeño según el alimento (por palabras del nombre)
 const EMOJIS = [
-  [/arroz|cuscus|quinoa|paella/, "🍚"], [/pasta|macarron|espagueti/, "🍝"], [/avena|cereal/, "🥣"], [/pan |pan$|tostada|molde|bocadillo|bocata/, "🍞"],
+  [/arroz|cuscus|quinoa|paella/, "🍚"], [/pasta|macarron|espagueti|plumas|tallarin|fideo/, "🍝"], [/avena|cereal/, "🥣"], [/pan |pan$|tostada|molde|bocadillo|bocata/, "🍞"],
   [/pollo|pavo|muslo/, "🍗"], [/ternera|cerdo|lomo|hamburguesa|carne/, "🥩"], [/jamon|chorizo|salchicha/, "🥓"],
   [/gamba/, "🍤"], [/salmon|merluza|atun|bacalao|dorada|lubina|sardina|calamar|pescado/, "🐟"],
   [/huevo|tortilla|clara/, "🥚"], [/queso|requeson|cottage/, "🧀"], [/leche|yogur|skyr|bebida de|kefir/, "🥛"],
@@ -312,11 +342,6 @@ function pintarAnadir() {
         : `<button type="button" class="boton-secundario" data-acc="volver-lista">Volver</button>`}</section></div>`;
     return;
   }
-  const q = quitarTildes(est.busca.trim());
-  const lista = q ? todosAlimentos().filter((a) => quitarTildes(a.nombre).includes(q)).slice(0, 30)
-    : [...recientes(), ...D.propios()].slice(0, 12);
-  const fila = (a) => `<button type="button" class="nutri-res" data-acc="elegir" data-v="${esc(a.id || "")}" data-n="${esc(a.nombre)}">
-        <span>${esc(a.nombre)}${a.origen === "propio" ? ' <em class="etq">tuyo</em>' : ""}${a.origen === "off" ? ' <em class="etq etq-off">Open Food Facts</em>' : ""}<small>por 100 g · P ${n1(a.p)} · C ${n1(a.c)} · G ${n1(a.g)}</small></span><b>${n0(a.kcal)}</b></button>`;
   const icoCamara = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M8 8v8M11 8v8M14 8v8M17 8v8"/></svg>`;
   caja.innerHTML = `<header class="cabecera"><h1>${esc(c)}</h1></header><div class="entreno-cuerpo">
     <div class="nutri-buscar-fila"><input class="nutri-buscar" data-campo="busca" type="search" placeholder="Buscar alimento…" value="${esc(est.busca)}" autocomplete="off" enterkeyhint="search">
@@ -326,18 +351,60 @@ function pintarAnadir() {
         <p class="nota" id="nutri-esc-msg">${esc(est.escMsg)}</p>
         <div class="nutri-buscar-fila"><input class="nutri-buscar" data-campo="codigo" type="text" inputmode="numeric" placeholder="O escribe el código" value="${esc(est.codigoManual)}" autocomplete="off">
           <button type="button" class="boton-principal nutri-ir" data-acc="codigo-buscar">Buscar</button></div></section>` : ""}
-    <section class="tarjeta-entreno nutri-lista">
-      <h2>${q ? "Resultados" : "Recientes y tuyos"}</h2>
-      ${lista.map(fila).join("") || `<p class="nota">${q ? "No lo encuentro en tu lista." : "Aún no has anotado nada. Busca un alimento arriba o escanea un código."}</p>`}
-    </section>
-    ${est.busca.trim().length >= 3 ? `<button type="button" class="boton-secundario" data-acc="off-buscar">Buscar «${esc(est.busca.trim())}» en productos de supermercado</button>` : ""}
-    ${est.offMsg ? `<p class="nota">${esc(est.offMsg)}</p>` : ""}
-    ${est.offRes?.length ? `<section class="tarjeta-entreno nutri-lista"><h2>Productos (Open Food Facts)</h2>${est.offRes.map(fila).join("")}</section>` : ""}
+    <div id="nutri-resultados">${htmlResultados()}</div>
     <button type="button" class="boton-secundario" data-acc="crear">+ Crear alimento nuevo</button>
     <button type="button" class="boton-secundario" data-acc="cerrar">Cerrar</button></div>`;
   const inp = caja.querySelector('.nutri-buscar[data-campo="busca"]');
   if (inp && !est.escaner && document.activeElement !== inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
   if (est.escaner && !est.sinCamara) arrancarCamara();
+}
+// La lista bajo el buscador. Al escribir solo se repinta esto (no la
+// casilla), así el teclado del iPhone no se corta en cada letra.
+function htmlResultados() {
+  const c = est.anadiendo, q = quitarTildes(est.busca.trim());
+  if (!est.rec) prepararBuscador();
+  est.vistos = new Map(); // lo que hay en pantalla, para encontrarlo al tocarlo
+  const ver = (a) => { const k = "r" + est.vistos.size; est.vistos.set(k, a); return k; };
+  const fila = (a) => `<button type="button" class="nutri-res" data-acc="elegir" data-v="${ver(a)}">
+        <span>${esc(a.nombre)}${a.origen === "propio" ? ' <em class="etq">tuyo</em>' : ""}${a.origen === "off" ? ' <em class="etq etq-off">Open Food Facts</em>' : ""}<small>por 100 g · P ${n1(a.p)} · C ${n1(a.c)} · G ${n1(a.g)}</small></span><b>${n0(a.kcal)}</b></button>`;
+  // Reciente: enseña lo que pusiste la última vez y un "+" para añadirlo igual de un toque
+  const filaRec = ({ a, e }) => { const k = ver(a); return `<div class="nutri-rec">
+      <button type="button" class="nutri-res" data-acc="elegir" data-v="${k}"><span class="nutri-emo" aria-hidden="true">${emojiDe(a.nombre)}</span>
+        <span class="nutri-rec-txt">${esc(a.nombre)}<small>${cantidadDe(e)}</small></span><b>${n0(e.kcal)}<small>kcal</small></b></button>
+      <button type="button" class="nutri-mas" data-acc="rec-anadir" data-v="${k}" aria-label="Añadir ${esc(cantidadDe(e))} de ${esc(a.nombre)}">+</button></div>`; };
+  if (q) {
+    const l = buscarLocal(q);
+    return `<section class="tarjeta-entreno nutri-lista"><h2>Resultados</h2>${l.map(fila).join("") || '<p class="nota">No lo encuentro en tu lista.</p>'}</section>
+    ${q.length >= 3 ? `<button type="button" class="boton-secundario" data-acc="off-buscar">Buscar «${esc(est.busca.trim())}» en productos de supermercado</button>` : ""}
+    ${est.offMsg ? `<p class="nota">${esc(est.offMsg)}</p>` : ""}
+    ${est.offRes?.length ? `<section class="tarjeta-entreno nutri-lista"><h2>Productos (Open Food Facts)</h2>${est.offRes.map(fila).join("")}</section>` : ""}`;
+  }
+  const { enEsta, otras } = est.rec, propios = D.propios().filter((a) => !enEsta.concat(otras).some((r) => r.a.nombre === a.nombre));
+  const ult = D.dia(est.fecha).some((e) => e.comida === c) ? null : ultimaComida(c);
+  const dia = ult && (ult.f === D.sumarDias(est.fecha, -1) ? "de ayer" : "del " + new Date(ult.f + "T12:00:00").toLocaleDateString("es-ES", { weekday: "long", day: "numeric" }));
+  const repetir = ult ? `<button type="button" class="tarjeta-entreno nutri-repetir" data-acc="repetir" data-v="${ult.f}">
+      <span class="nutri-repetir-ico" aria-hidden="true">↻</span><span><b>Repetir ${esc(c.toLowerCase())} ${dia}</b>
+      <small>${ult.l.map((e) => esc(e.nombre.replace(/ \(.*\)$/, ""))).join(", ")}</small></span><b>${n0(ult.l.reduce((x, e) => x + e.kcal, 0))}<small>kcal</small></b></button>` : "";
+  if (!enEsta.length && !otras.length && !propios.length) return `${repetir}<p class="nota">Aún no has anotado nada. Busca un alimento arriba o escanea un código.</p>`;
+  return `${repetir}
+    ${enEsta.length ? `<section class="tarjeta-entreno nutri-lista"><h2>Tu ${esc(c.toLowerCase())} reciente</h2>${enEsta.slice(0, 10).map(filaRec).join("")}</section>` : ""}
+    ${otras.length ? `<section class="tarjeta-entreno nutri-lista"><h2>${enEsta.length ? "Otros recientes" : "Recientes"}</h2>${otras.slice(0, 8).map(filaRec).join("")}</section>` : ""}
+    ${propios.length ? `<section class="tarjeta-entreno nutri-lista"><h2>Tus alimentos</h2>${propios.map(fila).join("")}</section>` : ""}`;
+}
+// Repinta solo la lista (sin tocar la casilla de búsqueda)
+function pintarResultados() {
+  const r = caja.querySelector("#nutri-resultados");
+  if (r) r.innerHTML = htmlResultados(); else pintarAnadir();
+}
+// Añade un alimento tal cual lo pusiste la última vez
+function entradaDe(a, e) {
+  return { comida: est.anadiendo, nombre: a.nombre, cant: e.cant, ud: e.ud || null, udPl: e.udPl || null, udN: e.udN || null, udG: e.udG || null,
+    ...D.porciones(a, e.cant), base: { id: a.id, nombre: a.nombre, kcal: a.kcal, p: a.p, c: a.c, g: a.g, az: a.az, fi: a.fi, racion: a.racion, unidad: a.unidad, origen: a.origen, codigo: a.codigo } };
+}
+// Vuelve a Hoy con la comida desplegada
+function volverAHoy() {
+  est.abiertas.add(est.anadiendo);
+  detenerCamara(); est.anadiendo = null; est.editando = null; est.elegido = null; est.escaner = false; est.offRes = null; pintar(); scrollTo(0, 0);
 }
 // ----- Cantidad del alimento elegido -----
 const gramosElegidos = () => (Number(est.n) || 0) * (est.uds[est.ud]?.g || 1);
@@ -371,7 +438,10 @@ function prepararCantidad(a, previo) {
   est.n = est.uds[0].gramos ? (a.racion || 100) : est.uds[0].def || 1;
 }
 // La última vez que comiste ese alimento (para proponer la misma cantidad)
+// (primero la de esta misma comida: el desayuno de siempre)
 function ultimaVez(nombre) {
+  const r = est.rec && [...est.rec.enEsta, ...est.rec.otras].find((x) => x.a.nombre === nombre);
+  if (r) return r.e;
   const d = D.diario();
   for (const f of Object.keys(d).sort().reverse()) for (const e of [...d[f]].reverse()) if (e.nombre === nombre) return e;
   return null;
@@ -525,7 +595,7 @@ function alTocar(e) {
     case "semana": { const n = D.sumarDias(est.fecha, Number(v)); est.fecha = n > D.hoy() ? D.hoy() : n; pintar(); break; }
     case "ir-dia": est.fecha = v; pintar(); break;
     case "ir-dia-hoy": est.fecha = v; est.sub = "hoy"; pintar(); scrollTo(0, 0); break;
-    case "anadir": est.editando = null; est.anadiendo = v; est.busca = ""; est.elegido = null; est.creando = false; est.escaner = false; est.offRes = null; est.offMsg = ""; pintar(); scrollTo(0, 0); break;
+    case "anadir": est.rec = null; est.editando = null; est.anadiendo = v; est.busca = ""; est.elegido = null; est.creando = false; est.escaner = false; est.offRes = null; est.offMsg = ""; prepararBuscador(); pintar(); scrollTo(0, 0); break;
     case "cerrar": detenerCamara(); est.anadiendo = null; est.editando = null; est.elegido = null; est.escaner = false; est.offRes = null; est.offMsg = ""; pintar(); break;
     case "escaner": est.sinCamara = false; est.escaner = true; est.escMsg = "Abriendo la cámara…"; pintar(); break;
     case "escaner-cerrar": detenerCamara(); est.escaner = false; pintar(); break;
@@ -560,11 +630,21 @@ function alTocar(e) {
     case "quitar-editando": D.quitar(est.fecha, est.editando); est.editando = null; est.anadiendo = null; est.elegido = null; pintar(); break;
     case "copiar": D.copiarDia(D.sumarDias(est.fecha, -1), est.fecha); pintar(); break;
     case "elegir": {
-      const a = (est.offRes || []).find((a) => a.id === v) || todosAlimentos().find((a) => (v && a.id === v) || a.nombre === b.dataset.n) || null;
-      if (a) prepararCantidad(a, ultimaVez(a.nombre));
-      pintar(); break;
+      const a = est.vistos?.get(v);
+      if (a) { prepararCantidad(a, ultimaVez(a.nombre)); pintar(); scrollTo(0, 0); }
+      break;
     }
-    case "volver-lista": est.elegido = null; pintar(); break;
+    case "rec-anadir": {
+      const a = est.vistos?.get(v), e = a && ultimaVez(a.nombre);
+      if (!e) break;
+      D.anadir(est.fecha, entradaDe(a, e)); est.abiertas.add(est.anadiendo);
+      // Se queda en el buscador por si quieres añadir más; el + se marca hecho
+      b.textContent = "✓"; b.disabled = true; b.classList.add("hecho");
+      caja.querySelector(".nutri-repetir")?.remove(); // ya empezaste esta comida: repetirla entera duplicaría cosas
+      break;
+    }
+    case "repetir": D.copiarDia(v, est.fecha, est.anadiendo); volverAHoy(); break;
+    case "volver-lista": est.elegido = null; prepararBuscador(); pintar(); break;
     case "crear": est.creando = true; pintar(); break;
     case "cancelar-crear": est.creando = false; pintar(); break;
     case "confirmar": {
@@ -572,8 +652,7 @@ function alTocar(e) {
       if (!(cant.cant > 0)) return;
       if (est.editando) D.actualizar(est.fecha, est.editando, { comida: est.anadiendo, ...cant, ...D.porciones(a, cant.cant) });
       else D.anadir(est.fecha, { comida: est.anadiendo, nombre: a.nombre, ...cant, ...D.porciones(a, cant.cant), base: { id: a.id, nombre: a.nombre, kcal: a.kcal, p: a.p, c: a.c, g: a.g, az: a.az, fi: a.fi, racion: a.racion, unidad: a.unidad, origen: a.origen, codigo: a.codigo } });
-      est.abiertas.add(est.anadiendo); // al volver, esa comida aparece desplegada
-      detenerCamara(); est.anadiendo = null; est.editando = null; est.elegido = null; est.escaner = false; est.offRes = null; pintar(); scrollTo(0, 0); break;
+      volverAHoy(); break;
     }
     case "rev-aplicar": case "rev-mantener": {
       const p = D.perfil(), r = D.calcularRevision(p);
@@ -591,7 +670,12 @@ function alTocar(e) {
 }
 function alEscribir(e) {
   const c = e.target.dataset.campo;
-  if (c === "busca") { est.busca = e.target.value; est.offMsg = ""; if (est.escaner) { detenerCamara(); est.escaner = false; } pintarAnadir(); }
+  if (c === "busca") {
+    est.busca = e.target.value; est.offMsg = ""; est.offRes = null; est.offPide = null; // lo de supermercado era de otra búsqueda
+    if (est.escaner) { detenerCamara(); est.escaner = false; pintarAnadir(); return; }
+    // Espera a que dejes de teclear un instante y repinta solo la lista
+    clearTimeout(est.reloj); est.reloj = setTimeout(pintarResultados, 90);
+  }
   else if (c === "codigo") est.codigoManual = e.target.value;
   else if (c === "n") {
     // Acepta "1,5", "1.5" o "½"
@@ -686,10 +770,13 @@ async function buscarCodigo(codigo) {
 }
 // Búsqueda de productos por nombre
 async function buscarEnOff() {
-  est.offMsg = "Buscando…"; est.offRes = null; pintarAnadir();
+  const texto = est.busca.trim(), pide = {}; est.offPide = pide;
+  est.offMsg = "Buscando…"; est.offRes = null; pintarResultados();
+  let res = null, msg = "";
   try {
-    est.offRes = await off.buscar(est.busca);
-    est.offMsg = est.offRes.length ? "" : "No encuentro productos con ese nombre.";
-  } catch (e) { est.offMsg = navigator.onLine ? `No pude consultar Open Food Facts (${e.message}).` : "Sin conexión."; }
-  pintarAnadir();
+    res = await off.buscar(texto);
+    msg = res.length ? "" : "No encuentro productos con ese nombre.";
+  } catch (e) { msg = navigator.onLine ? `No pude consultar Open Food Facts (${e.message}).` : "Sin conexión."; }
+  if (est.offPide !== pide) return; // mientras tanto cambiaste la búsqueda: esta respuesta ya no vale
+  est.offRes = res; est.offMsg = msg; pintarResultados();
 }

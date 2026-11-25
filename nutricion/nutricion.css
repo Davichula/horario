@@ -151,3 +151,15 @@ button.nutri-item:active, button.nutri-item:hover { background: var(--elevado); 
 .nutri-mover { display: grid; grid-template-columns: repeat(4, 1fr); }
 .nutri-mover button { padding: 7px 4px; font-size: .82rem; }
 .nutri-comida-der b { color: var(--texto); }
+/* Buscador: recientes con su última cantidad y un + para añadir de un toque */
+.nutri-rec { display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--linea); }
+.nutri-lista h2 + .nutri-rec { border-top: 0; }
+.nutri-rec .nutri-res { border-top: 0; flex: 1; min-width: 0; justify-content: flex-start; }
+.nutri-rec-txt { flex: 1; min-width: 0; }
+.nutri-rec .nutri-res b small { font-size: .7rem; color: var(--suave); font-weight: 600; margin-left: 2px; }
+.nutri-mas.hecho { background: var(--hoy); color: var(--acento); font-size: 1rem; }
+.nutri-repetir { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 1px solid var(--acento); color: var(--texto); font: inherit; }
+.nutri-repetir > span:nth-child(2) { flex: 1; min-width: 0; }
+.nutri-repetir small { display: block; color: var(--suave); font-size: .78rem; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nutri-repetir > b small { font-size: .7rem; color: var(--suave); margin-left: 2px; }
+.nutri-repetir-ico { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--hoy); color: var(--acento); font-size: 1.2rem; font-weight: 700; flex: none; }
