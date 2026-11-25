@@ -156,7 +156,10 @@ function htmlHoy() {
       <div class="nutri-comida-der">${l.length ? `<span><b>${n0(k)}</b><small>kcal</small></span>` : ""}<button type="button" class="nutri-mas" data-acc="anadir" data-v="${c}" aria-label="Añadir a ${c}">+</button></div></div>
       ${abierta ? `<div class="nutri-items">${l.map((e) => `<button type="button" class="nutri-item" data-acc="editar" data-v="${e.id}" aria-label="Cambiar ${esc(e.nombre)}">
         <span class="nutri-emo" aria-hidden="true">${emojiDe(e.nombre)}</span><span class="nutri-item-txt">${esc(e.nombre)}<small>${cantidadDe(e)}</small></span>
-        <span class="nutri-item-kcal">${n0(e.kcal)}<small>kcal</small></span></button>`).join("")}</div>` : ""}</div>`;
+        <span class="nutri-item-kcal">${n0(e.kcal)}<small>kcal</small></span></button>`).join("")}
+        ${est.guardando === c ? `<form class="nutri-guardar" data-form="guardar-comida"><input name="nombre" value="Mi ${esc(c.toLowerCase())}" aria-label="Nombre de la comida" autocomplete="off" maxlength="40">
+          <button class="boton-principal" type="submit">Guardar</button><button type="button" class="nutri-quitar" data-acc="guardar-cancelar" aria-label="Cancelar">✕</button></form>`
+        : `<button type="button" class="nutri-guardar-btn" data-acc="guardar-comida" data-v="${c}">☆ Guardar como comida habitual</button>`}</div>` : ""}</div>`;
   }).join("");
   const ayer = D.dia(D.sumarDias(est.fecha, -1)).length;
   return `${nav}${est.fecha >= D.hoy() ? htmlPlanDia(est.fecha) : ""}${resumen}<section class="tarjeta-entreno nutri-comidas">${comidas}
@@ -372,21 +375,26 @@ function htmlResultados() {
       <button type="button" class="nutri-res" data-acc="elegir" data-v="${k}"><span class="nutri-emo" aria-hidden="true">${emojiDe(a.nombre)}</span>
         <span class="nutri-rec-txt">${esc(a.nombre)}<small>${cantidadDe(e)}</small></span><b>${n0(e.kcal)}<small>kcal</small></b></button>
       <button type="button" class="nutri-mas" data-acc="rec-anadir" data-v="${k}" aria-label="Añadir ${esc(cantidadDe(e))} de ${esc(a.nombre)}">+</button></div>`; };
+  const filaMenu = (m) => `<div class="nutri-rec"><button type="button" class="nutri-res" data-acc="menu-anadir" data-v="${m.id}"><span class="nutri-emo" aria-hidden="true">⭐</span>
+      <span class="nutri-rec-txt">${esc(m.nombre)}<small>${m.items.map((e) => esc(e.nombre.replace(/ \(.*\)$/, ""))).join(", ")}</small></span><b>${n0(m.items.reduce((x, e) => x + e.kcal, 0))}<small>kcal</small></b></button>
+      <button type="button" class="nutri-quitar" data-acc="menu-borrar" data-v="${m.id}" aria-label="Borrar ${esc(m.nombre)}">✕</button></div>`;
   if (q) {
-    const l = buscarLocal(q);
-    return `<section class="tarjeta-entreno nutri-lista"><h2>Resultados</h2>${l.map(fila).join("") || '<p class="nota">No lo encuentro en tu lista.</p>'}</section>
+    const l = buscarLocal(q), ms = D.guardadas().filter((m) => quitarTildes(m.nombre).includes(q));
+    return `${ms.length ? `<section class="tarjeta-entreno nutri-lista"><h2>Tus comidas guardadas</h2>${ms.map(filaMenu).join("")}</section>` : ""}<section class="tarjeta-entreno nutri-lista"><h2>Resultados</h2>${l.map(fila).join("") || '<p class="nota">No lo encuentro en tu lista.</p>'}</section>
     ${q.length >= 3 ? `<button type="button" class="boton-secundario" data-acc="off-buscar">Buscar «${esc(est.busca.trim())}» en productos de supermercado</button>` : ""}
     ${est.offMsg ? `<p class="nota">${esc(est.offMsg)}</p>` : ""}
     ${est.offRes?.length ? `<section class="tarjeta-entreno nutri-lista"><h2>Productos (Open Food Facts)</h2>${est.offRes.map(fila).join("")}</section>` : ""}`;
   }
+  const guardadas = D.guardadas();
+  const menus = guardadas.length ? `<section class="tarjeta-entreno nutri-lista"><h2>Tus comidas guardadas</h2>${guardadas.map(filaMenu).join("")}</section>` : "";
   const { enEsta, otras } = est.rec, propios = D.propios().filter((a) => !enEsta.concat(otras).some((r) => r.a.nombre === a.nombre));
   const ult = D.dia(est.fecha).some((e) => e.comida === c) ? null : ultimaComida(c);
   const dia = ult && (ult.f === D.sumarDias(est.fecha, -1) ? "de ayer" : "del " + new Date(ult.f + "T12:00:00").toLocaleDateString("es-ES", { weekday: "long", day: "numeric" }));
   const repetir = ult ? `<button type="button" class="tarjeta-entreno nutri-repetir" data-acc="repetir" data-v="${ult.f}">
       <span class="nutri-repetir-ico" aria-hidden="true">↻</span><span><b>Repetir ${esc(c.toLowerCase())} ${dia}</b>
       <small>${ult.l.map((e) => esc(e.nombre.replace(/ \(.*\)$/, ""))).join(", ")}</small></span><b>${n0(ult.l.reduce((x, e) => x + e.kcal, 0))}<small>kcal</small></b></button>` : "";
-  if (!enEsta.length && !otras.length && !propios.length) return `${repetir}<p class="nota">Aún no has anotado nada. Busca un alimento arriba o escanea un código.</p>`;
-  return `${repetir}
+  if (!enEsta.length && !otras.length && !propios.length) return `${repetir}${menus}<p class="nota">Aún no has anotado nada. Busca un alimento arriba o escanea un código.</p>`;
+  return `${repetir}${menus}
     ${enEsta.length ? `<section class="tarjeta-entreno nutri-lista"><h2>Tu ${esc(c.toLowerCase())} reciente</h2>${enEsta.slice(0, 10).map(filaRec).join("")}</section>` : ""}
     ${otras.length ? `<section class="tarjeta-entreno nutri-lista"><h2>${enEsta.length ? "Otros recientes" : "Recientes"}</h2>${otras.slice(0, 8).map(filaRec).join("")}</section>` : ""}
     ${propios.length ? `<section class="tarjeta-entreno nutri-lista"><h2>Tus alimentos</h2>${propios.map(fila).join("")}</section>` : ""}`;
@@ -644,6 +652,16 @@ function alTocar(e) {
       break;
     }
     case "repetir": D.copiarDia(v, est.fecha, est.anadiendo); volverAHoy(); break;
+    case "menu-anadir": D.anadirComida(est.fecha, v, est.anadiendo); volverAHoy(); break;
+    case "menu-borrar": {
+      const m = D.guardadas().find((x) => x.id === v);
+      // Pide un segundo toque para no borrarla por error
+      if (m && b.dataset.seguro) { D.borrarComida(v); pintarResultados(); }
+      else { b.dataset.seguro = "1"; b.textContent = "Borrar"; b.classList.add("seguro"); }
+      break;
+    }
+    case "guardar-comida": est.guardando = v; pintar(); caja.querySelector('.nutri-guardar input')?.select(); break;
+    case "guardar-cancelar": est.guardando = null; pintar(); break;
     case "volver-lista": est.elegido = null; prepararBuscador(); pintar(); break;
     case "crear": est.creando = true; pintar(); break;
     case "cancelar-crear": est.creando = false; pintar(); break;
@@ -698,6 +716,10 @@ function alEnviar(e) {
   } else if (f.dataset.form === "peso") {
     D.guardarPeso(d.fecha, { kg: num(d.kg), ...(num(d.grasa) ? { grasa: num(d.grasa) } : {}) });
     pintar();
+  } else if (f.dataset.form === "guardar-comida") {
+    const l = D.dia(est.fecha).filter((x) => x.comida === est.guardando);
+    if (l.length) D.guardarComida(d.nombre.trim() || `Mi ${est.guardando.toLowerCase()}`, l);
+    est.guardando = null; pintar();
   } else if (f.dataset.form === "crear") {
     const a = D.guardarPropio({ nombre: d.nombre.trim(), kcal: num(d.kcal) || 0, p: num(d.p) || 0, c: num(d.c) || 0, g: num(d.g) || 0, az: num(d.az) || 0, fi: num(d.fi) || 0,
       racion: num(d.racion) > 0 ? num(d.racion) : null, unidad: d.unidad?.trim() || (num(d.racion) > 0 ? "ración" : null) });
