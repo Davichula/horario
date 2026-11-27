@@ -12,6 +12,7 @@ import * as D from "./datos.js";
 import * as almacen from "../entreno/almacen.js";
 import { anillo } from "../entreno/graficas.js";
 import * as off from "./openfoodfacts.js";
+import * as B from "./buscador.js";
 import * as hoyE from "../entreno/hoy.js";
 
 const COMIDAS = ["Desayuno", "Comida", "Merienda", "Cena"];
@@ -79,16 +80,13 @@ function prepararBuscador() {
   for (const a of [...D.propios(), ...r.enEsta.map((x) => x.a), ...r.otras.map((x) => x.a), ...ALIMENTOS])
     if (!porNombre.has(a.nombre)) porNombre.set(a.nombre, a);
   est.rec = r;
-  est.indice = [...porNombre.values()].map((a) => ({ a, n: quitarTildes(a.nombre) }));
+  est.indice = [...porNombre.values()].map((a) => ({ a, n: B.preparar(a.nombre) }));
+  est.comidos = new Set([...r.enEsta, ...r.otras].map((x) => x.a.nombre));
 }
-// Busca en tu lista: todas las palabras deben aparecer; primero lo que
-// empieza por lo que escribes, luego lo que ya has comido
-function buscarLocal(q) {
-  const pal = q.split(/\s+/).filter(Boolean);
-  const comidos = new Set([...est.rec.enEsta, ...est.rec.otras].map((x) => x.a.nombre));
-  return est.indice.filter((x) => pal.every((w) => x.n.includes(w)))
-    .map((x) => ({ x, p: (x.n.startsWith(q) ? 0 : x.n.includes(" " + pal[0]) ? 1 : 2) - (comidos.has(x.a.nombre) ? 0.5 : 0) }))
-    .sort((a, b) => a.p - b.p).slice(0, 30).map((y) => y.x.a);
+// Busca en tu lista con el buscador inteligente (buscador.js): entiende
+// plurales, erratas y sinónimos. Sube lo que ya has comido y lo tuyo.
+function buscarLocal(texto) {
+  return B.buscar(texto, est.indice, (a) => (est.comidos.has(a.nombre) ? 0.3 : 0) + (a.origen === "propio" ? 0.15 : 0), 25);
 }
 
 // =====================================================================
@@ -208,6 +206,18 @@ const ICONO_COMIDA = {
 };
 // Un emoji pequeño según el alimento (por palabras del nombre)
 const EMOJIS = [
+  // Primero los más concretos (el primero que encaja gana)
+  [/taco|burrito|fajita|quesadilla|nacho/, "🌮"], [/kebab|durum|wrap|pita/, "🌯"], [/ramen|fideos chinos/, "🍜"], [/gyoza|empanad|rollito/, "🥟"],
+  [/sandwich/, "🥪"], [/huevo frito|revuelto/, "🍳"], [/tortitas americanas|crep/, "🥞"], [/gofre/, "🧇"], [/donut/, "🍩"],
+  [/tarta|bizcocho|brownie/, "🍰"], [/flan|natilla/, "🍮"], [/bacon|beicon/, "🥓"], [/^agua/, "💧"], [/^te |infusion/, "🍵"],
+  [/mango/, "🥭"], [/cereza/, "🍒"], [/berenjena/, "🍆"], [/^ajo/, "🧄"], [/maiz dulce|palomita/, "🍿"], [/gominola/, "🍬"],
+  [/aceituna/, "🫒"], [/patatas fritas|patata frita|bravas|snacks/, "🍟"], [/nugget|alita|pollo empanado|pollo asado/, "🍗"],
+  [/hamburguesa|burger/, "🍔"], [/poke|sushi|nigiri/, "🍣"], [/curry|teriyaki|tres delicias|arroz frito|cubana|arroz con pollo/, "🍛"],
+  [/lasana|canelon|boloñesa|bolonesa|carbonara|macarron|espagueti/, "🍝"], [/pizza|calzone/, "🍕"], [/churro|porra/, "🥨"],
+  [/cocido|fabada|estofado|guisad|albondiga|lentejas con|garbanzos con|sopa|caldo|crema de verduras|salmorejo/, "🍲"],
+  [/mejillon|langostino|pulpo|surimi|calamares/, "🦐"], [/batido|kefir/, "🥤"], [/isotonica|energetica|refresco/, "🥤"],
+  [/gin tonic|vino blanco/, "🍸"], [/gel energetico/, "⚡"], [/ensaladilla|ensalada/, "🥗"], [/frutos secos|anacardo|avellana|pipas/, "🥜"],
+  [/ketchup|salsa|mostaza|alioli|vinagre/, "🫙"], [/queso/, "🧀"],
   [/arroz|cuscus|quinoa|paella/, "🍚"], [/pasta|macarron|espagueti|plumas|tallarin|fideo/, "🍝"], [/avena|cereal/, "🥣"], [/pan |pan$|tostada|molde|bocadillo|bocata/, "🍞"],
   [/pollo|pavo|muslo/, "🍗"], [/ternera|cerdo|lomo|hamburguesa|carne/, "🥩"], [/jamon|chorizo|salchicha/, "🥓"],
   [/gamba/, "🍤"], [/salmon|merluza|atun|bacalao|dorada|lubina|sardina|calamar|pescado/, "🐟"],
@@ -368,8 +378,13 @@ function htmlResultados() {
   if (!est.rec) prepararBuscador();
   est.vistos = new Map(); // lo que hay en pantalla, para encontrarlo al tocarlo
   const ver = (a) => { const k = "r" + est.vistos.size; est.vistos.set(k, a); return k; };
-  const fila = (a) => `<button type="button" class="nutri-res" data-acc="elegir" data-v="${ver(a)}">
-        <span>${esc(a.nombre)}${a.origen === "propio" ? ' <em class="etq">tuyo</em>' : ""}${a.origen === "off" ? ' <em class="etq etq-off">Open Food Facts</em>' : ""}<small>por 100 g · P ${n1(a.p)} · C ${n1(a.c)} · G ${n1(a.g)}</small></span><b>${n0(a.kcal)}</b></button>`;
+  // Fila de resultado: emoji, nombre, una ración típica con sus kcal y los macros por 100 g
+  const fila = (a) => {
+    const us = unidadesDe(a), u = us[0], base = us.at(-1).s;
+    const rac = u.gramos ? `100 ${base}` : `1 ${esc(u.s)} · ${n0(a.kcal * u.g / 100)} kcal`;
+    return `<button type="button" class="nutri-res nutri-res-ico" data-acc="elegir" data-v="${ver(a)}"><span class="nutri-emo" aria-hidden="true">${emojiDe(a.nombre)}</span>
+        <span class="nutri-rec-txt">${esc(a.nombre)}${a.origen === "propio" ? ' <em class="etq">tuyo</em>' : ""}${a.origen === "off" ? ' <em class="etq etq-off">súper</em>' : ""}<small>${rac} · P ${n1(a.p)} · C ${n1(a.c)} · G ${n1(a.g)}</small></span><b>${n0(a.kcal)}<small>/100 ${base}</small></b></button>`;
+  };
   // Reciente: enseña lo que pusiste la última vez y un "+" para añadirlo igual de un toque
   const filaRec = ({ a, e }) => { const k = ver(a); return `<div class="nutri-rec">
       <button type="button" class="nutri-res" data-acc="elegir" data-v="${k}"><span class="nutri-emo" aria-hidden="true">${emojiDe(a.nombre)}</span>
@@ -379,11 +394,20 @@ function htmlResultados() {
       <span class="nutri-rec-txt">${esc(m.nombre)}<small>${m.items.map((e) => esc(e.nombre.replace(/ \(.*\)$/, ""))).join(", ")}</small></span><b>${n0(m.items.reduce((x, e) => x + e.kcal, 0))}<small>kcal</small></b></button>
       <button type="button" class="nutri-quitar" data-acc="menu-borrar" data-v="${m.id}" aria-label="Borrar ${esc(m.nombre)}">✕</button></div>`;
   if (q) {
-    const l = buscarLocal(q), ms = D.guardadas().filter((m) => quitarTildes(m.nombre).includes(q));
-    return `${ms.length ? `<section class="tarjeta-entreno nutri-lista"><h2>Tus comidas guardadas</h2>${ms.map(filaMenu).join("")}</section>` : ""}<section class="tarjeta-entreno nutri-lista"><h2>Resultados</h2>${l.map(fila).join("") || '<p class="nota">No lo encuentro en tu lista.</p>'}</section>
-    ${q.length >= 3 ? `<button type="button" class="boton-secundario" data-acc="off-buscar">Buscar «${esc(est.busca.trim())}» en productos de supermercado</button>` : ""}
-    ${est.offMsg ? `<p class="nota">${esc(est.offMsg)}</p>` : ""}
-    ${est.offRes?.length ? `<section class="tarjeta-entreno nutri-lista"><h2>Productos (Open Food Facts)</h2>${est.offRes.map(fila).join("")}</section>` : ""}`;
+    const texto = est.busca.trim(), l = buscarLocal(texto), ms = D.guardadas().filter((m) => B.encaja(texto, m.nombre));
+    est.nLocal = l.length;
+    // Productos de supermercado: se buscan solos si en tu lista hay pocos resultados
+    const cargando = est.offMsg === "Buscando…";
+    const super_ = cargando ? `<section class="tarjeta-entreno nutri-lista"><h2>Productos de supermercado</h2><p class="nutri-cargando"><span class="nutri-girar" aria-hidden="true"></span>Buscando «${esc(texto)}» en supermercados…</p></section>`
+      : est.offRes?.length ? `<section class="tarjeta-entreno nutri-lista"><h2>Productos de supermercado</h2>${est.offRes.map(fila).join("")}<p class="nota nutri-fuente">Datos de Open Food Facts</p></section>`
+      : est.offMsg ? `<p class="nota">${esc(est.offMsg)}</p>`
+      : q.length >= 3 ? `<button type="button" class="boton-secundario" data-acc="off-buscar">Buscar «${esc(texto)}» en supermercados</button>` : "";
+    const nada = !l.length && !ms.length ? `<section class="tarjeta-entreno nutri-vacio"><h2>No tengo «${esc(texto)}» en la lista</h2>
+        <p class="nota">${q.length >= 3 ? "Mira abajo los productos de supermercado, o créalo tú en un momento (queda guardado para la próxima)." : "Escribe un poco más."}</p>
+        <button type="button" class="boton-principal" data-acc="crear">Crear «${esc(texto)}»</button></section>` : "";
+    return `${ms.length ? `<section class="tarjeta-entreno nutri-lista"><h2>Tus comidas guardadas</h2>${ms.map(filaMenu).join("")}</section>` : ""}
+    ${l.length ? `<section class="tarjeta-entreno nutri-lista"><h2>Resultados</h2>${l.map(fila).join("")}</section>` : nada}
+    ${super_}`;
   }
   const guardadas = D.guardadas();
   const menus = guardadas.length ? `<section class="tarjeta-entreno nutri-lista"><h2>Tus comidas guardadas</h2>${guardadas.map(filaMenu).join("")}</section>` : "";
@@ -693,6 +717,9 @@ function alEscribir(e) {
     if (est.escaner) { detenerCamara(); est.escaner = false; pintarAnadir(); return; }
     // Espera a que dejes de teclear un instante y repinta solo la lista
     clearTimeout(est.reloj); est.reloj = setTimeout(pintarResultados, 90);
+    // Si en tu lista hay pocos resultados, busca también en supermercados (al parar de escribir)
+    clearTimeout(est.relojOff);
+    est.relojOff = setTimeout(() => { if (est.busca.trim().length >= 3 && est.nLocal < 6 && navigator.onLine !== false) buscarEnOff(); }, 650);
   }
   else if (c === "codigo") est.codigoManual = e.target.value;
   else if (c === "n") {
@@ -756,23 +783,58 @@ function cargarZXing() {
   });
 }
 function mensajeEscaner(t) { est.escMsg = t; const el = caja.querySelector("#nutri-esc-msg"); if (el) el.textContent = t; }
-function detenerCamara() { try { lector?.reset(); } catch {} lector = null; }
+
+// ----- La cámara: se pide UNA vez y se reutiliza -----
+// Cada vez que una web llama a getUserMedia, el iPhone puede volver a
+// preguntar "¿Permitir cámara?". Para que no pase cada vez que escaneas,
+// abrimos la cámara una sola vez y guardamos esa "imagen en directo"
+// (el flujo). Al cerrar el escáner NO la apagamos del todo: la dejamos
+// en pausa un par de minutos por si escaneas otro producto (lo normal
+// al apuntar un desayuno), y solo después se apaga para no gastar batería.
+// Si sales de la app, iOS la apaga y al volver la pedirá una vez más.
+const PAUSA_CAMARA = 2 * 60 * 1000;
+let flujo = null, relojCamara = null;
+const flujoVivo = () => flujo && flujo.getVideoTracks().some((t) => t.readyState === "live");
+async function pedirCamara() {
+  clearTimeout(relojCamara);
+  if (flujoVivo()) { flujo.getVideoTracks().forEach((t) => (t.enabled = true)); return flujo; }
+  flujo = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+  try { localStorage.setItem("mi-horario:camara-ok", "1"); } catch {}
+  return flujo;
+}
+function apagarCamara() {
+  clearTimeout(relojCamara);
+  flujo?.getTracks().forEach((t) => t.stop()); flujo = null;
+}
+// Para de leer códigos, pero deja la cámara lista un rato
+function detenerCamara() {
+  if (lector) { lector.stream = undefined; try { lector.reset(); } catch {} lector = null; } // sin "stream", ZXing no apaga la cámara
+  if (flujo) {
+    flujo.getVideoTracks().forEach((t) => (t.enabled = false));
+    clearTimeout(relojCamara); relojCamara = setTimeout(apagarCamara, PAUSA_CAMARA);
+  }
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") { detenerCamara(); apagarCamara(); } });
+
 async function arrancarCamara() {
   const video = caja.querySelector("#nutri-video");
   if (!video || lector) return;
   try {
     if (!navigator.mediaDevices?.getUserMedia) throw new Error("Este navegador no deja usar la cámara");
-    await cargarZXing();
+    const [st] = await Promise.all([pedirCamara(), cargarZXing()]);
+    if (!caja.querySelector("#nutri-video") || !est.escaner) { detenerCamara(); return; } // cerraste mientras tanto
     const Z = window.ZXing;
-    const pistas = new Map([[Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E]]]);
-    lector = new Z.BrowserMultiFormatReader(pistas, 250);
+    const pistas = new Map([[Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E]], [Z.DecodeHintType.TRY_HARDER, true]]);
+    lector = new Z.BrowserMultiFormatReader(pistas, 200);
     mensajeEscaner("Apunta al código de barras");
-    await lector.decodeFromConstraints({ video: { facingMode: { ideal: "environment" } } }, video, (res) => {
-      if (res) { detenerCamara(); buscarCodigo(res.getText()); }
+    video.closest(".nutri-visor")?.classList.add("activo");
+    await lector.decodeFromStream(st, video, (res) => {
+      if (res && lector) { navigator.vibrate?.(40); detenerCamara(); buscarCodigo(res.getText()); }
     });
   } catch (e) {
     detenerCamara();
-    mensajeEscaner(/Permission|NotAllowed/i.test(e.name + e.message) ? "Sin permiso para la cámara: actívalo en Ajustes del iPhone o escribe el código." : `No pude abrir la cámara (${e.message}). Escribe el código.`);
+    if (/Permission|NotAllowed/i.test(e.name + e.message)) { try { localStorage.removeItem("mi-horario:camara-ok"); } catch {} }
+    mensajeEscaner(/Permission|NotAllowed/i.test(e.name + e.message) ? "Sin permiso para la cámara. Puedes escribir el código debajo." : `No pude abrir la cámara (${e.message}). Escribe el código debajo.`);
   }
 }
 // Pregunta a Open Food Facts por un código
@@ -791,14 +853,22 @@ async function buscarCodigo(codigo) {
   }
 }
 // Búsqueda de productos por nombre
+const cacheOff = new Map(); // lo ya buscado en esta sesión (no vuelve a preguntar)
 async function buscarEnOff() {
-  const texto = est.busca.trim(), pide = {}; est.offPide = pide;
-  est.offMsg = "Buscando…"; est.offRes = null; pintarResultados();
-  let res = null, msg = "";
-  try {
-    res = await off.buscar(texto);
-    msg = res.length ? "" : "No encuentro productos con ese nombre.";
-  } catch (e) { msg = navigator.onLine ? `No pude consultar Open Food Facts (${e.message}).` : "Sin conexión."; }
+  const texto = est.busca.trim(), clave = B.normalizar(texto), pide = {}; est.offPide = pide;
+  if (!clave) return;
+  let res = cacheOff.get(clave) || null, msg = "";
+  if (!res) {
+    est.offMsg = "Buscando…"; est.offRes = null; pintarResultados();
+    try {
+      // Ordena lo que devuelve con el mismo criterio que tu lista (y quita lo que no tiene nada que ver)
+      const todos = await off.buscar(texto);
+      const ind = todos.map((a) => ({ a, n: B.preparar(a.nombre) }));
+      res = B.buscar(texto, ind, (a) => (a.espana ? 0.2 : 0), 15);
+      cacheOff.set(clave, res);
+    } catch (e) { msg = navigator.onLine ? `No pude consultar los supermercados (${e.message}).` : "Sin conexión: los productos de supermercado necesitan internet."; }
+  }
+  if (!msg && !res?.length) msg = `Tampoco encuentro «${texto}» en supermercados.`;
   if (est.offPide !== pide) return; // mientras tanto cambiaste la búsqueda: esta respuesta ya no vale
   est.offRes = res; est.offMsg = msg; pintarResultados();
 }

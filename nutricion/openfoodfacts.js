@@ -9,7 +9,7 @@
 // =====================================================================
 const BASE = "https://world.openfoodfacts.org";
 const BUSCADOR = "https://search.openfoodfacts.org"; // el buscador nuevo y rápido de Open Food Facts
-const CAMPOS = "code,product_name,product_name_es,brands,nutriments,serving_quantity,serving_size,quantity";
+const CAMPOS = "code,product_name,product_name_es,brands,nutriments,serving_quantity,serving_size,quantity,countries_tags";
 
 const marca = (b) => (Array.isArray(b) ? b[0] : String(b || "").split(",")[0]).trim();
 const num = (x) => (x == null || x === "" || isNaN(Number(x)) ? null : Number(x));
@@ -35,6 +35,7 @@ export function convertir(p) {
     racion: racion && racion > 0 ? racion : null,
     unidad: "ración",
     origen: "off",
+    espana: (p.countries_tags || []).includes("en:spain"), // se vende en España (sale antes)
   };
 }
 
@@ -69,7 +70,7 @@ export async function porCodigo(codigo) {
 export async function buscar(texto) {
   const q = encodeURIComponent(texto.trim());
   try {
-    const d = await pedir(`${BUSCADOR}/search?q=${q}&page_size=20&langs=es&fields=${CAMPOS}`, 1);
+    const d = await pedir(`${BUSCADOR}/search?q=${q}&page_size=30&langs=es&fields=${CAMPOS}`, 1);
     const l = (d.hits || []).map(convertir).filter(Boolean);
     if (l.length) return l;
   } catch { /* probamos el otro */ }
